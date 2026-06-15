@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
@@ -316,10 +317,8 @@ namespace OmniMixPlayer.Module.Netease
                 }
 
                 // 确定格式
-                var format = !string.IsNullOrEmpty(songUrl.Type) ? songUrl.Type.ToLowerInvariant() : "mp3";
-                var audioFormat = string.Equals(format, "flac", StringComparison.OrdinalIgnoreCase)
-                    ? AudioFormat.Flac
-                    : AudioFormat.Mp3;
+                var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Type);
+                var format = audioFormat.GetFileExtension();
 
                 _context.Logger.LogInformation($"[{DisplayName}] 获取到歌曲 URL: {songInfo.Name} [format={format}, size={songUrl.Size}, isTrial={songUrl.IsTrial}]");
 

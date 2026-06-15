@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
@@ -205,13 +207,13 @@ namespace OmniMixPlayer.Module.QQMusic
                     return null;
                 }
 
-                // Determine format
-                var format = !string.IsNullOrEmpty(songUrl.Format) ? songUrl.Format.ToLowerInvariant() : "mp3";
-                var audioFormat = string.Equals(format, "flac", StringComparison.OrdinalIgnoreCase)
-                    ? AudioFormat.Flac
-                    : AudioFormat.Mp3;
+                var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Format ?? InferFormatFromUrl(songUrl.URL));
+                var cachePath = Path.Combine(
+                    Path.GetTempPath(),
+                    "chillpatcher_audio_cache",
+                    $"qqmusic_{songInfo.Mid}.{audioFormat.GetFileExtension()}");
 
-                _logger?.LogInformation($"Got URL for {songInfo.Name} [format={format}, size={songUrl.Size}] (attempt {attempt}/{maxRetries})");
+                _logger?.LogInformation($"Got URL for {songInfo.Name} [format={audioFormat.ToFormatString()}, size={songUrl.Size}] (attempt {attempt}/{maxRetries})");
 
                 return new PlayableSource
                 {
@@ -220,12 +222,19 @@ namespace OmniMixPlayer.Module.QQMusic
                     Url = songUrl.URL,
                     Format = audioFormat,
                     Headers = new Dictionary<string, string> { ["User-Agent"] = "Mozilla/5.0" },
-                    CacheKey = $"qqmusic_{songInfo.Mid}"
+                    CachePath = cachePath,
+                    UseCachePath = true
                 };
             }
 
             return null;
         }
+
+        private static string InferFormatFromUrl(string url)
+        {
+            return AudioFormatExtensions.InferFormatFromPath(url) ?? "mp3";
+        }
+
 
         public Task<PlayableSource> RefreshUrlAsync(
             string uuid,
@@ -448,8 +457,9 @@ namespace OmniMixPlayer.Module.QQMusic
 
                 _logger?.LogInformation($"Registered {registeredFavorites.Count} favorite songs");
 
-                // Import custom playlists
-                await ImportCustomPlaylistsAsync();
+                // Import the user's original QQ Music playlist structure, then
+                // append any manually configured playlist IDs.
+                await ImportPlaylistsAsync();
                 _logger?.LogInformation("ScanAndRegisterAsync: Completed");
             }
             catch (Exception ex)
@@ -485,36 +495,86 @@ namespace OmniMixPlayer.Module.QQMusic
             }
         }
 
-        private async Task ImportCustomPlaylistsAsync()
+        private async Task ImportPlaylistsAsync()
         {
-            var playlistIdsStr = _context.ConfigManager.GetValue<string>("CustomPlaylistIds", "");
-            if (string.IsNullOrWhiteSpace(playlistIdsStr)) return;
+            var playlists = new List<QQMusicBridge.PlaylistInfo>();
+            var seenPlaylistIds = new HashSet<long>();
+            var loadedUserPlaylists = false;
 
-            var ids = playlistIdsStr.Split(',')
-                .Select(s => s.Trim())
-                .Where(s => long.TryParse(s, out _))
-                .Select(long.Parse)
-                .ToList();
-
-            foreach (var playlistId in ids)
+            try
             {
-                try
+                var userPlaylists = await Task.Run(() => _bridge.GetUserPlaylists());
+                loadedUserPlaylists = userPlaylists != null;
+                foreach (var playlist in (userPlaylists?.Created ?? new List<QQMusicBridge.PlaylistInfo>())
+                    .Concat(userPlaylists?.Collected ?? new List<QQMusicBridge.PlaylistInfo>()))
                 {
-                    var detail = await Task.Run(() => _bridge.GetPlaylistSongs(playlistId));
-                    if (detail == null || detail.Songs == null) continue;
-
-                    _songRegistry.RegisterPlaylist(playlistId, detail.DissName, detail.CoverUrl);
-
-                    var musicList = _songRegistry.RegisterPlaylistSongs(playlistId, detail.Songs, _songInfoMap);
-                    _customPlaylistMusicLists[playlistId] = musicList;
-
-                    _logger?.LogInformation($"Imported playlist: {detail.DissName} ({musicList.Count} songs)");
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError($"Failed to import playlist {playlistId}: {ex.Message}");
+                    if (playlist != null && playlist.DissID > 0 && seenPlaylistIds.Add(playlist.DissID))
+                        playlists.Add(playlist);
                 }
             }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Failed to get QQ Music user playlists: {ex.Message}");
+            }
+
+            var playlistIdsStr = _context.ConfigManager.GetValue<string>("CustomPlaylistIds", "");
+            if (!string.IsNullOrWhiteSpace(playlistIdsStr))
+            {
+                foreach (var playlistId in playlistIdsStr.Split(',')
+                    .Select(s => s.Trim())
+                    .Where(s => long.TryParse(s, out _))
+                    .Select(long.Parse))
+                {
+                    if (playlistId > 0 && seenPlaylistIds.Add(playlistId))
+                        playlists.Add(new QQMusicBridge.PlaylistInfo { DissID = playlistId });
+                }
+            }
+
+            foreach (var playlist in playlists)
+                await ImportPlaylistAsync(playlist);
+
+            if (loadedUserPlaylists)
+            {
+                var stalePlaylists = _context.Library.QueryPlaylists(new PlaylistQuery
+                {
+                    ModuleId = ModuleId,
+                    Limit = 0
+                }).Where(p => p.Id.StartsWith("qqmusic_playlist_", StringComparison.Ordinal) &&
+                             !seenPlaylistIds.Contains(ParsePlaylistId(p.Id))).ToList();
+                foreach (var stalePlaylist in stalePlaylists)
+                    _context.Library.DeletePlaylist(stalePlaylist.Id);
+            }
+        }
+
+        private async Task ImportPlaylistAsync(QQMusicBridge.PlaylistInfo playlist)
+        {
+            try
+            {
+                var detail = await Task.Run(() => _bridge.GetPlaylistSongs(playlist.DissID));
+                if (detail?.Songs == null) return;
+
+                var name = !string.IsNullOrWhiteSpace(detail.DissName) ? detail.DissName : playlist.DissName;
+                var coverUrl = !string.IsNullOrWhiteSpace(detail.CoverUrl) ? detail.CoverUrl : playlist.CoverUrl;
+                _songRegistry.RegisterPlaylist(playlist.DissID, name, coverUrl);
+
+                var musicList = _songRegistry.RegisterPlaylistSongs(playlist.DissID, detail.Songs, _songInfoMap);
+                _customPlaylistMusicLists[playlist.DissID] = musicList;
+                _logger?.LogInformation($"Imported playlist: {name} ({musicList.Count} songs)");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Failed to import playlist {playlist.DissID}: {ex.Message}");
+            }
+        }
+
+        private static long ParsePlaylistId(string playlistId)
+        {
+            const string prefix = "qqmusic_playlist_";
+            return playlistId != null &&
+                   playlistId.StartsWith(prefix, StringComparison.Ordinal) &&
+                   long.TryParse(playlistId.Substring(prefix.Length), out var parsed)
+                ? parsed
+                : 0;
         }
 
         private void OnFavoriteChanged(FavoriteChangedEvent evt)

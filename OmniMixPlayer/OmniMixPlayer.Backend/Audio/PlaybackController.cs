@@ -484,32 +484,9 @@ namespace OmniMixPlayer.Backend.Audio
 
         private static string FormatToString(AudioFormat format, string url, string cachePath)
         {
-            return format switch
-            {
-                AudioFormat.Flac => "flac",
-                AudioFormat.Wav => "wav",
-                AudioFormat.Aac => "aac",
-                AudioFormat.Ogg => "ogg",
-                AudioFormat.Mp3 => "mp3",
-                _ => InferFormatFromPath(cachePath) ?? InferFormatFromPath(url) ?? "mp3"
-            };
+            return AudioFormatExtensions.ToFormatString(format, url, cachePath);
         }
 
-        private static string InferFormatFromPath(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return null;
-            var ext = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
-            return ext switch
-            {
-                "flac" => "flac",
-                "wav" => "wav",
-                "aac" => "aac",
-                "m4a" => "aac",
-                "ogg" => "ogg",
-                "mp3" => "mp3",
-                _ => null
-            };
-        }
 
         private void SetPlayState(int state)
         {

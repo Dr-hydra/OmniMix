@@ -24,10 +24,10 @@ func (c *Client) FetchUserInfo() (*models.UserInfo, error) {
 
 	var result struct {
 		Creator struct {
-			Uin      int64  `json:"uin"`
-			Nick     string `json:"nick"`
-			HeadPic  string `json:"headpic"`
-			EncUin   string `json:"encrypt_uin"`
+			Uin     int64  `json:"uin"`
+			Nick    string `json:"nick"`
+			HeadPic string `json:"headpic"`
+			EncUin  string `json:"encrypt_uin"`
 		} `json:"creator"`
 	}
 
@@ -347,24 +347,24 @@ func (c *Client) GetUserCreatedPlaylists() ([]models.PlaylistInfo, error) {
 	}
 
 	params := map[string]interface{}{
-		"uin":          uin,
-		"size":         200,
-		"offset":       0,
-		"sort":         5, // by update time
+		"uin":    uin,
+		"size":   200,
+		"offset": 0,
+		"sort":   5, // by update time
 	}
 
 	data, err := c.RequestCGI("music.srfDissInfo.aiDissInfo", "get_uin_diss", params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get playlists: %w", err)
+		return c.getUserCreatedPlaylistsFCG(uin)
 	}
 
 	var result struct {
 		DissList []struct {
-			TID      int64  `json:"tid"`
-			DirName  string `json:"diss_name"`
-			SongCnt  int    `json:"song_cnt"`
-			DirPic   string `json:"diss_cover"`
-			Creator  struct {
+			TID     int64  `json:"tid"`
+			DirName string `json:"diss_name"`
+			SongCnt int    `json:"song_cnt"`
+			DirPic  string `json:"diss_cover"`
+			Creator struct {
 				Name string `json:"name"`
 			} `json:"creator"`
 		} `json:"disslist"`
@@ -403,16 +403,16 @@ func (c *Client) GetUserCollectedPlaylists() ([]models.PlaylistInfo, error) {
 
 	data, err := c.RequestCGI("music.srfDissInfo.aiDissInfo", "get_collect_diss", params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get collected playlists: %w", err)
+		return c.getUserCollectedPlaylistsFCG(uin)
 	}
 
 	var result struct {
 		DissList []struct {
-			TID      int64  `json:"tid"`
-			DirName  string `json:"diss_name"`
-			SongCnt  int    `json:"song_cnt"`
-			DirPic   string `json:"diss_cover"`
-			Creator  struct {
+			TID     int64  `json:"tid"`
+			DirName string `json:"diss_name"`
+			SongCnt int    `json:"song_cnt"`
+			DirPic  string `json:"diss_cover"`
+			Creator struct {
 				Name string `json:"name"`
 			} `json:"creator"`
 		} `json:"disslist"`
@@ -433,5 +433,107 @@ func (c *Client) GetUserCollectedPlaylists() ([]models.PlaylistInfo, error) {
 		})
 	}
 
+	return playlists, nil
+}
+
+// getUserCreatedPlaylistsFCG falls back to the profile endpoint when the
+// newer musicu CGI rejects the request with code 40000.
+func (c *Client) getUserCreatedPlaylistsFCG(uin int64) ([]models.PlaylistInfo, error) {
+	c.mu.RLock()
+	cookies := c.cookies
+	gtk := c.gtk
+	c.mu.RUnlock()
+
+	fcgURL := fmt.Sprintf("https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?hostuin=%d&sin=0&size=200&format=json&g_tk=%d&loginUin=%d&platform=yqq.json&needNewCode=0", uin, gtk, uin)
+	resp, err := c.httpClient.R().
+		SetHeader("Cookie", cookies).
+		SetHeader("Referer", "https://y.qq.com/n/ryqq/profile").
+		SetHeader("Origin", "https://y.qq.com").
+		Get(fcgURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get created playlists from FCG: %w", err)
+	}
+
+	var result struct {
+		Code int `json:"code"`
+		Data struct {
+			DissList []struct {
+				TID      int64  `json:"tid"`
+				DissName string `json:"diss_name"`
+				SongCnt  int    `json:"song_cnt"`
+				CoverURL string `json:"diss_cover"`
+			} `json:"disslist"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse created playlists from FCG: %w", err)
+	}
+	if result.Code != 0 {
+		return nil, fmt.Errorf("created playlists FCG error code: %d", result.Code)
+	}
+
+	playlists := make([]models.PlaylistInfo, 0, len(result.Data.DissList))
+	for _, diss := range result.Data.DissList {
+		if diss.TID <= 0 {
+			continue
+		}
+		playlists = append(playlists, models.PlaylistInfo{
+			DissID:    diss.TID,
+			DissName:  diss.DissName,
+			SongCount: diss.SongCnt,
+			CoverUrl:  diss.CoverURL,
+		})
+	}
+	return playlists, nil
+}
+
+func (c *Client) getUserCollectedPlaylistsFCG(uin int64) ([]models.PlaylistInfo, error) {
+	c.mu.RLock()
+	cookies := c.cookies
+	gtk := c.gtk
+	c.mu.RUnlock()
+
+	fcgURL := fmt.Sprintf("https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg?ct=20&cid=205360956&userid=%d&reqtype=3&sin=0&ein=200&format=json&g_tk=%d&loginUin=%d&platform=yqq.json&needNewCode=0", uin, gtk, uin)
+	resp, err := c.httpClient.R().
+		SetHeader("Cookie", cookies).
+		SetHeader("Referer", "https://y.qq.com/n/ryqq/profile").
+		SetHeader("Origin", "https://y.qq.com").
+		Get(fcgURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get collected playlists from FCG: %w", err)
+	}
+
+	var result struct {
+		Code int `json:"code"`
+		Data struct {
+			CDList []struct {
+				DissID   int64  `json:"dissid"`
+				DissName string `json:"dissname"`
+				SongNum  int    `json:"songnum"`
+				Logo     string `json:"logo"`
+				Nickname string `json:"nickname"`
+			} `json:"cdlist"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse collected playlists from FCG: %w", err)
+	}
+	if result.Code != 0 {
+		return nil, fmt.Errorf("collected playlists FCG error code: %d", result.Code)
+	}
+
+	playlists := make([]models.PlaylistInfo, 0, len(result.Data.CDList))
+	for _, diss := range result.Data.CDList {
+		if diss.DissID <= 0 {
+			continue
+		}
+		playlists = append(playlists, models.PlaylistInfo{
+			DissID:    diss.DissID,
+			DissName:  diss.DissName,
+			SongCount: diss.SongNum,
+			CoverUrl:  diss.Logo,
+			Creator:   diss.Nickname,
+		})
+	}
 	return playlists, nil
 }

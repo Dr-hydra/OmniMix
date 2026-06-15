@@ -332,6 +332,97 @@ namespace OmniMixPlayer.SDK.Interfaces
                 _ => false
             };
         }
+
+        public static string GetFileExtension(this AudioFormat format)
+        {
+            return format switch
+            {
+                AudioFormat.Flac => "flac",
+                AudioFormat.Wav => "wav",
+                AudioFormat.Ogg => "ogg",
+                AudioFormat.Aac => "m4a",
+                AudioFormat.Mp3 => "mp3",
+                _ => "audio"
+            };
+        }
+
+        public static string ToFormatString(this AudioFormat format, string url = null, string cachePath = null)
+        {
+            if (format != AudioFormat.Unknown)
+            {
+                return format switch
+                {
+                    AudioFormat.Flac => "flac",
+                    AudioFormat.Wav => "wav",
+                    AudioFormat.Aac => "aac",
+                    AudioFormat.Ogg => "ogg",
+                    AudioFormat.Mp3 => "mp3",
+                    _ => "mp3"
+                };
+            }
+
+            return InferFormatFromPath(cachePath) ?? InferFormatFromPath(url) ?? "mp3";
+        }
+
+        public static string InferFormatFromPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            try
+            {
+                string cleanPath = path;
+                if (path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Uri.TryCreate(path, UriKind.Absolute, out var uri))
+                    {
+                        cleanPath = uri.AbsolutePath;
+                    }
+                    else
+                    {
+                        cleanPath = path.Split('?', '#')[0];
+                    }
+                }
+                else
+                {
+                    cleanPath = path.Split('?', '#')[0];
+                }
+
+                var ext = System.IO.Path.GetExtension(cleanPath)?.TrimStart('.').ToLowerInvariant();
+                return ext switch
+                {
+                    "flac" => "flac",
+                    "wav" => "wav",
+                    "aac" => "aac",
+                    "m4a" => "aac",
+                    "ogg" => "ogg",
+                    "mp3" => "mp3",
+                    _ => null
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static string NormalizeAudioFormat(string bridgeFormat, string url)
+        {
+            var format = bridgeFormat?.Trim().TrimStart('.').ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(format))
+                return format;
+
+            var inferred = InferFormatFromPath(url);
+            return inferred ?? "mp3";
+        }
+
+        public static bool SupportsProgressiveDecoding(string format)
+        {
+            if (string.IsNullOrWhiteSpace(format))
+                return false;
+
+            var fmt = format.Trim().TrimStart('.').ToLowerInvariant();
+            return fmt != "aac" && fmt != "m4a" && fmt != "mp4" && fmt != "m4s";
+        }
     }
 
     #endregion

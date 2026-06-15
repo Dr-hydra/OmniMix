@@ -57,7 +57,7 @@ namespace OmniMixPlayer.Module.QQMusic
                 Name = name,
                 ModuleId = _moduleId,
                 Kind = PlaylistKind.Imported,
-                CoverUri = coverUrl ?? ""
+                CoverUri = NormalizeCoverUrl(coverUrl)
             });
         }
 
@@ -158,7 +158,7 @@ namespace OmniMixPlayer.Module.QQMusic
                 track.SourcePath = song.Mid;
                 track.ModuleId = _moduleId;
                 track.IsFavorite = false;
-                track.CoverUri = song.CoverUrl ?? "";
+                track.CoverUri = NormalizeCoverUrl(song.CoverUrl);
 
                 _context.Library.UpsertTrack(track);
                 tracks.Add(track);
@@ -220,7 +220,7 @@ namespace OmniMixPlayer.Module.QQMusic
             track.SourcePath = song.Mid;
             track.ModuleId = _moduleId;
             track.IsFavorite = isFavorite;
-            track.CoverUri = song.CoverUrl ?? "";
+            track.CoverUri = NormalizeCoverUrl(song.CoverUrl);
 
             _context.Library.UpsertTrack(track);
             return track;
@@ -261,9 +261,21 @@ namespace OmniMixPlayer.Module.QQMusic
                 Title = song.Album ?? "",
                 Artist = song.ArtistString,
                 ModuleId = _moduleId,
-                CoverUri = song.CoverUrl ?? ""
+                CoverUri = NormalizeCoverUrl(song.CoverUrl)
             });
             return albumId;
+        }
+
+        public static string NormalizeCoverUrl(string coverUrl)
+        {
+            if (string.IsNullOrWhiteSpace(coverUrl)) return "";
+
+            var normalized = coverUrl.Trim();
+            if (normalized.StartsWith("//", StringComparison.Ordinal))
+                return "https:" + normalized;
+            if (normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                return "https://" + normalized.Substring("http://".Length);
+            return normalized;
         }
 
         #endregion

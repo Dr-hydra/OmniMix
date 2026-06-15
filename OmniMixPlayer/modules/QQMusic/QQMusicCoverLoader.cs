@@ -86,7 +86,7 @@ namespace OmniMixPlayer.Module.QQMusic
                 return (_defaultQQMusicCoverBytes, "image/png");
             }
 
-            var result = await DownloadCoverAsync(songInfo.CoverUrl);
+            var result = await DownloadSongCoverAsync(songInfo);
             if (result.data != null)
             {
                 _coverCache[uuid] = result;
@@ -111,7 +111,7 @@ namespace OmniMixPlayer.Module.QQMusic
                     !string.IsNullOrWhiteSpace(s.CoverUrl));
                 if (songInfo != null)
                 {
-                    var result = await DownloadCoverAsync(songInfo.CoverUrl);
+                    var result = await DownloadSongCoverAsync(songInfo);
                     if (result.data != null)
                     {
                         _coverCache[albumId] = result;
@@ -132,19 +132,40 @@ namespace OmniMixPlayer.Module.QQMusic
 
             if (!_songInfoMap.TryGetValue(uuid, out var songInfo))
             {
-                return (null, null);
+                return (_defaultQQMusicCoverBytes, "image/png");
             }
 
             if (string.IsNullOrEmpty(songInfo.CoverUrl))
             {
-                return (null, null);
+                return (_defaultQQMusicCoverBytes, "image/png");
             }
 
-            var result = await DownloadCoverAsync(songInfo.CoverUrl);
+            var result = await DownloadSongCoverAsync(songInfo);
             if (result.data != null && result.data.Length > 0)
             {
                 _coverCache[uuid] = result;
                 return result;
+            }
+
+            return (_defaultQQMusicCoverBytes, "image/png");
+        }
+
+        private async Task<(byte[] data, string mimeType)> DownloadSongCoverAsync(QQMusicBridge.SongInfo songInfo)
+        {
+            var urls = new List<string>();
+            if (!string.IsNullOrWhiteSpace(songInfo?.CoverUrl))
+                urls.Add(QQMusicSongRegistry.NormalizeCoverUrl(songInfo.CoverUrl));
+            if (!string.IsNullOrWhiteSpace(songInfo?.AlbumMid))
+            {
+                urls.Add($"https://y.gtimg.cn/music/photo_new/T002R500x500M000{songInfo.AlbumMid}.jpg");
+                urls.Add($"https://y.gtimg.cn/music/photo_new/T002R300x300M000{songInfo.AlbumMid}.jpg");
+            }
+
+            foreach (var url in urls.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var result = await DownloadCoverAsync(url);
+                if (result.data != null && result.data.Length > 0)
+                    return result;
             }
 
             return (null, null);
@@ -154,7 +175,10 @@ namespace OmniMixPlayer.Module.QQMusic
         {
             try
             {
-                var response = await _httpClient.GetAsync(url);
+                using var request = new HttpRequestMessage(HttpMethod.Get, QQMusicSongRegistry.NormalizeCoverUrl(url));
+                request.Headers.UserAgent.ParseAdd("Mozilla/5.0");
+                request.Headers.Referrer = new Uri("https://y.qq.com/");
+                using var response = await _httpClient.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
                     var data = await response.Content.ReadAsByteArrayAsync();
