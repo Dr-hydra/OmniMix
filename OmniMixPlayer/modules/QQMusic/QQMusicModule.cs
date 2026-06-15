@@ -207,7 +207,12 @@ namespace OmniMixPlayer.Module.QQMusic
                     return null;
                 }
 
-                var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Format ?? InferFormatFromUrl(songUrl.URL));
+                var formatHint = string.IsNullOrWhiteSpace(songUrl.Format)
+                    ? InferFormatFromUrl(songUrl.URL)
+                    : songUrl.Format;
+                var audioFormat = AudioFormatExtensions.FromExtension(formatHint);
+                if (audioFormat == AudioFormat.Unknown)
+                    audioFormat = AudioFormat.Mp3;
                 var cachePath = Path.Combine(
                     Path.GetTempPath(),
                     "chillpatcher_audio_cache",

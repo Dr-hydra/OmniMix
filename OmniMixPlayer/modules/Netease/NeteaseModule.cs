@@ -318,6 +318,8 @@ namespace OmniMixPlayer.Module.Netease
 
                 // 确定格式
                 var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Type);
+                if (audioFormat == AudioFormat.Unknown)
+                    audioFormat = AudioFormat.Mp3;
                 var format = audioFormat.GetFileExtension();
 
                 _context.Logger.LogInformation($"[{DisplayName}] 获取到歌曲 URL: {songInfo.Name} [format={format}, size={songUrl.Size}, isTrial={songUrl.IsTrial}]");

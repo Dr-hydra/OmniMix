@@ -226,6 +226,11 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to open/reopen decoder after cache completion: {Msg}", ex.Message);
+                lock (_lock)
+                {
+                    _isReady = true;
+                    _isEndOfStream = true;
+                }
             }
         }
 

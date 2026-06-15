@@ -81,11 +81,6 @@ namespace OmniMixPlayer.Module.QQMusic
                 return (_defaultQQMusicCoverBytes, "image/png");
             }
 
-            if (string.IsNullOrEmpty(songInfo.CoverUrl))
-            {
-                return (_defaultQQMusicCoverBytes, "image/png");
-            }
-
             var result = await DownloadSongCoverAsync(songInfo);
             if (result.data != null)
             {
@@ -107,8 +102,7 @@ namespace OmniMixPlayer.Module.QQMusic
             {
                 var songInfo = _songInfoMap.Values.FirstOrDefault(s =>
                     !string.IsNullOrWhiteSpace(s.AlbumMid) &&
-                    albumId == $"qqmusic_album_{s.AlbumMid}" &&
-                    !string.IsNullOrWhiteSpace(s.CoverUrl));
+                    albumId == $"qqmusic_album_{s.AlbumMid}");
                 if (songInfo != null)
                 {
                     var result = await DownloadSongCoverAsync(songInfo);
@@ -131,11 +125,6 @@ namespace OmniMixPlayer.Module.QQMusic
             }
 
             if (!_songInfoMap.TryGetValue(uuid, out var songInfo))
-            {
-                return (_defaultQQMusicCoverBytes, "image/png");
-            }
-
-            if (string.IsNullOrEmpty(songInfo.CoverUrl))
             {
                 return (_defaultQQMusicCoverBytes, "image/png");
             }
