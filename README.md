@@ -8,7 +8,7 @@ The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-h
 
 ## Status
 
-Version: `3.0.7`
+Version: `3.0.8`
 
 Primary artifact:
 

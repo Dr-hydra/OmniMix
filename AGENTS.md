@@ -82,6 +82,10 @@ This repository is the VB.NET/WPF compatible frontend for OmniMix. Treat it as a
 - Before release work, check the current GitHub Release assets and upstream Release asset digest.
 - Avoid deleting or rewriting generated/upstream package contents unless the release task specifically requires that replacement.
 
+## Terminal
+
+- Use PowerShell 7 (`pwsh`) for all terminal operations.
+
 ## Documentation Notes
 
 - `README.md` is the canonical English project overview.

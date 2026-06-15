@@ -126,7 +126,10 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             _cache.OnComplete += OnCacheComplete;
             _cache.StartDownload();
 
-            StartInitialDecoderOpen();
+            if (AudioFormatExtensions.SupportsProgressiveDecoding(_format))
+            {
+                StartInitialDecoderOpen();
+            }
         }
 
         // ===== Bottle + Tap: open once there is enough data, without blocking creation =====
@@ -197,13 +200,33 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             }
         }
 
-        // ===== OnCacheComplete: just a flag, no switch =====
+        // ===== OnCacheComplete: open decoder or transition it to non-growing =====
 
         private void OnCacheComplete()
         {
-            // Nothing to do. The decoder is already reading from the file.
-            // When ReadFrames returns 0 and cache is complete → real EOF.
-            _logger?.LogInformation("Cache complete — decoder will naturally reach EOF");
+            _logger?.LogInformation("Cache complete — transitioning decoder to non-growing");
+
+            if (_disposed || _cache == null)
+                return;
+
+            try
+            {
+                lock (_lock)
+                {
+                    if (_decoder != null && _pendingSeek < 0)
+                    {
+                        _pendingSeek = (long)_currentFrame;
+                    }
+                }
+
+                OpenDecoder(_cache.CachePath, false);
+                _isReady = true;
+                _logger?.LogInformation("Decoder opened/reopened after cache completion");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to open/reopen decoder after cache completion: {Msg}", ex.Message);
+            }
         }
 
         // ===== ReadFrames: single data path =====
@@ -213,11 +236,18 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             if (_disposed) return 0;
 
             // Lazy init: if the background open did not finish yet, try now.
-            if (_decoder == null && _cache != null &&
-                (_cache.Downloaded >= 65536 || _cache.IsComplete))
+            if (_decoder == null && _cache != null)
             {
-                try { OpenDecoder(_cache.CachePath, true); _isReady = true; }
-                catch { /* will retry next call */ }
+                if (_cache.IsComplete)
+                {
+                    try { OpenDecoder(_cache.CachePath, false); _isReady = true; }
+                    catch { /* will retry next call */ }
+                }
+                else if (AudioFormatExtensions.SupportsProgressiveDecoding(_format) && _cache.Downloaded >= 65536)
+                {
+                    try { OpenDecoder(_cache.CachePath, true); _isReady = true; }
+                    catch { /* will retry next call */ }
+                }
             }
 
             if (_decoder == null)

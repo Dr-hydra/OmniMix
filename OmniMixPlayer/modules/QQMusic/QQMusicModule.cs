@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
@@ -205,13 +207,13 @@ namespace OmniMixPlayer.Module.QQMusic
                     return null;
                 }
 
-                // Determine format
-                var format = !string.IsNullOrEmpty(songUrl.Format) ? songUrl.Format.ToLowerInvariant() : "mp3";
-                var audioFormat = string.Equals(format, "flac", StringComparison.OrdinalIgnoreCase)
-                    ? AudioFormat.Flac
-                    : AudioFormat.Mp3;
+                var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Format ?? InferFormatFromUrl(songUrl.URL));
+                var cachePath = Path.Combine(
+                    Path.GetTempPath(),
+                    "chillpatcher_audio_cache",
+                    $"qqmusic_{songInfo.Mid}.{audioFormat.GetFileExtension()}");
 
-                _logger?.LogInformation($"Got URL for {songInfo.Name} [format={format}, size={songUrl.Size}] (attempt {attempt}/{maxRetries})");
+                _logger?.LogInformation($"Got URL for {songInfo.Name} [format={audioFormat.ToFormatString()}, size={songUrl.Size}] (attempt {attempt}/{maxRetries})");
 
                 return new PlayableSource
                 {
@@ -220,12 +222,19 @@ namespace OmniMixPlayer.Module.QQMusic
                     Url = songUrl.URL,
                     Format = audioFormat,
                     Headers = new Dictionary<string, string> { ["User-Agent"] = "Mozilla/5.0" },
-                    CacheKey = $"qqmusic_{songInfo.Mid}"
+                    CachePath = cachePath,
+                    UseCachePath = true
                 };
             }
 
             return null;
         }
+
+        private static string InferFormatFromUrl(string url)
+        {
+            return AudioFormatExtensions.InferFormatFromPath(url) ?? "mp3";
+        }
+
 
         public Task<PlayableSource> RefreshUrlAsync(
             string uuid,
