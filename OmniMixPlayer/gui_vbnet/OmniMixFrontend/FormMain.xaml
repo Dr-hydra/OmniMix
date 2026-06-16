@@ -107,6 +107,12 @@
                             </LinearGradientBrush>
                         </Rectangle.Fill>
                     </Rectangle>
+                    <Image x:Name="ImgBackImage"
+                           Width="{Binding ActualWidth, ElementName=ImgBack}"
+                           Height="{Binding ActualHeight, ElementName=ImgBack}"
+                           Stretch="UniformToFill"
+                           RenderOptions.BitmapScalingMode="LowQuality"
+                           Visibility="Collapsed" />
                 </Canvas>
                 <Grid x:Name="PanTitle" Height="48">
                     <Grid.Background>

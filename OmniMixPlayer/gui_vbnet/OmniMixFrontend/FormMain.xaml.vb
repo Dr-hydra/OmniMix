@@ -4,6 +4,10 @@ Imports System.Windows.Interop
 
 Public Class FormMain
 
+    Private Const DefaultBackgroundImagePath As String = "Images/Backgrounds/default.png"
+    Private Const BackgroundModeDefault As String = "__default__"
+    Private Const BackgroundModeSolid As String = "__solid__"
+
     Private Const WmHotkey As Integer = &H312
     Private Const WmAppCommand As Integer = &H319
     Private Const ModNoRepeat As UInteger = &H4000UI
@@ -159,7 +163,7 @@ Public Class FormMain
         RegisterMediaHotkeys()
         AniStart({
             AaCode(Sub() AniControlEnabled -= 1, 50),
-            AaOpacity(Me, Settings.Get(Of Integer)("UiLauncherTransparent") / 1000 + 0.4, 250, 100),
+            AaOpacity(Me, GetWindowOpacity(), 250, 100),
             AaDouble(Sub(i) TransformPos.Y += i, -TransformPos.Y, 600, 100, New AniEaseOutBack(AniEasePower.Weak)),
             AaDouble(Sub(i) TransformRotate.Angle += i, -TransformRotate.Angle, 500, 100, New AniEaseOutBack(AniEasePower.Weak)),
             AaCode(
@@ -352,10 +356,9 @@ Public Class FormMain
 
     Public Sub UpdateBackgroundAndTitleBar()
         Logger.Info("从设置更新背景图片与标题栏样式")
-        ImgBack.Opacity = Settings.Get(Of Integer)("UiBackgroundOpacity") / 1000
-        Dim BlurRadius As Double = Settings.Get(Of Integer)("UiBackgroundBlur") + 1
-        ImgBack.Effect = If(BlurRadius = 1, Nothing, New Effects.BlurEffect With {.Radius = BlurRadius})
-        ImgBack.Margin = New Thickness(-BlurRadius / 1.8)
+        LoadBackgroundImage()
+        UpdateWindowOpacity()
+        UpdateControlOpacity()
 
         ShapeTitleLogo.Visibility = Visibility.Collapsed
         LabTitleLogo.Visibility = Visibility.Visible
@@ -366,6 +369,80 @@ Public Class FormMain
         If String.IsNullOrWhiteSpace(LabOmniMixConnectionStatus.Text) Then SetOmniMixConnectionStatus(False)
         PanTitleMain.ColumnDefinitions(0).Width = New GridLength(1, GridUnitType.Star)
     End Sub
+
+    Public Sub LoadBackgroundImage()
+        Dim OpacityValue = NormalizePercentSetting(Settings.Get(Of Integer)("UiBackgroundOpacity"), 1000)
+        ImgBack.Opacity = OpacityValue / 100.0
+        ImgBack.Visibility = If(OpacityValue <= 0, Visibility.Collapsed, Visibility.Visible)
+
+        Dim BlurRadius As Double
+        If Settings.HasSaved("UiBackgroundClarity") Then
+            Dim Clarity = NormalizePercentSetting(Settings.Get(Of Integer)("UiBackgroundClarity"), 100)
+            BlurRadius = (100 - Clarity) * 0.3
+        Else
+            BlurRadius = Settings.Get(Of Integer)("UiBackgroundBlur")
+        End If
+        ImgBack.Effect = If(BlurRadius <= 0, Nothing, New Effects.BlurEffect With {.Radius = BlurRadius})
+        ImgBack.Margin = New Thickness(-Math.Max(1, BlurRadius + 1) / 1.8)
+
+        Dim ImagePath = Settings.Get(Of String)("UiBackgroundImagePath")
+        Dim ImageUri = GetBackgroundImageUri(ImagePath)
+        If ImageUri IsNot Nothing Then
+            Try
+                Dim Image As New BitmapImage()
+                Image.BeginInit()
+                Image.CacheOption = BitmapCacheOption.OnLoad
+                Image.UriSource = ImageUri
+                Image.EndInit()
+                Image.Freeze()
+                ImgBackImage.Source = Image
+                ImgBackImage.Visibility = Visibility.Visible
+            Catch ex As Exception
+                Logger.Warn(ex, "加载自定义背景图失败")
+                ImgBackImage.Source = Nothing
+                ImgBackImage.Visibility = Visibility.Collapsed
+            End Try
+        Else
+            ImgBackImage.Source = Nothing
+            ImgBackImage.Visibility = Visibility.Collapsed
+        End If
+    End Sub
+
+    Private Shared Function GetBackgroundImageUri(ImagePath As String) As Uri
+        If String.IsNullOrWhiteSpace(ImagePath) OrElse ImagePath = BackgroundModeDefault Then
+            Return New Uri(DefaultBackgroundImagePath, UriKind.Relative)
+        End If
+        If ImagePath = BackgroundModeSolid Then Return Nothing
+        If File.Exists(ImagePath) Then Return New Uri(ImagePath, UriKind.Absolute)
+        Return New Uri(DefaultBackgroundImagePath, UriKind.Relative)
+    End Function
+
+    Public Sub UpdateWindowOpacity()
+        Opacity = GetWindowOpacity()
+    End Sub
+
+    Public Sub UpdateControlOpacity()
+        Dim OpacityValue = NormalizePercentSetting(Settings.Get(Of Integer)("UiControlOpacity"), 100)
+        Dim AlphaInt = Math.Max(0, Math.Min(255, CInt(OpacityValue / 100.0 * 255)))
+        Dim Alpha As Byte = CByte(AlphaInt)
+        Dim SidebarBrush As New SolidColorBrush(Color.FromArgb(Alpha, 255, 255, 255))
+        SidebarBrush.Freeze()
+        Application.Current.Resources("ColorBrushBackgroundTransparentSidebar") = SidebarBrush
+
+        Dim CardBrush As New SolidColorBrush(Color.FromArgb(Alpha, 255, 255, 255))
+        CardBrush.Freeze()
+        Application.Current.Resources("ColorBrushCardBackground") = CardBrush
+    End Sub
+
+    Private Function GetWindowOpacity() As Double
+        Dim Percent = NormalizePercentSetting(Settings.Get(Of Integer)("UiLauncherTransparent"), 600)
+        Return Percent / 100.0 * 0.6 + 0.4
+    End Function
+
+    Private Shared Function NormalizePercentSetting(Value As Integer, LegacyMax As Integer) As Integer
+        If Value > 100 AndAlso LegacyMax > 100 Then Value = CInt(Math.Round(Value / LegacyMax * 100.0))
+        Return Math.Max(0, Math.Min(100, Value))
+    End Function
 
     Public Sub SetOmniMixConnectionStatus(IsOnline As Boolean, Optional BaseUrl As String = "")
         If LabOmniMixConnectionStatus Is Nothing Then Return

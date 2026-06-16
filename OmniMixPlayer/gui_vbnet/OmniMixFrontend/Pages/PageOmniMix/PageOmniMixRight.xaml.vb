@@ -2,6 +2,7 @@ Imports System.Globalization
 Imports System.Text.Json
 Imports System.Windows.Media
 Imports System.Windows.Shapes
+Imports Microsoft.Win32
 
 Public Class PageOmniMixRight
 
@@ -214,6 +215,7 @@ Public Class PageOmniMixRight
 
         If ShowPersonalization Then
             SettingService.RefreshSettings(PanSettingsPersonalization)
+            RefreshPersonalizationUi()
         ElseIf ShowMaintenance Then
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
@@ -705,6 +707,78 @@ Public Class PageOmniMixRight
         Dim ConfiguredPath = Settings.Get(Of String)("SystemSystemCache")
         TxtCachePath.Text = If(String.IsNullOrWhiteSpace(ConfiguredPath), PathTemp, ConfiguredPath)
         TxtCachePath.HintText = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
+    End Sub
+
+    Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change
+        RefreshPersonalizationUi()
+        If FrmMain Is Nothing Then Return
+        If sender Is SliderWindowOpacity Then
+            FrmMain.UpdateWindowOpacity()
+        ElseIf sender Is SliderControlOpacity Then
+            FrmMain.UpdateControlOpacity()
+        Else
+            FrmMain.LoadBackgroundImage()
+        End If
+    End Sub
+
+    Private Sub PersonalizationTheme_Check(sender As Object, e As EventArgs) Handles RadioTheme0.Check, RadioTheme1.Check, RadioTheme5.Check, RadioTheme7.Check, RadioTheme9.Check, RadioTheme10.Check, RadioThemeCustom.Check
+        RefreshPersonalizationUi()
+        ThemeRefresh(Settings.Get(Of Integer)("UiLauncherTheme"))
+        ThemeRefreshMain()
+    End Sub
+
+    Private Sub PersonalizationThemeSlider_Change(sender As Object, user As Boolean) Handles SliderThemeHue.Change, SliderThemeSat.Change, SliderThemeLight.Change
+        RefreshPersonalizationUi()
+        If Settings.Get(Of Integer)("UiLauncherTheme") = 14 Then
+            ThemeNow = -1
+            ThemeRefresh(14)
+            ThemeRefreshMain()
+        End If
+    End Sub
+
+    Private Sub BtnSelectBackgroundImage_Click(sender As Object, e As EventArgs) Handles BtnSelectBackgroundImage.Click
+        Dim Dialog As New OpenFileDialog With {
+            .Filter = "图像文件 (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|所有文件 (*.*)|*.*",
+            .Title = "选择背景图片"
+        }
+        If Dialog.ShowDialog() = True Then
+            Settings.Set("UiBackgroundImagePath", Dialog.FileName)
+            RefreshPersonalizationUi()
+            If FrmMain IsNot Nothing Then FrmMain.LoadBackgroundImage()
+        End If
+    End Sub
+
+    Private Sub BtnResetBackgroundImage_Click(sender As Object, e As EventArgs) Handles BtnResetBackgroundImage.Click
+        Settings.Set("UiBackgroundImagePath", "__default__")
+        RefreshPersonalizationUi()
+        If FrmMain IsNot Nothing Then FrmMain.LoadBackgroundImage()
+    End Sub
+
+    Private Sub BtnSolidBackground_Click(sender As Object, e As EventArgs) Handles BtnSolidBackground.Click
+        Settings.Set("UiBackgroundImagePath", "__solid__")
+        RefreshPersonalizationUi()
+        If FrmMain IsNot Nothing Then FrmMain.LoadBackgroundImage()
+    End Sub
+
+    Private Sub RefreshPersonalizationUi()
+        If LabWindowOpacity Is Nothing Then Return
+        LabWindowOpacity.Text = "窗口不透明度：" & CInt(SliderWindowOpacity.Value) & "%"
+        LabControlOpacity.Text = "控件不透明度：" & CInt(SliderControlOpacity.Value) & "%"
+        LabBackgroundOpacity.Text = "背景图不透明度：" & CInt(SliderBackgroundOpacity.Value) & "%"
+        LabBackgroundClarity.Text = "背景清晰度：" & CInt(SliderBackgroundClarity.Value) & "%"
+        LabThemeHue.Text = "色调：" & CInt(SliderThemeHue.Value)
+        LabThemeSat.Text = "饱和度：" & CInt(SliderThemeSat.Value) & "%"
+        LabThemeLight.Text = "亮度微调：" & (CInt(SliderThemeLight.Value) - 20)
+        CardCustomTheme.Visibility = If(Settings.Get(Of Integer)("UiLauncherTheme") = 14, Visibility.Visible, Visibility.Collapsed)
+
+        Dim ImagePath = Settings.Get(Of String)("UiBackgroundImagePath")
+        If String.IsNullOrWhiteSpace(ImagePath) OrElse ImagePath = "__default__" Then
+            LabBackgroundImagePath.Text = "使用默认背景图"
+        ElseIf ImagePath = "__solid__" Then
+            LabBackgroundImagePath.Text = "使用纯色背景"
+        Else
+            LabBackgroundImagePath.Text = ImagePath
+        End If
     End Sub
 
     Private Async Sub BtnInitializeSelected_Click(sender As Object, e As EventArgs) Handles BtnInitializeSelected.Click

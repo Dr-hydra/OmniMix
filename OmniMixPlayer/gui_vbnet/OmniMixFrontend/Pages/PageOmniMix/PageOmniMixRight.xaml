@@ -365,7 +365,151 @@
                                 Margin="0,0,0,18"
                                 Visibility="Collapsed"
                                 Grid.IsSharedSizeScope="True">
-                        <local:MyCard Title="基础" Margin="0,0,0,15">
+                        <local:MyCard Title="窗口与背景" Margin="0,0,0,15">
+                            <Grid Margin="25,40,25,17">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SettingName" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="16" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="LabWindowOpacity"
+                                           Text="窗口不透明度：100%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderWindowOpacity"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="UiLauncherTransparent"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabControlOpacity"
+                                           Grid.Row="2"
+                                           Text="控件不透明度：80%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderControlOpacity"
+                                                Grid.Row="2"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="UiControlOpacity"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabBackgroundOpacity"
+                                           Grid.Row="4"
+                                           Text="背景图不透明度：100%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderBackgroundOpacity"
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="UiBackgroundOpacity"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabBackgroundClarity"
+                                           Grid.Row="6"
+                                           Text="背景清晰度：100%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderBackgroundClarity"
+                                                Grid.Row="6"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="UiBackgroundClarity"
+                                                MaxValue="100" />
+                                <Border Grid.Row="8"
+                                        Grid.ColumnSpan="2"
+                                        Background="{DynamicResource ColorBrushSemiTransparent}"
+                                        CornerRadius="6"
+                                        Padding="14"
+                                        Margin="0,4,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="背景来源"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource ColorBrush3}" />
+                                            <TextBlock x:Name="LabBackgroundImagePath"
+                                                       Text="使用默认背景图"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource ColorBrushGray3}"
+                                                       Margin="0,4,12,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <local:MyButton x:Name="BtnSelectBackgroundImage"
+                                                            Text="选择图片"
+                                                            Margin="0,0,8,0"
+                                                            Padding="14,6"
+                                                            ColorType="Highlight" />
+                                            <local:MyButton x:Name="BtnSolidBackground"
+                                                            Text="纯色背景"
+                                                            Margin="0,0,8,0"
+                                                            Padding="14,6" />
+                                            <local:MyButton x:Name="BtnResetBackgroundImage"
+                                                            Text="恢复默认"
+                                                            Padding="14,6" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </local:MyCard>
+
+                        <local:MyCard Title="主题配色" Margin="0,0,0,15">
+                            <StackPanel Margin="25,40,25,17">
+                                <WrapPanel Margin="-1,0,0,4">
+                                    <local:MyRadioBox x:Name="RadioTheme0"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="0"
+                                                      Text="经典蓝" />
+                                    <local:MyRadioBox x:Name="RadioTheme1"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="1"
+                                                      Text="翡翠绿" />
+                                    <local:MyRadioBox x:Name="RadioTheme5"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="5"
+                                                      Text="炫酷黑" />
+                                    <local:MyRadioBox x:Name="RadioTheme7"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="7"
+                                                      Text="紫罗兰" />
+                                    <local:MyRadioBox x:Name="RadioTheme9"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="9"
+                                                      Text="活力橙" />
+                                    <local:MyRadioBox x:Name="RadioTheme10"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="10"
+                                                      Text="玫瑰红" />
+                                    <local:MyRadioBox x:Name="RadioThemeCustom"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="UiLauncherTheme"
+                                                      local:SettingService.Value="14"
+                                                      Text="自定义配色" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </local:MyCard>
+
+                        <local:MyCard x:Name="CardCustomTheme"
+                                      Title="自定义 HSL 调色板"
+                                      Margin="0,0,0,15"
+                                      Visibility="Collapsed">
                             <Grid Margin="25,40,25,17">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="SettingName" />
@@ -378,68 +522,35 @@
                                     <RowDefinition Height="10" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Text="窗口不透明度"
+                                <TextBlock x:Name="LabThemeHue"
+                                           Text="色调：210"
                                            VerticalAlignment="Center"
                                            Margin="0,0,22,0" />
-                                <local:MySlider Grid.Column="1"
-                                                local:SettingService.Key="UiLauncherTransparent"
-                                                MaxValue="600"
-                                                ValueByKey="10" />
-                                <TextBlock Grid.Row="2"
-                                           Text="背景不透明度"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,22,0" />
-                                <local:MySlider Grid.Row="2"
+                                <local:MySlider x:Name="SliderThemeHue"
                                                 Grid.Column="1"
-                                                local:SettingService.Key="UiBackgroundOpacity"
-                                                MaxValue="1000"
-                                                ValueByKey="10" />
-                                <TextBlock Grid.Row="4"
-                                           Text="背景模糊"
+                                                local:SettingService.Key="UiLauncherThemeHue"
+                                                MaxValue="360" />
+                                <TextBlock x:Name="LabThemeSat"
+                                           Grid.Row="2"
+                                           Text="饱和度：85%"
                                            VerticalAlignment="Center"
                                            Margin="0,0,22,0" />
-                                <local:MySlider Grid.Row="4"
+                                <local:MySlider x:Name="SliderThemeSat"
+                                                Grid.Row="2"
                                                 Grid.Column="1"
-                                                local:SettingService.Key="UiBackgroundBlur"
+                                                local:SettingService.Key="UiLauncherThemeSat"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabThemeLight"
+                                           Grid.Row="4"
+                                           Text="亮度微调：0"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderThemeLight"
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="UiLauncherThemeLight"
                                                 MaxValue="40" />
                             </Grid>
-                        </local:MyCard>
-
-                        <local:MyCard Title="主题" Margin="0,0,0,15">
-                            <StackPanel Margin="25,40,25,17">
-                                <Grid Margin="-1,0,0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <local:MyRadioBox local:SettingService.Key="UiLauncherTheme"
-                                                      local:SettingService.Value="0"
-                                                      Text="默认蓝" />
-                                    <local:MyRadioBox Grid.Column="1"
-                                                      local:SettingService.Key="UiLauncherTheme"
-                                                      local:SettingService.Value="1"
-                                                      Text="甜柠青" />
-                                    <local:MyRadioBox Grid.Column="2"
-                                                      local:SettingService.Key="UiLauncherTheme"
-                                                      local:SettingService.Value="2"
-                                                      Text="小草绿" />
-                                    <local:MyRadioBox Grid.Column="3"
-                                                      local:SettingService.Key="UiLauncherTheme"
-                                                      local:SettingService.Value="3"
-                                                      Text="菠萝黄" />
-                                    <local:MyRadioBox Grid.Column="4"
-                                                      local:SettingService.Key="UiLauncherTheme"
-                                                      local:SettingService.Value="4"
-                                                      Text="橡木棕" />
-                                </Grid>
-                                <local:MyCheckBox local:SettingService.Key="UiBackgroundColorful"
-                                                  Text="叠加彩色背景"
-                                                  Margin="-1,6,0,0"
-                                                  Height="22" />
-                            </StackPanel>
                         </local:MyCard>
                     </StackPanel>
 

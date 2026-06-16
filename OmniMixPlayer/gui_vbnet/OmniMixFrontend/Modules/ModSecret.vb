@@ -167,7 +167,7 @@ Friend Module ModSecret
             Case 14
                 ColorHue = Settings.Get(Of Integer)("UiLauncherThemeHue")
                 ColorSat = Settings.Get(Of Integer)("UiLauncherThemeSat")
-                ColorLightAdjust = Settings.Get(Of Integer)("UiLauncherThemeLight")
+                ColorLightAdjust = Settings.Get(Of Integer)("UiLauncherThemeLight") - 20
             Case Else
                 ColorHue = 210
                 ColorSat = 85
@@ -188,15 +188,7 @@ Friend Module ModSecret
             FrmMain.PanTitle.Background = Brush
             FrmMain.PanTitle.Background.Freeze()
             '主页面背景
-            If Settings.Get(Of Boolean)("UiBackgroundColorful") Then
-                Brush = New LinearGradientBrush With {.EndPoint = New Point(0.1, 1), .StartPoint = New Point(0.9, 0)}
-                Brush.GradientStops.Add(New GradientStop With {.Offset = -0.1, .Color = New MyColor().FromHSL2(ColorHue - 15, ColorSat * 0.8, 91)})
-                Brush.GradientStops.Add(New GradientStop With {.Offset = 0.4, .Color = New MyColor().FromHSL2(ColorHue, ColorSat * 0.8, 91)})
-                Brush.GradientStops.Add(New GradientStop With {.Offset = 1.1, .Color = New MyColor().FromHSL2(ColorHue + 15, ColorSat * 0.8, 91)})
-                FrmMain.PanForm.Background = Brush
-            Else
-                FrmMain.PanForm.Background = New MyColor(245, 245, 245)
-            End If
+            FrmMain.PanForm.Background = New MyColor(245, 245, 245)
             FrmMain.PanForm.Background.Freeze()
         End Sub)
     End Sub

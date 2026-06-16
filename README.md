@@ -8,7 +8,9 @@ The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-h
 
 ## Status
 
-Version: `3.0.8`
+Version: `3.1.0`
+
+Version 3.1.0 packages use the backend/runtime contents from the 3.0.8 release package and replace the desktop frontend with the updated VB.NET build.
 
 Primary artifact:
 
@@ -35,6 +37,7 @@ Published release packages:
 - Synchronizes game integration instance IDs and port files with the running backend.
 - Cleans stale game integration instances whose IDs no longer match the expected bridge binding.
 - Provides settings for backend path, backend lifetime, personalization, service controls, and equalizer controls.
+- Adds a QING.UIKIT-aligned personalization panel with configurable opacity, default/custom/solid backgrounds, and HSL custom theme controls.
 
 ## Compatibility Notes
 
