@@ -108,6 +108,8 @@ PLAYER_MODULE_MAP = [
     ("Netease", "com.chillpatcher.netease"),
     ("Bilibili", "com.chillpatcher.bilibili"),
     ("QQMusic", "com.chillpatcher.qqmusic"),
+    ("Kugou", "com.chillpatcher.kugou"),
+    ("Kuwo", "com.chillpatcher.kuwo"),
     ("Spotify", "com.chillpatcher.spotify"),
 ]
 

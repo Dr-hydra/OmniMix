@@ -5,7 +5,7 @@
 
 #define MyAppName "OmniMixPlayer"
 #ifndef MyAppVersion
-  #define MyAppVersion "3.2.0"
+  #define MyAppVersion "3.2.1"
 #endif
 #define MyAppPublisher "Dr-hydra"
 #define MyAppURL "https://github.com/Dr-hydra/OmniMix-VBNet-Frontend"
