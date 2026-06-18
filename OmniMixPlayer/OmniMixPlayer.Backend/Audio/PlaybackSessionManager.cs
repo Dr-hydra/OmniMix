@@ -86,7 +86,11 @@ namespace OmniMixPlayer.Backend.Audio
                     var mapName = $@"Global\OmniMixPlayer_PCM_{id}";
                     sharedMemory = new SharedMemoryServer(_loggerFactory.CreateLogger($"SharedMemory.{id}"), mapName);
                     if (!sharedMemory.Initialize())
+                    {
                         _logger.LogWarning("Failed to initialize shared memory for {Id}", id);
+                        sharedMemory.Dispose();
+                        sharedMemory = null;
+                    }
                 }
                 else
                 {

@@ -2402,7 +2402,7 @@ Public Class PageOmniMixRight
     Private Shared Function PickActiveInstance(Instances As List(Of OmniMixPlaybackInstanceInfo), Optional PreferredId As String = "") As OmniMixPlaybackInstanceInfo
         If Instances Is Nothing OrElse Instances.Count = 0 Then Return Nothing
         If Not String.IsNullOrWhiteSpace(PreferredId) Then
-            Dim Preferred = Instances.FirstOrDefault(Function(Instance) String.Equals(Instance.Id, PreferredId, StringComparison.OrdinalIgnoreCase))
+            Dim Preferred = Instances.FirstOrDefault(Function(Instance) Instance.Attached AndAlso String.Equals(Instance.Id, PreferredId, StringComparison.OrdinalIgnoreCase))
             If Preferred IsNot Nothing Then Return Preferred
         End If
         Dim Current = Instances.FirstOrDefault(Function(Instance) Instance.Attached AndAlso Instance.IsServerManaged)
@@ -2550,15 +2550,7 @@ Public Class PageOmniMixRight
 
         If DeploymentLogs.Count > 0 Then
             AddOmniMixSectionHeader(PanGameIntegrationList, "最近部署", "游戏集成安装器最近执行的操作。", 12)
-            PanGameIntegrationList.Children.Add(New MyListItem With {
-                .Title = "最近部署日志",
-                .Info = String.Join("  /  ", DeploymentLogs.TakeLast(Math.Min(DeploymentLogs.Count, 4))),
-                .Height = 58,
-                .PaddingLeft = 8,
-                .Margin = New Thickness(0, 0, 0, 8),
-                .IsScaleAnimationEnabled = False,
-                .Type = MyListItem.CheckType.Clickable
-            })
+            AddDeploymentLogControl(PanGameIntegrationList)
         End If
 
     End Sub
@@ -2676,16 +2668,17 @@ Public Class PageOmniMixRight
             End If
         End If
 
+        If String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
+            Dim IsMediaUiReplaced = OmniMixModDeploymentService.CheckMediaUiReplaced(GamePath)
+            If IsMediaUiReplaced Then
+                AddGameDetailAction(PanModuleUi, "还原原始电台 UI", "恢复备份的游戏原始电台 Logo 与 XML 文件。", Logo.IconButtonReset, "还原原始电台 UI", Game.Id, AddressOf GameUiRestoreButton_Click, IsValidPath, MyIconButton.Themes.Red)
+            Else
+                AddGameDetailAction(PanModuleUi, "替换电台 UI", "生成并注入自定义电台 UI (需要选择自定义 Logo PNG 图像)。", Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
+            End If
+        End If
+
         If DeploymentLogs.Count > 0 Then
-            PanModuleUi.Children.Add(New MyListItem With {
-                .Title = "最近操作",
-                .Info = String.Join("  /  ", DeploymentLogs.TakeLast(Math.Min(DeploymentLogs.Count, 4))),
-                .Height = 54,
-                .PaddingLeft = 8,
-                .Margin = New Thickness(0, 8, 0, 0),
-                .IsScaleAnimationEnabled = False,
-                .Type = MyListItem.CheckType.Clickable
-            })
+            AddDeploymentLogControl(PanModuleUi)
         End If
     End Sub
 
@@ -2840,6 +2833,76 @@ Public Class PageOmniMixRight
         DeploymentLogs = Logs
         Hint(If(Success, ModInfo.Name & " 卸载完成。", ModInfo.Name & " 卸载失败。"), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Async Sub GameUiReplaceButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+        Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        If Not OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game) Then
+            LabModulesSummary.Text = "游戏目录无效，请先选择正确的游戏根目录。"
+            Return
+        End If
+
+        Dim Dialog As New Microsoft.Win32.OpenFileDialog() With {
+            .Filter = "PNG 图片 (*.png)|*.png",
+            .Title = "选择用于替换电台徽标的 PNG 图片"
+        }
+        If Dialog.ShowDialog() <> True Then Return
+
+        LabModulesSummary.Text = "正在替换电台 UI..."
+        Dim Logs As New List(Of String)
+        Dim PngPath = Dialog.FileName
+        Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.DeployMediaUiReplacement(GamePath, PngPath, Logs))
+        DeploymentLogs = Logs
+        Hint(If(Success, "电台 UI 替换完成。", "电台 UI 替换失败。"), If(Success, HintType.Green, HintType.Red))
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Async Sub GameUiRestoreButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+        Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        If MyMsgBox("确定要还原电台 UI 为游戏原始文件吗？", "还原原始 UI", "还原", "取消", IsWarn:=True) <> 1 Then Return
+
+        LabModulesSummary.Text = "正在还原电台 UI..."
+        Dim Logs As New List(Of String)
+        Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.RestoreMediaUi(GamePath, Logs))
+        DeploymentLogs = Logs
+        Hint(If(Success, "电台 UI 还原完成。", "电台 UI 还原失败。"), If(Success, HintType.Green, HintType.Red))
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Sub AddDeploymentLogControl(Panel As Panel)
+        If DeploymentLogs.Count = 0 Then Return
+
+        Panel.Children.Add(New MyListItem With {
+            .Title = "安装与操作日志",
+            .Height = 30,
+            .PaddingLeft = 8,
+            .Margin = New Thickness(0, 10, 0, 2),
+            .IsScaleAnimationEnabled = False,
+            .Type = MyListItem.CheckType.None
+        })
+
+        Dim LogText = String.Join(Environment.NewLine, DeploymentLogs)
+        Dim Scroll As New ScrollViewer With {
+            .Height = 160,
+            .VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            .HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            .Margin = New Thickness(0, 0, 0, 10),
+            .Background = New SolidColorBrush(Color.FromArgb(12, 128, 128, 128))
+        }
+        Dim TextBlock As New TextBlock With {
+            .Text = LogText,
+            .TextWrapping = TextWrapping.Wrap,
+            .FontSize = 11,
+            .FontFamily = New FontFamily("Consolas, Courier New, monospace"),
+            .Margin = New Thickness(8)
+        }
+        TextBlock.SetResourceReference(TextBlock.ForegroundProperty, "ColorBrush2")
+        Scroll.Content = TextBlock
+        Panel.Children.Add(Scroll)
     End Sub
 
     Private Async Function RegisterDeployedInstanceAsync(InstanceId As String, ModInfo As OmniMixModDeclaration, GamePath As String) As Task

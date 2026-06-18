@@ -340,7 +340,11 @@
                                           Margin="0,0,22,0" />
                         <local:MyCheckBox x:Name="CheckCloseBackendWithGui"
                                           Text="关闭 GUI 时停止后端"
+                                          Margin="0,0,22,0"
                                           ToolTip="开启后，退出 OmniMix 界面会同时停止当前连接的后端；关闭后后端会继续运行。" />
+                        <local:MyCheckBox x:Name="CheckDesktopPlayerEnabled"
+                                          Text="启用桌面播放器实例"
+                                          ToolTip="开启后，GUI 会注册一个本机播放实例，并播放后端解码后的共享 PCM 音频。" />
                     </StackPanel>
 
                     <StackPanel x:Name="PanSettingsConfigButtons" Orientation="Horizontal" Margin="0,0,0,16">

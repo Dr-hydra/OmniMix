@@ -30,7 +30,7 @@ if (-not $Version) {
         $Version = $VersionInfo.flutter_version -replace '\+.*$', ''
     }
     if (-not $Version) {
-        $Version = "3.1.0"
+        $Version = "3.2.0"
     }
 }
 

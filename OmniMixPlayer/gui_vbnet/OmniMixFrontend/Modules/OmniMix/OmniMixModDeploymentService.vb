@@ -454,6 +454,11 @@ Public Module OmniMixModDeploymentService
             If ModInfo Is Nothing Then Return False
             AddLog(Logs, "Starting " & ModInfo.Name & " undeployment...")
 
+            ' If media UI was replaced, restore it as part of mod uninstallation
+            If CheckMediaUiReplaced(GamePath) Then
+                RestoreMediaUi(GamePath, Logs)
+            End If
+
             If ModInfo.InstallsToGameRoot Then
                 Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", ModInfo.Id & ".managed")
                 If Not File.Exists(MarkerPath) Then
@@ -822,5 +827,182 @@ Public Module OmniMixModDeploymentService
         If Logs Is Nothing Then Return
         Logs.Add("[" & Date.Now.ToString("HH:mm:ss") & "] " & Message)
     End Sub
+
+    Public Function ResolveMediaGenPath() As String
+        Dim Candidates = New List(Of String) From {
+            Path.Combine(PathExeFolder, "chill-gen-media.exe"),
+            Path.Combine(PathExeFolder, "OmniMixAssets", "chill-gen-media.exe"),
+            Path.Combine(PathExeFolder, "assets", "chill-gen-media.exe")
+        }
+        For Each Candidate In Candidates
+            Try
+                If File.Exists(Candidate) Then Return Candidate
+            Catch
+            End Try
+        Next
+        Return ""
+    End Function
+
+    Public Function CheckMediaUiReplaced(GamePath As String) As Boolean
+        If String.IsNullOrWhiteSpace(GamePath) Then Return False
+        Try
+            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            Return File.Exists(MarkerPath)
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Public Function DeployMediaUiReplacement(GamePath As String, PngPath As String, Logs As List(Of String)) As Boolean
+        Try
+            AddLog(Logs, "开始执行电台 UI 替换...")
+            If String.IsNullOrWhiteSpace(GamePath) OrElse Not Directory.Exists(GamePath) Then
+                AddLog(Logs, "错误：无效的游戏目录。")
+                Return False
+            End If
+
+            Dim MediaGenPath = ResolveMediaGenPath()
+            If String.IsNullOrWhiteSpace(MediaGenPath) Then
+                AddLog(Logs, "错误：未找到媒体生成器 chill-gen-media.exe。")
+                Return False
+            End If
+            AddLog(Logs, "已找到媒体生成器：" & MediaGenPath)
+
+            Dim TempOutputDir = Path.Combine(ManagerDir, "media_temp")
+            If Directory.Exists(TempOutputDir) Then
+                Directory.Delete(TempOutputDir, True)
+            End If
+            Directory.CreateDirectory(TempOutputDir)
+
+            AddLog(Logs, "正在生成修改后的电台媒体资源...")
+            Dim Arguments = $"-g {Quote(GamePath)} -o {Quote(TempOutputDir)} -r {Quote(PngPath)}"
+            Using Proc = New Process()
+                Proc.StartInfo = New ProcessStartInfo With {
+                    .FileName = MediaGenPath,
+                    .Arguments = Arguments,
+                    .UseShellExecute = False,
+                    .RedirectStandardOutput = True,
+                    .RedirectStandardError = True,
+                    .CreateNoWindow = True
+                }
+
+                Proc.Start()
+
+                Dim OutputReader = Proc.StandardOutput
+                Dim ErrorReader = Proc.StandardError
+
+                While Not Proc.HasExited
+                    Dim Line = OutputReader.ReadLine()
+                    If Line IsNot Nothing Then
+                        AddLog(Logs, "生成器: " & Line.Trim())
+                    End If
+                    Dim ErrLine = ErrorReader.ReadLine()
+                    If ErrLine IsNot Nothing Then
+                        AddLog(Logs, "生成器 [错误]: " & ErrLine.Trim())
+                    End If
+                    System.Threading.Thread.Sleep(50)
+                End While
+
+                While Not OutputReader.EndOfStream
+                    Dim Line = OutputReader.ReadLine()
+                    If Line IsNot Nothing Then AddLog(Logs, "生成器: " & Line.Trim())
+                End While
+                While Not ErrorReader.EndOfStream
+                    Dim Line = ErrorReader.ReadLine()
+                    If Line IsNot Nothing Then AddLog(Logs, "生成器 [错误]: " & Line.Trim())
+                End While
+
+                Proc.WaitForExit()
+                If Proc.ExitCode <> 0 Then
+                    AddLog(Logs, "错误：媒体资源生成失败，退出码：" & Proc.ExitCode)
+                    Return False
+                End If
+            End Using
+
+            AddLog(Logs, "电台媒体资源生成成功。正在备份游戏原始文件...")
+            Dim BackupDir = Path.Combine(GamePath, ".omnimix_backup", "media_original")
+            Directory.CreateDirectory(BackupDir)
+
+            Dim FilesToBackup As New List(Of String) From {
+                Path.Combine("media", "UI", "Textures", "Anthem.zip"),
+                Path.Combine("media", "UI", "Textures", "HiRes", "Anthem.zip")
+            }
+            Dim Locales = {"BR", "CN", "DE", "EN", "ES", "IT", "JP", "KO", "MX", "TW"}
+            For Each Locale In Locales
+                FilesToBackup.Add(Path.Combine("media", "Audio", $"RadioInfo_{Locale}.xml"))
+            Next
+
+            For Each RelativePath In FilesToBackup
+                Dim GameFile = Path.Combine(GamePath, RelativePath)
+                Dim BackupFile = Path.Combine(BackupDir, RelativePath)
+
+                If File.Exists(GameFile) Then
+                    If Not File.Exists(BackupFile) Then
+                        Directory.CreateDirectory(Path.GetDirectoryName(BackupFile))
+                        File.Copy(GameFile, BackupFile, True)
+                        AddLog(Logs, "  已备份：" & RelativePath)
+                    End If
+                End If
+            Next
+
+            AddLog(Logs, "正在应用修改后的媒体文件...")
+            Dim TempMediaDir = Path.Combine(TempOutputDir, "media")
+            If Not Directory.Exists(TempMediaDir) Then
+                AddLog(Logs, "错误：生成结果中缺少 media 目录。")
+                Return False
+            End If
+
+            CopyDirectory(TempMediaDir, Path.Combine(GamePath, "media"))
+            AddLog(Logs, "应用成功。")
+
+            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            Directory.CreateDirectory(Path.GetDirectoryName(MarkerPath))
+            File.WriteAllText(MarkerPath, "replaced", Encoding.UTF8)
+
+            AddLog(Logs, "电台 UI 替换成功完成！请重新启动游戏以加载新界面。")
+            Return True
+        Catch Ex As Exception
+            AddLog(Logs, "错误：执行电台 UI 替换时发生异常：" & Ex.Message)
+            Return False
+        End Try
+    End Function
+
+    Public Function RestoreMediaUi(GamePath As String, Logs As List(Of String)) As Boolean
+        Try
+            AddLog(Logs, "开始还原电台 UI 为原始文件...")
+            If String.IsNullOrWhiteSpace(GamePath) OrElse Not Directory.Exists(GamePath) Then
+                AddLog(Logs, "错误：无效的游戏目录。")
+                Return False
+            End If
+
+            Dim BackupDir = Path.Combine(GamePath, ".omnimix_backup", "media_original")
+            If Not Directory.Exists(BackupDir) Then
+                AddLog(Logs, "未找到原始备份，将尝试直接清理生成的文件。")
+            Else
+                Dim BackupFiles = Directory.GetFiles(BackupDir, "*", SearchOption.AllDirectories)
+                For Each BackupFile In BackupFiles
+                    Dim Relative = BackupFile.Substring(BackupDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    Dim GameFile = Path.Combine(GamePath, Relative)
+
+                    Directory.CreateDirectory(Path.GetDirectoryName(GameFile))
+                    File.Copy(BackupFile, GameFile, True)
+                    AddLog(Logs, "  已还原：" & Relative)
+                Next
+
+                Directory.Delete(BackupDir, True)
+                AddLog(Logs, "原始备份目录已清理。")
+            End If
+
+            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            If File.Exists(MarkerPath) Then File.Delete(MarkerPath)
+            DeleteDirectoryIfEmpty(Path.Combine(GamePath, ".omnimix_mods"), Logs)
+
+            AddLog(Logs, "电台 UI 还原成功完成！")
+            Return True
+        Catch Ex As Exception
+            AddLog(Logs, "错误：还原电台 UI 时发生异常：" & Ex.Message)
+            Return False
+        End Try
+    End Function
 
 End Module

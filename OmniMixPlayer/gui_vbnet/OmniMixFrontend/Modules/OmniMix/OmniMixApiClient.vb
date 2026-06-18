@@ -568,6 +568,36 @@ Public Module OmniMixApiClient
         End If
     End Function
 
+    Public Async Function ConnectDesktopPlayerInstanceAsync(BaseUrl As String) As Task(Of String)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Dim Response = Await Instances.ConnectAsync(New InstanceConnectRequest With {
+                .ClientId = "vbnet-desktop-player",
+                .Kind = CType(2, InstanceKind),
+                .ModId = "omnimix.vbnet.desktop",
+                .GameName = "OmniMix 桌面播放器",
+                .DisplayName = "OmniMix 桌面播放器",
+                .Capabilities = DesktopPlayerCapabilities()
+            })
+            Return If(Response.InstanceId, "")
+        End Using
+    End Function
+
+    Public Async Function HeartbeatInstanceAsync(BaseUrl As String, InstanceId As String) As Task(Of Boolean)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Dim Response = Await Instances.HeartbeatAsync(New InstanceHeartbeatRequest With {.InstanceId = If(InstanceId, "")})
+            Return Response.Alive
+        End Using
+    End Function
+
+    Public Async Function DisconnectInstanceAsync(BaseUrl As String, InstanceId As String) As Task
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Await Instances.DisconnectAsync(New InstanceDisconnectRequest With {.InstanceId = If(InstanceId, "")})
+        End Using
+    End Function
+
     Public Async Function PlayAsync(BaseUrl As String, InstanceId As String, Optional Uuid As String = "") As Task
         Using Channel = CreateGrpcChannel(BaseUrl)
             Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
@@ -1432,6 +1462,22 @@ Public Module OmniMixApiClient
             .VolumeControl = True,
             .Equalizer = True,
             .AudioPlayback = False
+        }
+    End Function
+
+    Private Function DesktopPlayerCapabilities() As InstanceCapabilities
+        Return New InstanceCapabilities With {
+            .ServerControlledPlayback = True,
+            .QueueManagement = True,
+            .PlaylistManagement = True,
+            .MultiplePlaylists = True,
+            .Shuffle = True,
+            .Repeat = True,
+            .Seek = True,
+            .VolumeControl = True,
+            .Equalizer = True,
+            .AudioPlayback = True,
+            .CustomSystemMediaService = True
         }
     End Function
 

@@ -244,8 +244,8 @@ namespace OmniMixPlayer.Backend.Audio
 
         public void SetPlayState(int state)
         {
-            WriteI32(SharedMemoryProtocol.LegacyPlayState, state);
             if (_ptr == null) return;
+            WriteI32(SharedMemoryProtocol.LegacyPlayState, state);
             if (ReadI32(SharedMemoryProtocol.StreamState) == (int)SharedMemoryStreamState.Error)
                 return;
             var streamState = state switch
@@ -259,6 +259,7 @@ namespace OmniMixPlayer.Backend.Audio
 
         public void SetCurrentUuid(string uuid)
         {
+            if (_ptr == null) return;
             var bytes = System.Text.Encoding.ASCII.GetBytes(uuid ?? "");
             for (int i = 0; i < SharedMemoryProtocol.CurrentUuidLength && i < bytes.Length; i++)
                 _ptr[SharedMemoryProtocol.CurrentUuid + i] = bytes[i];

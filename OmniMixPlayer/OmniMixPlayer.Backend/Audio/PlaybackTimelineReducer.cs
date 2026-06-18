@@ -59,7 +59,7 @@ namespace OmniMixPlayer.Backend.Audio
             if (!string.IsNullOrWhiteSpace(state.CurrentUuid))
                 return new TimelineAdvanceResult(state.CurrentUuid, TimelineAdvanceReason.InitialPlay);
 
-            var next = TakeManual(state);
+            var next = TakeManual(state, rng);
             if (next != null)
             {
                 SetManualCurrent(state, next);
@@ -90,7 +90,7 @@ namespace OmniMixPlayer.Backend.Audio
             }
 
             PushHistory(state, state.CurrentUuid);
-            var manual = TakeManual(state);
+            var manual = TakeManual(state, rng);
             if (manual != null)
             {
                 SetManualCurrent(state, manual);
@@ -138,7 +138,7 @@ namespace OmniMixPlayer.Backend.Audio
             PushHistory(state, state.CurrentUuid);
             state.NavForwardUuids.Clear();
 
-            var manual = TakeManual(state);
+            var manual = TakeManual(state, rng);
             if (manual != null)
             {
                 if (completedSourceIndex >= 0)
@@ -312,11 +312,14 @@ namespace OmniMixPlayer.Backend.Audio
             return state.RepeatMode == RepeatMode.All ? 0 : -1;
         }
 
-        private static string TakeManual(PlaybackTimelineState state)
+        private static string TakeManual(PlaybackTimelineState state, Random rng)
         {
             if (state.ManualQueueUuids.Count == 0) return null;
-            var uuid = state.ManualQueueUuids[0];
-            state.ManualQueueUuids.RemoveAt(0);
+            var index = state.Shuffle && state.ManualQueueUuids.Count > 1
+                ? rng?.Next(state.ManualQueueUuids.Count) ?? 0
+                : 0;
+            var uuid = state.ManualQueueUuids[index];
+            state.ManualQueueUuids.RemoveAt(index);
             return uuid;
         }
 

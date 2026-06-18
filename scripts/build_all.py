@@ -140,7 +140,39 @@ def _publish_vbnet_frontend() -> bool:
     _remove_upstream_desktop_gui()
     shutil.copy2(src, PLAYER_BUILD / VB_FRONTEND_EXE)
     print(f"[success] VB.NET frontend copied to {PLAYER_BUILD / VB_FRONTEND_EXE}")
+
+    from build_config import OMNI_PCM_DLL
+    if OMNI_PCM_DLL.exists():
+        shutil.copy2(OMNI_PCM_DLL, PLAYER_BUILD / "OmniPcmShared.dll")
+        native_dst = PLAYER_BUILD / "native" / "x64"
+        native_dst.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(OMNI_PCM_DLL, native_dst / "OmniPcmShared.dll")
+        print(f"[success] OmniPcmShared.dll copied to {PLAYER_BUILD} and native/x64/")
+    else:
+        print(f"[warning] OmniPcmShared.dll not found at {OMNI_PCM_DLL}")
+
+    _copy_omnimix_assets()
     return True
+
+
+def _copy_omnimix_assets() -> None:
+    dst_dir = PLAYER_BUILD / "OmniMixAssets"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    flutter_assets_dir = ROOT / "OmniMixPlayer" / "gui_flutter" / "assets"
+    release_assets_dir = ROOT / "release" / "OmniMixAssets"
+
+    zip_files = ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip"]
+    for name in zip_files:
+        src = flutter_assets_dir / name
+        if not src.exists():
+            src = release_assets_dir / name
+
+        if src.exists():
+            shutil.copy2(src, dst_dir / name)
+            print(f"[success] Asset {name} copied from {src.parent.name}")
+        else:
+            print(f"[warning] Asset {name} not found in build or release folders")
 
 
 def _remove_upstream_desktop_gui() -> None:

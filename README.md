@@ -8,9 +8,9 @@ The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-h
 
 ## Status
 
-Version: `3.1.0`
+Version: `3.2.0`
 
-Version 3.1.0 packages use the backend/runtime contents from the 3.0.8 release package and replace the desktop frontend with the updated VB.NET build.
+Version 3.2.0 packages are built from the current source tree and include the updated backend, modules, native assets, and VB.NET desktop frontend.
 
 Primary artifact:
 

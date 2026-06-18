@@ -32,7 +32,8 @@ Public Class Settings
         New Setting("UiMusicAuto", True),
         New Setting("HintCustomCommand", False),
         New Setting("OmniMixBackendPath", ""),
-        New Setting("OmniMixCloseBackendWithGui", True)
+        New Setting("OmniMixCloseBackendWithGui", True),
+        New Setting("OmniMixDesktopPlayerEnabled", True)
     }).ToDictionary(Function(e) e.Key)
 
     Public Enum Sources

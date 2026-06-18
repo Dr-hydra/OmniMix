@@ -183,6 +183,7 @@ Public Class FormMain
     Public Sub EndProgram(SendWarning As Boolean)
         If IsProgramEnding Then Return
         IsProgramEnding = True
+        OmniMixDesktopPlayerService.DisconnectAndWait()
         StopOmniMixBackendOnExit()
         DisposeOmniMixTrayIcon()
         RunInUiWait(
@@ -450,13 +451,17 @@ Public Class FormMain
         LabOmniMixConnectionStatus.Text = If(IsOnline, "● 已连接", "● 未连接")
         LabOmniMixConnectionStatus.ToolTip = If(IsOnline AndAlso Not String.IsNullOrWhiteSpace(BaseUrl), "OmniMix 后端：" & BaseUrl, "OmniMix 后端未连接")
         LabOmniMixConnectionStatus.Opacity = If(IsOnline, 0.88, 0.62)
-        If Not IsOnline Then UpdateOmniMixInstanceMenu(New List(Of OmniMixPlaybackInstanceInfo), "")
+        If Not IsOnline Then
+            OmniMixDesktopPlayerService.Disconnect()
+            UpdateOmniMixInstanceMenu(New List(Of OmniMixPlaybackInstanceInfo), "")
+        End If
         FrmOmniMixLeft?.SetBackendStatus(IsOnline, BaseUrl)
     End Sub
 
     Public Sub UpdateOmniMixInstanceMenu(Instances As List(Of OmniMixPlaybackInstanceInfo), ActiveInstanceId As String)
         If PanOmniMixInstanceMenu Is Nothing Then Return
         Instances = If(Instances, New List(Of OmniMixPlaybackInstanceInfo))
+        If Not String.IsNullOrWhiteSpace(OmniMixBaseUrl) Then OmniMixDesktopPlayerService.ReconcileWithInstances(OmniMixBaseUrl, Instances)
         PanOmniMixInstanceMenu.Visibility = If(Instances.Count > 0, Visibility.Visible, Visibility.Collapsed)
         Dim ActiveInstance = Instances.FirstOrDefault(Function(Item) String.Equals(Item.Id, ActiveInstanceId, StringComparison.OrdinalIgnoreCase))
         If ActiveInstance Is Nothing Then ActiveInstance = Instances.FirstOrDefault(Function(Item) Item.Attached)
@@ -499,8 +504,9 @@ Public Class FormMain
         LabOmniMixInstanceMenu.Inlines.Add(New Run("●") With {
             .Foreground = If(Instance.Attached, New SolidColorBrush(Color.FromRgb(78, 201, 120)), New SolidColorBrush(Color.FromRgb(232, 91, 91)))
         })
-        LabOmniMixInstanceMenu.Inlines.Add(New Run(" " & GetOmniMixGameAbbreviation(GetOmniMixInstanceDisplayName(Instance)) & " ▾"))
-        LabOmniMixInstanceMenu.ToolTip = GetOmniMixInstanceDisplayName(Instance) & If(Instance.Attached, "（在线）", "（离线）")
+        Dim DisplayName = GetOmniMixInstanceDisplayName(Instance)
+        LabOmniMixInstanceMenu.Inlines.Add(New Run(" " & DisplayName & " ▾"))
+        LabOmniMixInstanceMenu.ToolTip = DisplayName & If(Instance.Attached, "（在线）", "（离线）")
     End Sub
 
     Private Shared Function GetOmniMixGameAbbreviation(DisplayName As String) As String

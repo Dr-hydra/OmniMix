@@ -117,6 +117,7 @@ Public Class PageOmniMixLeft
             End If
 
             Dim Instances = Await OmniMixApiClient.GetInstancesAsync(CurrentBaseUrl)
+            OmniMixDesktopPlayerService.ReconcileWithInstances(CurrentBaseUrl, Instances)
             Dim Config = Await OmniMixApiClient.GetConfigAsync(CurrentBaseUrl)
             Dim Playlist As OmniMixPlaylistData = Nothing
             If LoadPlaylist Then
@@ -420,7 +421,7 @@ Public Class PageOmniMixLeft
     Private Shared Function PickActiveInstance(Instances As List(Of OmniMixPlaybackInstanceInfo), Optional PreferredId As String = "") As OmniMixPlaybackInstanceInfo
         If Instances Is Nothing OrElse Instances.Count = 0 Then Return Nothing
         If Not String.IsNullOrWhiteSpace(PreferredId) Then
-            Dim Preferred = Instances.FirstOrDefault(Function(Instance) String.Equals(Instance.Id, PreferredId, StringComparison.OrdinalIgnoreCase))
+            Dim Preferred = Instances.FirstOrDefault(Function(Instance) Instance.Attached AndAlso String.Equals(Instance.Id, PreferredId, StringComparison.OrdinalIgnoreCase))
             If Preferred IsNot Nothing Then Return Preferred
         End If
         Dim Current = Instances.FirstOrDefault(Function(Instance) Instance.Attached AndAlso Instance.IsServerManaged)
@@ -472,20 +473,23 @@ Public Class PageOmniMixLeft
     End Sub
 
     Private Async Sub BtnLeftPlaybackMode_Click(sender As Object, e As EventArgs) Handles BtnLeftPlaybackMode.Click
-        If Not CanControlActiveInstance OrElse String.IsNullOrWhiteSpace(CurrentBaseUrl) OrElse String.IsNullOrWhiteSpace(ActiveInstanceId) Then Return
+        If String.IsNullOrWhiteSpace(CurrentBaseUrl) OrElse String.IsNullOrWhiteSpace(ActiveInstanceId) Then Return
         Dim TargetMode = NextPlaybackMode(ActivePlaybackMode)
         Try
+            Dim TaskRepeat As System.Threading.Tasks.Task = System.Threading.Tasks.Task.CompletedTask
+            Dim TaskShuffle As System.Threading.Tasks.Task = System.Threading.Tasks.Task.CompletedTask
             Select Case TargetMode
                 Case PlaybackMode.Shuffle
-                    Await OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "none")
-                    Await OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, True)
+                    TaskRepeat = OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "all")
+                    TaskShuffle = OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, True)
                 Case PlaybackMode.RepeatOne
-                    Await OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, False)
-                    Await OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "one")
+                    TaskShuffle = OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, False)
+                    TaskRepeat = OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "one")
                 Case Else
-                    Await OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, False)
-                    Await OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "none")
+                    TaskShuffle = OmniMixApiClient.SetInstanceShuffleAsync(CurrentBaseUrl, ActiveInstanceId, False)
+                    TaskRepeat = OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "all")
             End Select
+            Await System.Threading.Tasks.Task.WhenAll(TaskRepeat, TaskShuffle)
             Hint("已切换为" & PlaybackModeText(TargetMode) & "。", HintType.Green)
             RefreshPlayerAsync()
         Catch Ex As Exception
