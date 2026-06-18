@@ -501,7 +501,7 @@ Public Module OmniMixModDeploymentService
     End Sub
 
     Public Function GetExpectedInstanceId(GamePath As String, ModInfo As OmniMixModDeclaration) As String
-        If ModInfo Is Nothing Then Return ""
+        If String.IsNullOrWhiteSpace(GamePath) OrElse ModInfo Is Nothing Then Return ""
         Return GenerateInstanceId(GamePath, ModInfo.Id)
     End Function
 
@@ -795,6 +795,7 @@ Public Module OmniMixModDeploymentService
     End Sub
 
     Private Function GenerateInstanceId(GamePath As String, ModId As String) As String
+        If String.IsNullOrWhiteSpace(GamePath) Then Return ""
         Dim Prefix = If(String.IsNullOrWhiteSpace(ModId), "omnimix", ModId.Trim().ToLowerInvariant())
         Dim Seed = Prefix & "|" & Path.GetFullPath(If(GamePath, "")).TrimEnd("\"c).ToLowerInvariant()
         Using Sha = SHA256.Create()

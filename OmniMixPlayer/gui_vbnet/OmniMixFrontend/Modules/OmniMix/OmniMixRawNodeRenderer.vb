@@ -92,6 +92,12 @@ Public Module OmniMixRawNodeRenderer
                                             e.Handled = True
                                         End If
                                     End Sub
+        AddHandler TextBox.LostKeyboardFocus, Sub()
+                                                  CommitValue()
+                                              End Sub
+        AddHandler TextBox.LostFocus, Sub()
+                                          CommitValue()
+                                      End Sub
         Dim InputPanel As New StackPanel With {
             .Orientation = Orientation.Horizontal,
             .HorizontalAlignment = HorizontalAlignment.Left

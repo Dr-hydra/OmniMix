@@ -34,6 +34,7 @@ Public Class FormMain
     Private FrmOmniMixSettings As PageOmniMixRight
     Private FrmOmniMixAbout As PageOmniMixRight
     Private FrmOmniMixLeft As PageOmniMixLeft
+    Private OmniMixFloatingPlaybackWindow As FloatingPlaybackWindow
     Private OmniMixTrayIcon As System.Windows.Forms.NotifyIcon
     Private OmniMixTrayMenu As System.Windows.Forms.ContextMenuStrip
     Private IsRestoringFromTray As Boolean = False
@@ -183,6 +184,7 @@ Public Class FormMain
     Public Sub EndProgram(SendWarning As Boolean)
         If IsProgramEnding Then Return
         IsProgramEnding = True
+        CloseOmniMixFloatingPlaybackWindow()
         OmniMixDesktopPlayerService.DisconnectAndWait()
         StopOmniMixBackendOnExit()
         DisposeOmniMixTrayIcon()
@@ -290,9 +292,12 @@ Public Class FormMain
         OmniMixTrayMenu = New System.Windows.Forms.ContextMenuStrip()
         Dim ShowItem = New System.Windows.Forms.ToolStripMenuItem("显示主窗口")
         AddHandler ShowItem.Click, Sub() ShowOmniMixFromTray()
+        Dim FloatingItem = New System.Windows.Forms.ToolStripMenuItem("显示播放悬浮窗")
+        AddHandler FloatingItem.Click, Sub() ToggleOmniMixFloatingPlaybackWindow()
         Dim ExitItem = New System.Windows.Forms.ToolStripMenuItem("退出 OmniMix")
         AddHandler ExitItem.Click, Sub() EndProgram(True)
         OmniMixTrayMenu.Items.Add(ShowItem)
+        OmniMixTrayMenu.Items.Add(FloatingItem)
         OmniMixTrayMenu.Items.Add(New System.Windows.Forms.ToolStripSeparator())
         OmniMixTrayMenu.Items.Add(ExitItem)
         OmniMixTrayIcon = New System.Windows.Forms.NotifyIcon With {
@@ -302,6 +307,37 @@ Public Class FormMain
             .Visible = True
         }
         AddHandler OmniMixTrayIcon.DoubleClick, Sub() ShowOmniMixFromTray()
+    End Sub
+
+    Private Sub ToggleOmniMixFloatingPlaybackWindow()
+        RunInUi(
+        Sub()
+            If OmniMixFloatingPlaybackWindow IsNot Nothing AndAlso OmniMixFloatingPlaybackWindow.IsVisible Then
+                OmniMixFloatingPlaybackWindow.Hide()
+            Else
+                ShowOmniMixFloatingPlaybackWindow()
+            End If
+        End Sub)
+    End Sub
+
+    Private Sub ShowOmniMixFloatingPlaybackWindow()
+        If OmniMixFloatingPlaybackWindow Is Nothing Then
+            OmniMixFloatingPlaybackWindow = New FloatingPlaybackWindow With {.Owner = Me}
+            AddHandler OmniMixFloatingPlaybackWindow.Closed, Sub() OmniMixFloatingPlaybackWindow = Nothing
+        End If
+        OmniMixFloatingPlaybackWindow.Show()
+        OmniMixFloatingPlaybackWindow.Activate()
+    End Sub
+
+    Private Sub CloseOmniMixFloatingPlaybackWindow()
+        Try
+            If OmniMixFloatingPlaybackWindow IsNot Nothing Then
+                OmniMixFloatingPlaybackWindow.Close()
+                OmniMixFloatingPlaybackWindow = Nothing
+            End If
+        Catch ex As Exception
+            Logger.Warn(ex, "关闭 OmniMix 播放悬浮窗失败")
+        End Try
     End Sub
 
     Private Shared Function LoadOmniMixTrayIcon() As System.Drawing.Icon

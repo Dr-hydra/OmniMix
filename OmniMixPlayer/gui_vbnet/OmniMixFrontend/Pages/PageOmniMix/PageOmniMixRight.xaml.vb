@@ -2561,9 +2561,10 @@ Public Class PageOmniMixRight
         Dim BepInExStatus = If(Game.SupportedFrameworks.Contains("bepinex_5"), OmniMixModDeploymentService.CheckBepInExStatus(GamePath), OmniMixBepInExStatus.NotInstalled)
         Dim ModStatus = OmniMixModDeploymentService.CheckModStatus(GamePath, ModInfo)
         Instances = If(Instances, New List(Of OmniMixPlaybackInstanceInfo))
+        Dim ExpectedInstanceId = OmniMixModDeploymentService.GetExpectedInstanceId(GamePath, ModInfo)
         Dim IsOnline = Instances.Any(Function(Instance)
                                          If Not Instance.Attached Then Return False
-                                         If ModInfo IsNot Nothing AndAlso String.Equals(Instance.Id, OmniMixModDeploymentService.GetExpectedInstanceId(GamePath, ModInfo), StringComparison.OrdinalIgnoreCase) Then Return True
+                                         If Not String.IsNullOrWhiteSpace(ExpectedInstanceId) AndAlso String.Equals(Instance.Id, ExpectedInstanceId, StringComparison.OrdinalIgnoreCase) Then Return True
                                          If ModInfo IsNot Nothing AndAlso String.Equals(Instance.ModId, ModInfo.Id, StringComparison.OrdinalIgnoreCase) Then Return True
                                          Return String.Equals(Instance.GameName, Game.Name, StringComparison.OrdinalIgnoreCase) OrElse
                                              (Not String.IsNullOrWhiteSpace(Instance.GameName) AndAlso Instance.GameName.IndexOf(Game.Name, StringComparison.OrdinalIgnoreCase) >= 0)

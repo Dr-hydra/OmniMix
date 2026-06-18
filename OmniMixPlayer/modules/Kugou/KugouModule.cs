@@ -34,6 +34,7 @@ namespace OmniMixPlayer.Module.Kugou
         private KugouQrLoginInfo _qrLogin;
         private CancellationTokenSource _qrPollingCts;
         private string _statusText = "";
+        private long _qrImageVersion;
         private bool _isReady;
 
         public string ModuleId => ModuleInfo.MODULE_ID;
@@ -61,6 +62,8 @@ namespace OmniMixPlayer.Module.Kugou
             _dataPath = context.GetModuleDataPath(ModuleId);
             Directory.CreateDirectory(_dataPath);
             _sessionPath = Path.Combine(_dataPath, "kugou_session.json");
+            KugouImportDebugLog.Initialize(Path.Combine(_dataPath, "kugou_import_debug.log"));
+            KugouImportDebugLog.Write($"Initialize module dataPath='{_dataPath}', sessionPath='{_sessionPath}', debugLogPath='{KugouImportDebugLog.Path}'");
             _session = LoadSession();
 
             _bridge = new KugouBridge(_logger);
@@ -88,6 +91,8 @@ namespace OmniMixPlayer.Module.Kugou
 
         public async Task RefreshAsync()
         {
+            var refreshId = Guid.NewGuid().ToString("N").Substring(0, 8);
+            KugouImportDebugLog.Write($"[{refreshId}] RefreshAsync begin");
             _context.Library.UnregisterModule(ModuleId);
             _songInfoMap.Clear();
             _playlists.Clear();
@@ -95,6 +100,7 @@ namespace OmniMixPlayer.Module.Kugou
             if (!_session.IsLoggedIn)
             {
                 _statusText = "未登录";
+                KugouImportDebugLog.Write($"[{refreshId}] Refresh stopped: session is not logged in");
                 PublishLibraryRefresh();
                 return;
             }
@@ -106,20 +112,44 @@ namespace OmniMixPlayer.Module.Kugou
 
                 var pageSize = Math.Clamp(_context.ConfigManager.GetValue<int>("PlaylistPageSize", 100), 20, 200);
                 var importMode = _context.ConfigManager.GetValue<string>("ImportMode", "user");
-                var manualIds = ParseIds(_context.ConfigManager.GetValue<string>("PlaylistIds", ""));
+                var rawPlaylistIds = _context.ConfigManager.GetValue<string>("PlaylistIds", "");
+                var manualIds = ParseIds(rawPlaylistIds);
+                string importStatus = null;
+                KugouImportDebugLog.Write($"[{refreshId}] Config importMode='{importMode}', pageSize={pageSize}, loggedIn={_session.IsLoggedIn}, userId='{_session.UserId}', rawPlaylistIdsLength={rawPlaylistIds?.Length ?? 0}, rawPlaylistIds='{MaskPlaylistIdForLog(rawPlaylistIds)}'");
+                KugouImportDebugLog.Write($"[{refreshId}] Parsed manual ids count={manualIds.Count}: {string.Join(", ", manualIds.Select(MaskPlaylistIdForLog))}");
 
-                if (string.Equals(importMode, "manual", StringComparison.OrdinalIgnoreCase) && manualIds.Count > 0)
+                if (string.Equals(importMode, "manual", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (manualIds.Count == 0)
+                    {
+                        _statusText = "未填写歌单 ID";
+                        KugouImportDebugLog.Write($"[{refreshId}] Manual import requested but PlaylistIds is empty");
+                        PublishLibraryRefresh();
+                        return;
+                    }
+
+                    var failedIds = new List<string>();
                     foreach (var id in manualIds)
                     {
-                        var playlist = new KugouPlaylistInfo { Id = id, Name = $"Kugou {id}" };
+                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist import started: id='{MaskPlaylistIdForLog(id)}'");
+                        var playlist = await _bridge.GetPlaylistInfoAsync(id, _session)
+                                       ?? new KugouPlaylistInfo { Id = id, Name = $"Kugou {id}" };
+                        KugouImportDebugLog.Write($"[{refreshId}] Playlist info selected: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', cover='{playlist.CoverUrl ?? ""}', count={playlist.Count}");
                         var songs = await LoadPlaylistSongsAsync(playlist, pageSize);
+                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist import finished: originalId='{MaskPlaylistIdForLog(id)}', resolvedId='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', songs={songs.Count}, firstSongs={FormatSongsForLog(songs.Take(5))}");
+                        _playlists.Add(playlist);
                         _registry.RegisterPlaylist(playlist, songs);
+                        if (songs.Count == 0)
+                            failedIds.Add(id);
                     }
+
+                    if (failedIds.Count > 0)
+                        importStatus = $"已导入 {_playlists.Count - failedIds.Count}/{_playlists.Count} 个歌单，{_songInfoMap.Count} 首歌曲；失败：{string.Join(", ", failedIds.Take(3))}";
                 }
                 else
                 {
                     var playlists = await _bridge.GetUserPlaylistsAsync(_session, 1, 100);
+                    KugouImportDebugLog.Write($"[{refreshId}] User playlist list returned {playlists.Count} playlists: {string.Join(", ", playlists.Take(10).Select(p => $"{MaskPlaylistIdForLog(p.Id)}:{p.Name}({p.Count})"))}");
                     _playlists.AddRange(playlists);
                     foreach (var playlist in playlists)
                     {
@@ -128,11 +158,13 @@ namespace OmniMixPlayer.Module.Kugou
                     }
                 }
 
-                _statusText = $"已导入 {_playlists.Count} 个歌单，{_songInfoMap.Count} 首歌曲";
+                _statusText = importStatus ?? $"已导入 {_playlists.Count} 个歌单，{_songInfoMap.Count} 首歌曲";
+                KugouImportDebugLog.Write($"[{refreshId}] Refresh finished: playlists={_playlists.Count}, tracks={_songInfoMap.Count}, status='{_statusText}'");
             }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "[Kugou] Refresh failed");
+                KugouImportDebugLog.Write($"[{refreshId}] Refresh failed", ex);
                 _statusText = "刷新失败：" + ex.Message;
             }
 
@@ -222,7 +254,7 @@ namespace OmniMixPlayer.Module.Kugou
 
             if (!loggedIn)
             {
-                root.AddChild(SlintUi.Image("qr_image", "/api/modules/" + ModuleId + "/content/qr-image", width: 200, height: 200))
+                root.AddChild(SlintUi.Image("qr_image", "/api/modules/" + ModuleId + "/content/qr-image/" + _qrImageVersion, width: 200, height: 200))
                     .AddChild(SlintUi.Button("qr_login", _qrLogin?.ImageBytes == null ? "获取二维码" : "刷新二维码"));
                 return root;
             }
@@ -246,6 +278,7 @@ namespace OmniMixPlayer.Module.Kugou
 
         public void HandleUIEvent(string nodeId, string action, string value)
         {
+            KugouImportDebugLog.Write($"UI event node='{nodeId}', action='{action}', value='{MaskPlaylistIdForLog(value)}'");
             switch (nodeId)
             {
                 case "qr_login":
@@ -258,6 +291,7 @@ namespace OmniMixPlayer.Module.Kugou
                 case "playlist_ids":
                     _context.ConfigManager.SetValue("PlaylistIds", value ?? "");
                     _context.ConfigManager.Save();
+                    KugouImportDebugLog.Write($"PlaylistIds saved length={value?.Length ?? 0}, value='{MaskPlaylistIdForLog(value)}'");
                     break;
                 case "playlist_page_size":
                     if (int.TryParse(value, out var pageSize))
@@ -279,14 +313,14 @@ namespace OmniMixPlayer.Module.Kugou
 
         public Task<byte[]> ServeRawContent(string path)
         {
-            if (path == "qr-image")
+            if ((path ?? "").StartsWith("qr-image", StringComparison.OrdinalIgnoreCase))
                 return Task.FromResult(_qrLogin?.ImageBytes);
             return Task.FromResult<byte[]>(null);
         }
 
         public string ServeRawContentType(string path)
         {
-            return path == "qr-image" ? "image/png" : null;
+            return (path ?? "").StartsWith("qr-image", StringComparison.OrdinalIgnoreCase) ? "image/png" : null;
         }
 
         private async Task RefreshAndPushUiAsync()
@@ -307,9 +341,11 @@ namespace OmniMixPlayer.Module.Kugou
         private async Task<List<KugouSongInfo>> LoadPlaylistSongsAsync(KugouPlaylistInfo playlist, int pageSize)
         {
             var songs = new List<KugouSongInfo>();
+            KugouImportDebugLog.Write($"LoadPlaylistSongs begin: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', pageSize={pageSize}");
             for (int page = 1; page <= 20; page++)
             {
                 var batch = await _bridge.GetPlaylistSongsAsync(playlist.Id, _session, page, pageSize);
+                KugouImportDebugLog.Write($"LoadPlaylistSongs page: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', page={page}, batch={batch.Count}, accumulated={songs.Count + batch.Count}, sample={FormatSongsForLog(batch.Take(3))}");
                 if (batch.Count == 0) break;
 
                 foreach (var song in batch)
@@ -321,6 +357,7 @@ namespace OmniMixPlayer.Module.Kugou
 
                 if (batch.Count < pageSize) break;
             }
+            KugouImportDebugLog.Write($"LoadPlaylistSongs finished: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', total={songs.Count}");
             return songs;
         }
 
@@ -333,6 +370,7 @@ namespace OmniMixPlayer.Module.Kugou
             try
             {
                 _qrLogin = await _bridge.CreateQrLoginAsync(token);
+                _qrImageVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 _statusText = _qrLogin?.StatusText ?? "二维码创建失败";
                 PushUI?.Invoke(BuildUI());
                 if (_qrLogin == null) return;
@@ -399,10 +437,83 @@ namespace OmniMixPlayer.Module.Kugou
         {
             return (raw ?? "")
                 .Split(new[] { ',', '，', ';', '；', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Trim())
+                .Select(NormalizePlaylistId)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct()
                 .ToList();
+        }
+
+        private static string NormalizePlaylistId(string raw)
+        {
+            var value = (raw ?? "").Trim().Trim('\'', '"');
+            while (value.EndsWith("/", StringComparison.Ordinal))
+                value = value.Substring(0, value.Length - 1);
+
+            if (HasQueryValue(value, "global_collection_id")
+                && HasQueryValue(value, "uid")
+                && HasQueryValue(value, "sign")
+                && HasQueryValue(value, "token"))
+                return value;
+
+            var globalId = ExtractQueryValue(value, "global_collection_id");
+            if (!string.IsNullOrWhiteSpace(globalId))
+                return globalId;
+
+            var listId = ExtractQueryValue(value, "listid");
+            if (!string.IsNullOrWhiteSpace(listId) && !value.Contains("global_collection_id", StringComparison.OrdinalIgnoreCase))
+                return listId;
+
+            return value;
+        }
+
+        private static bool HasQueryValue(string value, string name)
+        {
+            return !string.IsNullOrWhiteSpace(ExtractQueryValue(value, name));
+        }
+
+        private static string ExtractQueryValue(string value, string name)
+        {
+            var queryStart = value.IndexOf('?');
+            var query = queryStart >= 0 ? value.Substring(queryStart + 1) : value;
+            foreach (var part in query.Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var index = part.IndexOf('=');
+                if (index <= 0) continue;
+                var key = Uri.UnescapeDataString(part.Substring(0, index));
+                if (!string.Equals(key, name, StringComparison.OrdinalIgnoreCase)) continue;
+                var item = Uri.UnescapeDataString(part.Substring(index + 1)).Trim();
+                while (item.EndsWith("/", StringComparison.Ordinal))
+                    item = item.Substring(0, item.Length - 1);
+                return item;
+            }
+            return "";
+        }
+
+        private static string MaskPlaylistIdForLog(string value)
+        {
+            value = (value ?? "").Trim();
+            var queryStart = value.IndexOf('?');
+            if (queryStart < 0) return value;
+
+            var prefix = value.Substring(0, queryStart + 1);
+            var query = value.Substring(queryStart + 1)
+                .Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(part =>
+                {
+                    var index = part.IndexOf('=');
+                    if (index <= 0) return part;
+                    var key = Uri.UnescapeDataString(part.Substring(0, index));
+                    if (string.Equals(key, "token", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(key, "sign", StringComparison.OrdinalIgnoreCase))
+                        return key + "=***";
+                    return part;
+                });
+            return prefix + string.Join("&", query);
+        }
+
+        private static string FormatSongsForLog(IEnumerable<KugouSongInfo> songs)
+        {
+            return string.Join(" | ", songs.Select(s => $"{s.Artist} - {s.Title}#{s.Hash}/{s.AlbumAudioId}"));
         }
 
         private async Task<(byte[] data, string mimeType)?> DownloadCoverAsync(string url)
