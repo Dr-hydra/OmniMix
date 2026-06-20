@@ -383,6 +383,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="10" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="16" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -424,7 +426,17 @@
                                                 Grid.Column="1"
                                                 local:SettingService.Key="UiBackgroundClarity"
                                                 MaxValue="100" />
-                                <Border Grid.Row="8"
+                                <TextBlock x:Name="LabFloatingWindowOpacity"
+                                           Grid.Row="8"
+                                           Text="悬浮窗透明度：88%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingWindowOpacity"
+                                                Grid.Row="8"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowOpacity"
+                                                MaxValue="100" />
+                                <Border Grid.Row="10"
                                         Grid.ColumnSpan="2"
                                         Background="{DynamicResource ColorBrushSemiTransparent}"
                                         CornerRadius="6"

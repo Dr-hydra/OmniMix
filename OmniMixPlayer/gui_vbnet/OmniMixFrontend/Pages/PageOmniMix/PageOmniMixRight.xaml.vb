@@ -300,7 +300,6 @@ Public Class PageOmniMixRight
         LoadState.Visibility = Visibility.Visible
         LoadState.State.LoadingState = MyLoading.MyLoadingState.Run
         LabStatus.Text = InitialStatusText & vbCrLf & vbCrLf & "正在发现或启动 OmniMix 后端..."
-        FrmMain?.SetOmniMixConnectionStatus(False)
 
         Dim Status = Await OmniMixBackendManager.EnsureStartedAsync()
         If Status.IsOnline Then
@@ -709,13 +708,15 @@ Public Class PageOmniMixRight
         TxtCachePath.HintText = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
     End Sub
 
-    Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change
+    Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change, SliderFloatingWindowOpacity.Change
         RefreshPersonalizationUi()
         If FrmMain Is Nothing Then Return
         If sender Is SliderWindowOpacity Then
             FrmMain.UpdateWindowOpacity()
         ElseIf sender Is SliderControlOpacity Then
             FrmMain.UpdateControlOpacity()
+        ElseIf sender Is SliderFloatingWindowOpacity Then
+            FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()
         Else
             FrmMain.LoadBackgroundImage()
         End If
@@ -766,6 +767,7 @@ Public Class PageOmniMixRight
         LabControlOpacity.Text = "控件不透明度：" & CInt(SliderControlOpacity.Value) & "%"
         LabBackgroundOpacity.Text = "背景图不透明度：" & CInt(SliderBackgroundOpacity.Value) & "%"
         LabBackgroundClarity.Text = "背景清晰度：" & CInt(SliderBackgroundClarity.Value) & "%"
+        LabFloatingWindowOpacity.Text = "悬浮窗透明度：" & CInt(SliderFloatingWindowOpacity.Value) & "%"
         LabThemeHue.Text = "色调：" & CInt(SliderThemeHue.Value)
         LabThemeSat.Text = "饱和度：" & CInt(SliderThemeSat.Value) & "%"
         LabThemeLight.Text = "亮度微调：" & (CInt(SliderThemeLight.Value) - 20)

@@ -20,6 +20,7 @@ Public Class Settings
         New Setting("UiLauncherThemeLight", 20),
         New Setting("UiBackgroundColorful", False, OnChanged:=Sub() ThemeRefresh()),
         New Setting("UiControlOpacity", 80, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateControlOpacity()),
+        New Setting("OmniMixFloatingWindowOpacity", 88, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("UiBackgroundOpacity", 100, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
         New Setting("UiBackgroundBlur", 0, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
         New Setting("UiBackgroundClarity", 100, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
