@@ -154,6 +154,13 @@ namespace OmniMixPlayer.Backend.Http
             // Health
             endpoints.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }));
 
+            // One-shot playback failure notices for low-noise frontend hints.
+            endpoints.MapGet("/api/playback/{instanceId}/failure-notice", (string instanceId, bool? consume) =>
+            {
+                var notice = _sessions.GetFailureNotice(instanceId, consume ?? true);
+                return notice != null ? Results.Json(notice) : Results.NoContent();
+            });
+
             // Version
             endpoints.MapGet("/api/version", () => Results.Json(new { version = SDK.SDKInfo.SDK_VERSION, name = SDK.SDKInfo.SDK_NAME }));
 

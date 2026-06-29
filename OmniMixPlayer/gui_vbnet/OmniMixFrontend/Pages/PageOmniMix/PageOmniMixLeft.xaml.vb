@@ -670,13 +670,13 @@ Public Class PageOmniMixLeft
             Case "netease", "chillpatcher.module.netease"
                 Return "网易云音乐"
             Case "qqmusic", "qq_music", "chillpatcher.module.qqmusic"
-                Return "QQ Music"
+                Return "QQ音乐"
             Case "spotify", "chillpatcher.module.spotify"
                 Return "Spotify"
             Case "localfolder", "local_folder", "chillpatcher.module.localfolder"
                 Return "本地文件夹"
             Case "bilibili", "chillpatcher.module.bilibili"
-                Return "Bilibili"
+                Return "哔哩哔哩"
             Case Else
                 Return NonEmpty(ModuleId, "未知来源")
         End Select

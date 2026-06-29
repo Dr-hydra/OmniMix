@@ -11,6 +11,8 @@ namespace OmniMixPlayer.Backend.Audio
 {
     public class PlaybackController : IDisposable
     {
+        private const int ConsecutiveFailureNoticeThreshold = 3;
+
         private readonly ILogger _logger;
         private readonly SharedMemoryServer _sharedMemory;
         private readonly IEventBus _eventBus;
@@ -35,10 +37,12 @@ namespace OmniMixPlayer.Backend.Audio
         private IPcmStreamReader _currentReader;
         private Track _playingTrack;
         private bool _disposed;
+        private int _consecutivePlaybackFailures;
 
         public event Action<Track> OnTrackChanged;
         public event Action<int> OnStateChanged;
         public event Action<float> OnPositionChanged;
+        public event Action<PlaybackFailureNotice> OnFailureNotice;
 
         public Track CurrentTrack => _timeline.GetCurrentTrack(Id);
         public bool IsPlaying => _playState == 1;
@@ -262,6 +266,7 @@ namespace OmniMixPlayer.Backend.Audio
                                     Music = track,
                                     Reason = PlayEndReason.Failed
                                 });
+                                RegisterPlaybackFailure(track);
 
                                 if (ServerControlledPlayback)
                                 {
@@ -281,6 +286,7 @@ namespace OmniMixPlayer.Backend.Audio
                     }
 
                     lock (_lock) { _currentReader = reader; }
+                    ResetPlaybackFailureStreak();
 
                     long totalFramesHint = track.Duration > 0 ? (long)(track.Duration * 44100f) : 0;
                     _sharedMemory?.BeginStream(track.Uuid, totalFramesHint);
@@ -382,6 +388,7 @@ namespace OmniMixPlayer.Backend.Audio
                     lock (_lock)
                     {
                         _eventBus.Publish(new PlayEndedEvent { Music = track, Reason = PlayEndReason.Completed });
+                        ResetPlaybackFailureStreak();
 
                         if (ServerControlledPlayback)
                         {
@@ -407,7 +414,41 @@ namespace OmniMixPlayer.Backend.Audio
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Playback error for {Uuid}", track.Uuid);
+                lock (_lock)
+                {
+                    RegisterPlaybackFailure(track);
+                }
             }
+        }
+
+        private void RegisterPlaybackFailure(Track track)
+        {
+            _consecutivePlaybackFailures++;
+            if (_consecutivePlaybackFailures < ConsecutiveFailureNoticeThreshold) return;
+
+            var moduleName = ResolveModuleDisplayName(track?.ModuleId);
+            OnFailureNotice?.Invoke(new PlaybackFailureNotice
+            {
+                InstanceId = Id,
+                ModuleId = track?.ModuleId ?? "",
+                ModuleName = moduleName,
+                Count = _consecutivePlaybackFailures,
+                Message = $"{moduleName} 最近连续 {_consecutivePlaybackFailures} 首歌曲无法播放，可能是登录失效、会员/VIP 权限不足或平台版权限制。建议重新登录或检查账号会员状态。",
+                CreatedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
+        }
+
+        private void ResetPlaybackFailureStreak()
+        {
+            _consecutivePlaybackFailures = 0;
+        }
+
+        private static string ResolveModuleDisplayName(string moduleId)
+        {
+            if (string.IsNullOrWhiteSpace(moduleId)) return "当前音源";
+            var module = ModuleLoader.Instance?.GetModule(moduleId);
+            if (!string.IsNullOrWhiteSpace(module?.DisplayName)) return module.DisplayName;
+            return moduleId;
         }
 
         private async Task<IPcmStreamReader> CreateReaderForTrackAsync(Track track, CancellationToken ct)

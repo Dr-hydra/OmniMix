@@ -166,7 +166,7 @@
                                       MinPaddingRight="35"
                                       Height="36"
                                       VerticalAlignment="Top"
-                                      Title="Mod"
+                                      Title="音源管理"
                                       IsScaleAnimationEnabled="False" />
                     <local:MyListItem x:Name="ItemModuleGameIntegration"
                                       Type="RadioBox"

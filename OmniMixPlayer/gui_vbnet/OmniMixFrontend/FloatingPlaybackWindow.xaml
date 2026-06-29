@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="OmniMix 播放悬浮窗"
-        Width="390" Height="132"
-        MinWidth="330" MinHeight="112"
+        Width="430" Height="144"
+        MinWidth="370" MinHeight="124"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
@@ -18,6 +18,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="76" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="92" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -80,7 +81,29 @@
                 </Grid>
             </Grid>
 
-            <Button x:Name="BtnClose" Grid.Column="2"
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="8,0,0,3">
+                <Button x:Name="BtnPrev"
+                        Width="26" Height="26" Margin="0,0,5,0"
+                        Background="#24FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1"
+                        Foreground="#E8FFFFFF" FontSize="13"
+                        Content="⏮" Cursor="Hand" ToolTip="上一首" />
+                <Button x:Name="BtnToggle"
+                        Width="30" Height="30" Margin="0,0,5,0"
+                        Background="#38FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1"
+                        Foreground="#FFFFFFFF" FontSize="13"
+                        Content="⏯" Cursor="Hand" ToolTip="播放/暂停" />
+                <Button x:Name="BtnNext"
+                        Width="26" Height="26"
+                        Background="#24FFFFFF" BorderBrush="#30FFFFFF" BorderThickness="1"
+                        Foreground="#E8FFFFFF" FontSize="13"
+                        Content="⏭" Cursor="Hand" ToolTip="下一首" />
+            </StackPanel>
+
+            <Button x:Name="BtnClose" Grid.Column="3"
                     Width="24" Height="24" Margin="8,-4,-6,0"
                     Background="Transparent" BorderThickness="0"
                     Foreground="#CCFFFFFF" FontSize="16"

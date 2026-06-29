@@ -94,9 +94,9 @@ Public Class PageOmniMixRight
                 LabSubtitle.Text = "按来源浏览后端聚合出的音乐库。"
                 LabStatus.Text = "接口：/api/playlist。"
             Case "Modules"
-                LabTitle.Text = "插件"
-                LabSubtitle.Text = "在 Mod 与游戏集成之间切换，并管理音乐源模块。"
-                LabStatus.Text = "接口：/api/modules、模块设置 UI、快捷入口、播放实例和 WebSocket UI 事件。"
+                LabTitle.Text = "音源管理"
+                LabSubtitle.Text = "管理音乐源、快捷入口与游戏集成。"
+                LabStatus.Text = "接口：/api/modules、音源设置 UI、快捷入口、播放实例和 WebSocket UI 事件。"
             Case "Settings"
                 LabTitle.Text = "设置"
                 LabSubtitle.Text = "后端配置、播放实例档案和 GUI 本地偏好。"
@@ -2034,6 +2034,7 @@ Public Class PageOmniMixRight
             Dim ActiveInstance = PickActiveInstance(Instances, ConfigString(Config, "active_instance", ""))
             ActiveInstanceId = If(ActiveInstance Is Nothing, "", ActiveInstance.Id)
             RenderPlayback(Instances, ActiveInstance)
+            Await ShowPlaybackFailureNoticeAsync(BaseUrl, ActiveInstanceId)
             Await RefreshQueuePaneAsync(BaseUrl)
         Catch Ex As Exception
             ActiveInstanceId = ""
@@ -2041,6 +2042,18 @@ Public Class PageOmniMixRight
             LabPlaybackSummary.Text = "播放实例加载失败：" & Ex.Message
             RenderPlayback(New List(Of OmniMixPlaybackInstanceInfo), Nothing)
             RenderQueueItems(New List(Of OmniMixQueueItemInfo), IsShowingHistory)
+        End Try
+    End Function
+
+    Private Async Function ShowPlaybackFailureNoticeAsync(BaseUrl As String, InstanceId As String) As Task
+        If String.IsNullOrWhiteSpace(BaseUrl) OrElse String.IsNullOrWhiteSpace(InstanceId) Then Return
+        Try
+            Dim Notice = Await OmniMixApiClient.ConsumePlaybackFailureNoticeAsync(BaseUrl, InstanceId)
+            If Notice Is Nothing OrElse String.IsNullOrWhiteSpace(Notice.Message) Then Return
+            LabPlaybackSummary.Text = Notice.Message
+            Hint(Notice.Message, HintType.Blue, False)
+        Catch
+            ' Failure notices are advisory only; keep playback refresh quiet.
         End Try
     End Function
 
@@ -2464,7 +2477,7 @@ Public Class PageOmniMixRight
         If PageKey <> "Modules" Then Return
 
         UpdatePluginPaneVisibility()
-        LabModulesSummary.Text = If(CurrentModulesPane = "game", "正在加载游戏集成状态...", If(CurrentModulesPane = "launchpad", "正在加载启动台...", "正在加载 Mod 列表..."))
+        LabModulesSummary.Text = If(CurrentModulesPane = "game", "正在加载游戏集成状态...", If(CurrentModulesPane = "launchpad", "正在加载启动台...", "正在加载音源列表..."))
         PanModulesList.Children.Clear()
         PanLaunchpadList.Children.Clear()
         PanGameIntegrationList.Children.Clear()
@@ -2484,7 +2497,7 @@ Public Class PageOmniMixRight
                 End If
             End If
         Catch Ex As Exception
-            LabModulesSummary.Text = If(CurrentModulesPane = "game", "游戏集成状态加载失败：", If(CurrentModulesPane = "launchpad", "启动台加载失败：", "Mod 列表加载失败：")) & Ex.Message
+            LabModulesSummary.Text = If(CurrentModulesPane = "game", "游戏集成状态加载失败：", If(CurrentModulesPane = "launchpad", "启动台加载失败：", "音源列表加载失败：")) & Ex.Message
         End Try
     End Function
 
@@ -2492,12 +2505,12 @@ Public Class PageOmniMixRight
         If PageKey = "Modules" AndAlso CardModuleUi.Visibility <> Visibility.Visible Then
             CardModules.Visibility = Visibility.Visible
         End If
-        BtnModulesTab.Text = If(CurrentModulesPane = "launchpad", "启动台 ✓", If(CurrentModulesPane = "mod", "Mod ✓", "Mod"))
+        BtnModulesTab.Text = If(CurrentModulesPane = "launchpad", "启动台 ✓", If(CurrentModulesPane = "mod", "音源管理 ✓", "音源管理"))
         BtnGameIntegrationTab.Text = If(CurrentModulesPane = "game", "游戏集成 ✓", "游戏集成")
         PanModulesList.Visibility = If(CurrentModulesPane = "mod", Visibility.Visible, Visibility.Collapsed)
         PanLaunchpadList.Visibility = If(CurrentModulesPane = "launchpad", Visibility.Visible, Visibility.Collapsed)
         PanGameIntegrationList.Visibility = If(CurrentModulesPane = "game", Visibility.Visible, Visibility.Collapsed)
-        CardModules.Title = If(CurrentModulesPane = "game", "插件 - 游戏集成", If(CurrentModulesPane = "launchpad", "插件 - 启动台", "插件 - Mod"))
+        CardModules.Title = If(CurrentModulesPane = "game", "音源管理 - 游戏集成", If(CurrentModulesPane = "launchpad", "音源管理 - 启动台", "音源管理"))
     End Sub
 
     Private Sub BtnModulesTab_Click(sender As Object, e As EventArgs) Handles BtnModulesTab.Click
@@ -2628,6 +2641,8 @@ Public Class PageOmniMixRight
         Dim InfoParts As New List(Of String)
         InfoParts.Add(If(IsValidPath, "目录有效", If(String.IsNullOrWhiteSpace(GamePath), "未选择目录", "目录无效")))
         If Not String.IsNullOrWhiteSpace(GamePath) Then InfoParts.Add(GamePath)
+        Dim LayoutDescription = OmniMixModDeploymentService.GetGameInstallLayoutDescription(GamePath, Game)
+        If Not String.IsNullOrWhiteSpace(LayoutDescription) Then InfoParts.Add(LayoutDescription)
         If IsValidPath Then InfoParts.Add("游戏版本 " & OmniMixModDeploymentService.GetGameVersion(GamePath, Game))
         If Game.SupportedFrameworks.Contains("bepinex_5") Then InfoParts.Add("BepInEx " & GetBepInExStatusText(BepInExStatus))
         If ModInfo IsNot Nothing Then InfoParts.Add(ModInfo.Name & " " & GetModStatusText(ModStatus))
@@ -2853,10 +2868,26 @@ Public Class PageOmniMixRight
         }
         If Dialog.ShowDialog() <> True Then Return
 
+        Dim RadioDisplayName = MyMsgBoxInput(
+            "自定义电台名称",
+            "输入游戏中显示的电台/曲目名称。",
+            "OmniMix Player",
+            New ObjectModel.Collection(Of Validate) From {New ValidateNullOrWhiteSpace(), New ValidateLength(1, 80)},
+            "例如：OmniMix Player")
+        If RadioDisplayName Is Nothing Then Return
+
+        Dim RadioArtist = MyMsgBoxInput(
+            "自定义电台副标题",
+            "输入游戏中显示的艺术家或副标题。",
+            "OmniMix",
+            New ObjectModel.Collection(Of Validate) From {New ValidateNullOrWhiteSpace(), New ValidateLength(1, 80)},
+            "例如：OmniMix")
+        If RadioArtist Is Nothing Then Return
+
         LabModulesSummary.Text = "正在替换电台 UI..."
         Dim Logs As New List(Of String)
         Dim PngPath = Dialog.FileName
-        Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.DeployMediaUiReplacement(GamePath, PngPath, Logs))
+        Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.DeployMediaUiReplacement(GamePath, PngPath, Logs, RadioDisplayName, RadioArtist))
         DeploymentLogs = Logs
         Hint(If(Success, "电台 UI 替换完成。", "电台 UI 替换失败。"), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)

@@ -652,7 +652,7 @@ namespace OmniMixPlayer.Module.QQMusic
                         SlintUi.Row(spacing: 12)
                             .AddChild(
                                 SlintUi.Column(spacing: 4)
-                                    .AddChild(SlintUi.Text("QQ Music", fontSize: 18))
+                                    .AddChild(SlintUi.Text("QQ音乐", fontSize: 18))
                                     .AddChild(SlintUi.Text("已登录", fontSize: 12, color: "#4caf50"))
                             )
                     )

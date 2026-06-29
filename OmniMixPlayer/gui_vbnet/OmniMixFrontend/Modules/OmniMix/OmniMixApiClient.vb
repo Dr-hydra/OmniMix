@@ -121,6 +121,15 @@ Public Class OmniMixPlaybackInstanceInfo
     End Property
 End Class
 
+Public Class OmniMixPlaybackFailureNoticeInfo
+    Public Property InstanceId As String = ""
+    Public Property ModuleId As String = ""
+    Public Property ModuleName As String = ""
+    Public Property Count As Integer
+    Public Property Message As String = ""
+    Public Property CreatedAtUnixMs As Long
+End Class
+
 Public Class OmniMixInstanceStatsInfo
     Public Property InstanceCount As Integer
     Public Property AttachedAudioClients As Integer
@@ -410,6 +419,15 @@ Public Module OmniMixApiClient
             Return If(Stats, New OmniMixInstanceStatsInfo)
         Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
             Return New OmniMixInstanceStatsInfo
+        End Try
+    End Function
+
+    Public Async Function ConsumePlaybackFailureNoticeAsync(BaseUrl As String, InstanceId As String) As Task(Of OmniMixPlaybackFailureNoticeInfo)
+        If String.IsNullOrWhiteSpace(InstanceId) Then Return Nothing
+        Try
+            Return Await GetJsonAsync(Of OmniMixPlaybackFailureNoticeInfo)(BaseUrl, "/api/playback/" & Uri.EscapeDataString(InstanceId) & "/failure-notice?consume=true")
+        Catch Ex As HttpRequestException When Ex.StatusCode = HttpStatusCode.NoContent OrElse Ex.StatusCode = HttpStatusCode.NotFound
+            Return Nothing
         End Try
     End Function
 

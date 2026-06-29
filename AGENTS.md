@@ -1,93 +1,146 @@
 # AGENTS.md
 
-## Project Role
+## 项目定位
 
-This repository is the VB.NET/WPF compatible frontend for OmniMix. Treat it as a frontend compatibility layer, not as the primary upstream backend implementation.
+本仓库是 OmniMix 的长期维护分支版本，由 Dr.Hydra 维护。
 
-## Upstream
+- 项目名称统一使用 `OmniMix`。
+- VB.NET/WPF 前端所在分支是当前主开发分支。
+- `main` 分支保留，用于保留历史基线并方便未来必要时从原项目拉取或比对。
+- 原作者和原项目仅作为历史来源、致谢和必要的兼容参考出现，不再把本仓库定位为单纯的上游兼容前端。
 
-- Upstream repository: https://github.com/BeyondtheApex/ChillPatcher
-- Upstream full backend package is published as `playerbuild.zip` in the upstream Release assets.
-- Backend behavior should stay compatible with upstream OmniMix/ChillPatcher builds.
-- Prefer frontend-side adapters and compatibility fixes over backend API changes.
+## 历史来源
 
-## Upstream Sync Procedure
+- 原项目仓库：`https://github.com/BeyondtheApex/ChillPatcher`
+- 如果需要参考原项目行为，应优先作为历史实现和协议兼容依据，而不是默认把本仓库改回上游从属结构。
 
-- Do not directly merge or pull upstream `main` into this repository's `main`.
-- Upstream `main` does not carry this repository's VB.NET frontend directory, so a normal merge may treat `OmniMixPlayer/gui_vbnet/` as deleted.
-- For upstream refresh work, create a sync branch from `upstream/main`, then restore this repository's owned files:
-  - `README.md`
-  - `README_ZH.md`
-  - `AGENTS.md`
-  - `OmniMixPlayer/gui_vbnet/`
-- The current sync branch pattern is:
-  - base: `BeyondtheApex/ChillPatcher` `main`
-  - overlay: this repository's README files, `AGENTS.md`, and VB.NET frontend tree
-- After syncing, verify that the upstream SDK and Flutter Windows SDK client are present before adapting the VB.NET frontend:
-  - `OmniMixPlayer/OmniMixPlayer.SDK/`
-  - `OmniMixPlayer/gui_flutter/lib/services/omni_sdk_client.dart`
-  - `OmniMixPlayer/gui_flutter/lib/services/omni_sdk_bindings.dart`
+## 分支与拉取策略
 
-## Release Packaging
+- 当前 VB.NET 分支是主维护分支，日常开发和发布工作优先在该分支进行。
+- 保留 `main` 分支，便于必要时与原项目或历史主线做差异比较。
+- 如需从原项目拉取更新，优先使用临时同步分支，不要直接把外部 `main` 合入当前主开发分支。
 
-- The primary local artifact is `OmniMixPlayer.Gui.Vbnet.exe`.
-- Starting with `3.0.7`, GitHub Releases must not publish the framework-dependent or self-contained VB.NET executable as standalone assets.
-- Public releases should contain only the complete portable package, complete framework-dependent package, and Windows installer unless a later packaging decision explicitly changes this rule.
-- Full-package releases should be based on the upstream `playerbuild.zip`, then replace the upstream desktop Flutter GUI with `OmniMixPlayer.Gui.Vbnet.exe`.
-- When creating a full package, preserve upstream backend/runtime assets such as:
-  - `OmniMixPlayer.Backend.exe`
-  - `modules/`
-  - `native/`
-  - `wwwroot/`
-  - `appsettings.json`
-  - media generator files and package metadata when present
-- Only remove the upstream desktop GUI runtime when replacing it, such as:
-  - `omnimix_gui.exe`
-  - `flutter_windows.dll`
-  - Flutter desktop `data/`
-  - Flutter desktop plugin DLLs
-- Include a short provenance note in full packages, for example `BACKEND_UPSTREAM.txt`, with upstream repo, tag, asset URL, and SHA256.
+## 发布打包
 
-## Backend Discovery
+- 公开发布优先包含：
+  - 完整自包含便携包
+  - 完整框架依赖包
+  - Windows 安装器
+- 完整包应包含后端、模块、原生库、Web 资源、媒体生成器、配置文件和 VB.NET 桌面前端。
+- 如果包内仍包含来自原项目的后端/runtime 资产，保留简短来源说明，例如 `BACKEND_UPSTREAM.txt`，写明来源仓库、tag、asset URL 和 SHA256。
+- 发布说明使用中文。
 
-- The VB.NET frontend expects the backend executable to be named `OmniMixPlayer.Backend.exe`.
-- Keep the frontend able to run when placed beside an existing upstream backend distribution.
-- Do not assume the backend is owned by this repository unless the task explicitly says to maintain a forked backend.
+## 后端与 SDK 方向
 
-## API And SDK Direction
+- 前端期望后端可执行文件名为 `OmniMixPlayer.Backend.exe`。
+- 桌面端优先使用 `OmniMixPlayer.SDK` 和 `.NET` gRPC-Web 客户端。
+- `OmniMixApiClient` 继续作为页面层兼容适配器，尽量保持现有公开方法签名稳定。
+- REST 调用只保留给 SDK 暂未覆盖的功能，例如后端配置、停止后端、模块启停、模块 UI/link/settings 等。
+- 避免为了前端页面便利而随意改变后端协议；确需改变时，同时更新 SDK、文档和兼容逻辑。
 
-- Upstream guidance says the Flutter Windows client now uses the SDK to communicate with the backend.
-- For future VB.NET integration work, prefer studying the Flutter Windows SDK integration instead of hand-writing duplicate compatible API implementations.
-- The SDK route should reduce drift because API endpoints and backend control are centralized upstream.
-- The Web client may use native Dart HTTP/WebSocket API calls, but the desktop frontend should favor the SDK-style approach when practical.
-- The VB.NET frontend now references `OmniMixPlayer.SDK` and uses `.NET` gRPC-Web clients for core library, playback, queue/history, equalizer, instance, archive, and profile operations.
-- Upstream `v3.0` removed the older profile playback mode/queue fields and moved queue-like state into `PlaybackTimelineState`; keep `OmniMixApiClient` as the compatibility adapter between existing WPF page code and the SDK timeline model.
-- Treat `InstanceProfile.Capabilities.ServerControlledPlayback` as the current SDK-side signal for server-managed playback behavior when the UI needs to infer the legacy mode string.
-- Keep REST calls only for upstream surfaces that are not currently covered by the SDK, such as backend config, backend stop, module enablement, and module UI/link/settings endpoints.
-- Preserve the existing `OmniMixApiClient` public method signatures when possible so page-level WPF code does not need to know whether a call is backed by SDK/gRPC or REST.
+## 代码架构与定位速查
 
-## Compatibility Model
+优先按下面路径定位代码，避免一开始全仓库大范围阅读。
 
-- GUI clients and game mods are both clients of the same backend model.
-- They can control similar endpoints and observe similar backend state; their main difference is the user-facing surface and audio output role.
-- Keep module UI, playback state, queue control, game bridge files, port files, and instance IDs compatible with upstream expectations.
+### VB.NET/WPF 前端
 
-## Build Notes
+- 解决方案：`OmniMixPlayer/gui_vbnet/OmniMixFrontend.sln`
+- 前端项目：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/`
+- 共享 UI/工具库：`OmniMixPlayer/gui_vbnet/OmniMixCore/`
+- 主窗口与全局热键：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/FormMain.xaml.vb`
+- OmniMix 主要页面：
+  - `OmniMixPlayer/gui_vbnet/OmniMixFrontend/Pages/PageOmniMix/PageOmniMixLeft.xaml.vb`
+  - `OmniMixPlayer/gui_vbnet/OmniMixFrontend/Pages/PageOmniMix/PageOmniMixRight.xaml.vb`
+- 常用控件：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Controls/`
+- 基础网络/下载/通用逻辑：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/Base/`
+- 旧 PCL/QING 风格通用模块：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/`
 
-- Use `rg`/`rg --files` first when searching the repository.
-- Keep edits scoped to the frontend unless the user explicitly asks for backend changes.
-- Upstream `v3.0` moved build orchestration into `scripts/build_tree.py`; this repository keeps `scripts/build_all.py` as a command-line compatibility wrapper for old `build.cmd` flows and for publishing the VB.NET frontend into `playerbuild/`.
-- Use `python scripts/build_all.py player --skip-flutter` to build the full backend/modules package while replacing the desktop Flutter GUI with `OmniMixPlayer.Gui.Vbnet.exe`.
-- When `--skip-flutter` is used, the wrapper disables only the Flutter desktop copy step during `playerbuild` assembly; do not remove backend `wwwroot/` web assets.
-- Before release work, check the current GitHub Release assets and upstream Release asset digest.
-- Avoid deleting or rewriting generated/upstream package contents unless the release task specifically requires that replacement.
+### 前端 OmniMix 适配层
 
-## Terminal
+- 后端进程发现、启动、生命周期：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixBackendManager.vb`
+- API/SDK 兼容适配器：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixApiClient.vb`
+- 模块 UI 渲染：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixRawNodeRenderer.vb`
+- 桌面 PCM 播放：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixDesktopPcmPlaybackSink.vb`
+- Windows 服务控制：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixPlatformService.vb`
+- 游戏集成安装/卸载/绑定修复：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixModDeploymentService.vb`
 
-- Use PowerShell 7 (`pwsh`) for all terminal operations.
+### SDK 与后端
 
-## Documentation Notes
+- SDK 项目：`OmniMixPlayer/OmniMixPlayer.SDK/`
+- gRPC proto：`OmniMixPlayer/OmniMixPlayer.SDK/Protos/`
+- 后端项目：`OmniMixPlayer/OmniMixPlayer.Backend/`
+- 后端入口：`OmniMixPlayer/OmniMixPlayer.Backend/Program.cs`
+- HTTP/REST 层：`OmniMixPlayer/OmniMixPlayer.Backend/Http/`
+- gRPC 服务实现：`OmniMixPlayer/OmniMixPlayer.Backend/Services/`
+- 播放、曲库、实例、时间线核心：`OmniMixPlayer/OmniMixPlayer.Backend/Audio/`
+- 模块系统：`OmniMixPlayer/OmniMixPlayer.Backend/ModuleSystem/`
 
-- `README.md` is the canonical English project overview.
-- `README_ZH.md` may contain encoding issues; verify content carefully before editing it.
-- If release packaging rules change, update this file and the README together.
+### 模块与原生组件
+
+- 内置音乐模块：`OmniMixPlayer/modules/`
+- Spotify 模块：`OmniMixPlayer/modules/Spotify/`
+- QQMusic 模块：`OmniMixPlayer/modules/QQMusic/`
+- 原生插件：`NativePlugins/`
+- 共享 PCM SDK/原生库：`NativePlugins/OmniPcmShared/`
+- 音频解码相关：`NativePlugins/AudioDecoder/`、`NativePlugins/OmniAudioDecoder/`、`NativePlugins/FlacDecoder/`
+- 媒体生成器：`ChillPatcher.MediaGenerator/`
+
+### 游戏集成
+
+- FH6 桥接 Mod：`mods/ForzaHorizon6OmniBridge/`
+- FH6 桥接核心入口：`mods/ForzaHorizon6OmniBridge/src/bridge.cpp`
+- FH6 Omni PCM 源：`mods/ForzaHorizon6OmniBridge/src/sources/omni_pcm_source.cpp`
+- FH6 通用电台实验/参考实现：`NativePlugins/fh6-universal-radio/`
+- Chill With You / BepInEx Mod：`mods/chillPatcher/`
+- 游戏集成前端入口主要在 `PageOmniMixRight.xaml.vb` 的“游戏集成”区域，安装逻辑在 `OmniMixModDeploymentService.vb`。
+
+### 构建与发布脚本
+
+- 全量构建兼容入口：`scripts/build_all.py`
+- 当前构建编排：`scripts/build_tree.py`
+- GUI 构建：`scripts/build_gui.py`
+- 安装器脚本：`scripts/build_installer.ps1`、`scripts/installer/`
+- 任务拆分：`scripts/tasks/`
+
+### 文档与设计记录
+
+- 中文主文档：`README.md`
+- 英文文档：`README_EN.md`
+- 旧中文入口：`README_ZH.md`
+- 维护规则：`AGENTS.md`
+- 其他设计记录：`docs/`
+
+## 兼容模型
+
+- 桌面 GUI、游戏集成桥、游戏 Mod 都是 OmniMix 后端模型的客户端。
+- 它们可以控制相似端点并观察相似状态，主要区别在于用户界面和音频输出角色。
+- 保持模块 UI、播放状态、队列控制、游戏桥文件、端口文件、实例 ID 与当前 OmniMix 约定兼容。
+- FH6 集成需要识别不同发行版目录结构：
+  - Steam：`fh6/forzahorizon6.exe` 与 `fh6/media`
+  - Xbox：`fh6/Content/forzahorizon6.exe` 与 `fh6/media`
+- 对 FH6 根桥接集成，`version.dll`、`OmniPcmShared.dll`、`.omnimix_instance_id` 和 `omnimix_port.txt` 应落到实际运行目录；自定义媒体文件应落到真实 `media` 目录。
+
+## 构建说明
+
+- 搜索文件或文本时优先使用 `rg` / `rg --files`。
+- 代码改动默认保持在本仓库维护范围内；除非任务明确要求，不要做无关后端重构。
+- 完整包构建仍可使用兼容包装脚本：
+
+```powershell
+python scripts/build_all.py player --skip-flutter
+```
+
+- `--skip-flutter` 只跳过 Flutter 桌面 GUI 复制步骤，不应删除后端 `wwwroot/` Web 资源。
+- 发布前检查当前 Release 资产、构建产物和必要来源说明。
+
+## 终端
+
+- 终端操作使用 PowerShell 7（`pwsh`）。
+
+## 文档维护
+
+- `README.md` 是中文主文档。
+- `README_EN.md` 是英文版本。
+- `README_ZH.md` 仅作为中文入口/兼容文件，内容应指向 `README.md` 或保持极简同步。
+- 项目 About / 描述应使用双语，中文优先，英文随后。
+- 如果发布打包、项目定位或分支策略变化，需同步更新 `AGENTS.md`、`README.md` 和 `README_EN.md`。

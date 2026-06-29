@@ -11,6 +11,7 @@ Public Class FloatingPlaybackWindow
     Private ReadOnly RefreshTimer As DispatcherTimer
     Private IsRefreshing As Boolean
     Private LastBaseUrl As String = ""
+    Private ActiveInstanceId As String = ""
     Private CurrentCoverSource As String = ""
     Private CoverLoadSerial As Integer = 0
 
@@ -45,6 +46,18 @@ Public Class FloatingPlaybackWindow
 
     Private Sub BtnClose_Click(sender As Object, e As RoutedEventArgs) Handles BtnClose.Click
         Hide()
+    End Sub
+
+    Private Async Sub BtnPrev_Click(sender As Object, e As RoutedEventArgs) Handles BtnPrev.Click
+        Await SendPlaybackCommandAsync("prev")
+    End Sub
+
+    Private Async Sub BtnToggle_Click(sender As Object, e As RoutedEventArgs) Handles BtnToggle.Click
+        Await SendPlaybackCommandAsync("toggle")
+    End Sub
+
+    Private Async Sub BtnNext_Click(sender As Object, e As RoutedEventArgs) Handles BtnNext.Click
+        Await SendPlaybackCommandAsync("next")
     End Sub
 
     Public Sub ApplyAppearance()
@@ -106,10 +119,13 @@ Public Class FloatingPlaybackWindow
 
         Dim ActiveInstance = PickActiveInstance(Instances, ConfigString(Config, "active_instance", ""))
         If ActiveInstance Is Nothing Then
+            ActiveInstanceId = ""
+            UpdateCommandButtons(False, False)
             RenderStatus("没有曲目正在播放", "等待游戏或桌面播放实例连接", "--", "--", 0)
             ClearCoverImage()
             Return
         End If
+        ActiveInstanceId = ActiveInstance.Id
 
         Dim Track = ActiveInstance.CurrentTrack
         Dim Title = "暂无曲目"
@@ -128,8 +144,26 @@ Public Class FloatingPlaybackWindow
         If Not ActiveInstance.Attached Then State = "离线"
         Dim TimeText = FormatDuration(ActiveInstance.Position) & If(Duration > 0, " / " & FormatDuration(Duration), "")
         Dim Progress = If(Duration > 0, ActiveInstance.Position / Duration, 0)
+        UpdateCommandButtons(True, ActiveInstance.IsPlaying)
         RenderStatus(Title, String.Join(" · ", MetaParts), State, TimeText, Progress)
         SetCoverImage(ResolveTrackCover(Track, BaseUrl))
+    End Function
+
+    Private Async Function SendPlaybackCommandAsync(Command As String) As Task
+        Dim BaseUrl = LastBaseUrl
+        Dim InstanceId = ActiveInstanceId
+        If String.IsNullOrWhiteSpace(BaseUrl) OrElse String.IsNullOrWhiteSpace(InstanceId) Then Return
+
+        SetCommandButtonsEnabled(False)
+        Try
+            Await OmniMixApiClient.SendInstanceCommandAsync(BaseUrl, InstanceId, Command)
+            Await RefreshPlaybackAsync()
+        Catch Ex As Exception
+            Logger.Warn(Ex, $"悬浮窗发送播放命令失败：{Command}")
+            RenderStatus(LabTitle.Text, "播放命令发送失败：" & Ex.Message, LabState.Text, LabTime.Text, BarProgress.Value)
+        Finally
+            SetCommandButtonsEnabled(Not String.IsNullOrWhiteSpace(ActiveInstanceId))
+        End Try
     End Function
 
     Private Sub RenderStatus(Title As String, Meta As String, State As String, TimeText As String, Progress As Double)
@@ -138,6 +172,22 @@ Public Class FloatingPlaybackWindow
         LabState.Text = If(String.IsNullOrWhiteSpace(State), "--", State)
         LabTime.Text = If(String.IsNullOrWhiteSpace(TimeText), "--", TimeText)
         BarProgress.Value = Math.Max(0, Math.Min(1, If(Double.IsNaN(Progress), 0, Progress)))
+    End Sub
+
+    Private Sub UpdateCommandButtons(HasInstance As Boolean, IsPlaying As Boolean)
+        SetCommandButtonsEnabled(HasInstance)
+        BtnToggle.Content = If(IsPlaying, "⏸", "▶")
+        BtnToggle.ToolTip = If(IsPlaying, "暂停", "播放")
+    End Sub
+
+    Private Sub SetCommandButtonsEnabled(Enabled As Boolean)
+        BtnPrev.IsEnabled = Enabled
+        BtnToggle.IsEnabled = Enabled
+        BtnNext.IsEnabled = Enabled
+        Dim Opacity = If(Enabled, 1.0, 0.45)
+        BtnPrev.Opacity = Opacity
+        BtnToggle.Opacity = Opacity
+        BtnNext.Opacity = Opacity
     End Sub
 
     Private Shared Function GetThemeColor() As Color

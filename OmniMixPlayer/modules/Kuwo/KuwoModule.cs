@@ -193,7 +193,7 @@ namespace OmniMixPlayer.Module.Kuwo
             var pageSize = _context?.ConfigManager?.GetValue<int>("PlaylistPageSize", 100) ?? 100;
 
             return SlintUi.Column(spacing: 14, padding: 20)
-                .AddChild(SlintUi.Text("Kuwo Music", fontSize: 18))
+                .AddChild(SlintUi.Text("酷我音乐", fontSize: 18))
                 .AddChild(SlintUi.Text(string.IsNullOrWhiteSpace(_statusText) ? "填写酷我歌单 ID 或链接后导入。" : _statusText, fontSize: 12, color: "#94a3b8"))
                 .AddChild(SlintUi.Input("playlist_ids", "歌单 ID 或链接，逗号分隔", ids))
                 .AddChild(SlintUi.Select("playlist_page_size", "每页歌曲数", pageSize.ToString(), new List<SlintOption>

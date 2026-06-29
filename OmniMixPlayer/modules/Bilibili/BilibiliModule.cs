@@ -13,14 +13,14 @@ using Microsoft.Extensions.Logging;
 
 namespace OmniMixPlayer.Module.Bilibili
 {
-    [MusicModule("com.chillpatcher.bilibili", "Bilibili Music",
+    [MusicModule("com.chillpatcher.bilibili", "哔哩哔哩",
         Version = "1.0.0",
         Author = "xgqq",
         Description = "Bilibili video audio streaming")]
     public class BilibiliModule : IMusicModule, IStreamingMusicSourceProvider, ICoverProvider, IModuleUIProvider
     {
         public string ModuleId => "com.chillpatcher.bilibili";
-        public string DisplayName => "Bilibili Music";
+        public string DisplayName => "哔哩哔哩";
         public string Version => "1.0.0";
         public int Priority => 10;
         public ModuleCapabilities Capabilities => new ModuleCapabilities { CanDelete = false, CanFavorite = false, CanExclude = false, ProvidesCover = true };
@@ -311,7 +311,7 @@ namespace OmniMixPlayer.Module.Bilibili
                         SlintUi.Row(spacing: 12)
                             .AddChild(
                                 SlintUi.Column(spacing: 4)
-                                    .AddChild(SlintUi.Text("Bilibili Music", fontSize: 18))
+                                    .AddChild(SlintUi.Text("哔哩哔哩", fontSize: 18))
                                     .AddChild(SlintUi.Text("已登录", fontSize: 12, color: "#4caf50"))
                             )
                     )

@@ -201,11 +201,11 @@
                 </StackPanel>
             </local:MyCard>
 
-            <local:MyCard x:Name="CardModules" Title="模块" Margin="0,0,0,15" Visibility="Collapsed">
+            <local:MyCard x:Name="CardModules" Title="音源管理" Margin="0,0,0,15" Visibility="Collapsed">
                 <StackPanel Margin="20,38,20,18">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
                         <local:MyTextButton x:Name="BtnModulesTab"
-                                            Text="Mod"
+                                            Text="音源管理"
                                             Padding="8,4,8,4"
                                             Margin="0,0,8,0" />
                         <local:MyTextButton x:Name="BtnGameIntegrationTab"
@@ -825,7 +825,7 @@
                                       IsHitTestVisible="False"
                                       Margin="-5,0,0,2" />
                     <local:MyListItem Title="曲库与模块"
-                                      Info="从网易云、QQ Music、哔哩哔哩、本地文件夹等模块读取来源内容，并按来源、歌单或分组展示。"
+                                      Info="从网易云、QQ音乐、哔哩哔哩、本地文件夹等音源读取来源内容，并按来源、歌单或分组展示。"
                                       IsHitTestVisible="False"
                                       Margin="-5,0,0,2" />
                     <local:MyListItem Title="游戏集成"

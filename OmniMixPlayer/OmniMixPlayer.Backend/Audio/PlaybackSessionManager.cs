@@ -28,6 +28,7 @@ namespace OmniMixPlayer.Backend.Audio
         private readonly IStreamingService _streamingService;
         private readonly InstanceRegistry _registry;
         private readonly PlaybackTimelineStore _timeline;
+        private readonly Dictionary<string, PlaybackFailureNotice> _pendingFailureNotices = new();
         private readonly Action<string> _timelineChangedHandler;
         private readonly Action<string> _profileChangedHandler;
         private readonly CancellationTokenSource _cleanupCts = new();
@@ -36,6 +37,7 @@ namespace OmniMixPlayer.Backend.Audio
         public event Action<string, Track> OnTrackChanged;
         public event Action<string, PlaybackController> OnStateChanged;
         public event Action<string, float> OnPositionChanged;
+        public event Action<string, PlaybackFailureNotice> OnFailureNotice;
         public event Action<string> OnQueueChanged;
         public event Action OnSessionsChanged;
 
@@ -200,11 +202,30 @@ namespace OmniMixPlayer.Backend.Audio
             };
         }
 
+        public PlaybackFailureNotice GetFailureNotice(string id, bool consume)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return null;
+            lock (_lock)
+            {
+                if (!_pendingFailureNotices.TryGetValue(id, out var notice)) return null;
+                if (consume) _pendingFailureNotices.Remove(id);
+                return notice;
+            }
+        }
+
         private void WireController(string id, PlaybackController ctrl)
         {
             ctrl.OnTrackChanged += track => OnTrackChanged?.Invoke(id, track);
             ctrl.OnStateChanged += state => OnStateChanged?.Invoke(id, ctrl);
             ctrl.OnPositionChanged += pos => OnPositionChanged?.Invoke(id, pos);
+            ctrl.OnFailureNotice += notice =>
+            {
+                lock (_lock)
+                {
+                    _pendingFailureNotices[id] = notice;
+                }
+                OnFailureNotice?.Invoke(id, notice);
+            };
         }
 
         private void ApplyProfileToOnlineController(string id)

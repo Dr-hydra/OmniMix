@@ -1,69 +1,99 @@
-# OmniMix VB.NET Compatible Frontend
+# OmniMix
 
-OmniMix VB.NET Compatible Frontend is a Windows desktop client for the existing OmniMix backend. Its goal is to provide a lightweight WPF experience while staying compatible with the upstream backend API, module UI endpoints, music library, playback queue, and game integration flow.
+OmniMix 是一个面向 Windows 的桌面音乐与游戏集成工具，由 Dr.Hydra 长期维护。项目包含 OmniMix 后端、模块系统、原生音频组件、游戏集成桥，以及以 VB.NET/WPF 编写的桌面前端。
 
-This repository is maintained as a frontend compatibility layer. Backend behavior should remain compatible with upstream OmniMix/ChillPatcher builds; frontend-side adapters are preferred when compatibility issues appear.
+当前仓库以 VB.NET/WPF 前端分支作为主维护分支，并保留 `main` 分支用于历史基线和未来必要的拉取/比对。原 ChillPatcher 项目是本项目的历史来源之一，相关信息仅在致谢和兼容说明中保留。
 
-The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT), the reusable WPF UI kit extracted from this frontend work.
+English version: [README_EN.md](README_EN.md)
 
-## Status
+## 项目状态
 
-Version: `3.2.3`
+当前版本：`3.3.1`
 
-Version 3.2.3 packages are built from the current source tree and include the updated backend, modules, native assets, and VB.NET desktop frontend.
-
-Primary artifact:
+主要本地产物：
 
 ```text
 OmniMixPlayer.Gui.Vbnet.exe
 ```
 
-The executable remains the primary local build artifact and is embedded into the full OmniMix packages. Starting with version 3.0.7, GitHub Releases no longer publish the framework-dependent or self-contained frontend executable as standalone assets.
+发布包通常包含：
 
-Published release packages:
+- `OmniMixPlayer_V{version}_VBNet_portable.zip`：完整自包含便携包。
+- `OmniMixPlayer_V{version}_VBNet_full-framework-dependent.zip`：完整框架依赖包。
+- `OmniMixPlayer_V{version}_VBNet_installer.exe`：完整 Windows 安装器。
 
-- `OmniMixPlayer_V{version}_VBNet_portable.zip`: complete self-contained portable package.
-- `OmniMixPlayer_V{version}_VBNet_full-framework-dependent.zip`: complete framework-dependent package.
-- `OmniMixPlayer_V{version}_VBNet_installer.exe`: complete Windows installer.
+从 `3.0.7` 开始，Release 不再把 VB.NET 前端 exe 作为独立资产发布；它会被包含在完整 OmniMix 包中。
 
-## What This Frontend Does
+## 主要功能
 
-- Starts or discovers the existing OmniMix backend.
-- Displays backend connection state in the title area.
-- Provides playback controls, queue/history management, cover loading, repeat/shuffle modes, and draggable progress.
-- Reads the backend music library and adds tracks directly to game/player queues.
-- Hosts upstream module UI pages inside the VB.NET interface.
-- Deploys supported game integration bridge files from existing packaged assets.
-- Synchronizes game integration instance IDs and port files with the running backend.
-- Cleans stale game integration instances whose IDs no longer match the expected bridge binding.
-- Provides settings for backend path, backend lifetime, personalization, service controls, and equalizer controls.
-- Adds a QING.UIKIT-aligned personalization panel with configurable opacity, default/custom/solid backgrounds, and HSL custom theme controls.
+- 启动或发现 OmniMix 后端，并显示连接状态。
+- 提供播放控制、进度拖动、音量控制、循环/随机播放。
+- 管理曲库、播放队列、播放历史和封面显示。
+- 在桌面前端中承载模块 UI。
+- 支持模块启停、模块设置、模块链接和启动台入口。
+- 支持服务安装、启动、停止和自启动控制。
+- 支持均衡器和实例配置。
+- 支持游戏集成桥安装、实例 ID 修复和端口文件同步。
+- 支持 FH6 游戏集成，包括 Steam 与 Xbox 不同目录结构识别。
+- 提供个性化界面设置，包括背景、不透明度、主题色和 HSL 自定义。
 
-## Compatibility Notes
+VB.NET 界面层与 [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT) 同步维护；QING.UIKIT 是从本前端工作中整理出的可复用 WPF UI Kit。
 
-The VB.NET frontend does not require backend API changes for normal use. When the frontend needs extra compatibility behavior, it writes or repairs frontend-controlled files such as:
+## 使用说明
 
-- `.omnimix_instance_id`
-- `omnimix_port.txt`
-- game bridge DLL deployment files
+### 使用发布包
 
-For FH6-style bridge integrations, root DLLs are copied as real files instead of being installed as symbolic links, reducing game-side DLL loading ambiguity.
+推荐普通用户下载完整发布包或安装器，而不是单独下载 exe。
 
-Startup order:
+便携包使用方式：
 
-- Starting the frontend first is preferred. The frontend can launch/discover the backend and refresh game port files before the game bridge connects.
-- Starting the game first can still work if the bridge starts or discovers a backend, but stale port files or stale backend processes may cause the bridge to bind to an old instance.
-- The frontend now repairs known game integration bindings whenever it connects to the backend.
+1. 解压完整包到一个可写目录。
+2. 运行 `OmniMixPlayer.Gui.Vbnet.exe`。
+3. 如提示选择后端路径，选择同目录下的 `OmniMixPlayer.Backend.exe`。
+4. 在设置页确认后端状态、模块状态和音乐库路径。
 
-## Build
+安装器使用方式：
 
-Install the .NET SDK used by the project, then run:
+1. 运行 `OmniMixPlayer_V{version}_VBNet_installer.exe`。
+2. 按向导完成安装。
+3. 从开始菜单或安装目录启动 OmniMix。
+
+### 游戏集成
+
+进入“插件 - 游戏集成”页面后：
+
+1. 选择支持的游戏。
+2. 点击“选择游戏目录”。
+3. 安装对应游戏集成桥。
+4. 启动游戏前，建议先启动 OmniMix 前端，让前端刷新端口文件和实例绑定。
+
+FH6 目录识别规则：
+
+- Steam 版：`fh6/forzahorizon6.exe` 与 `fh6/media`
+- Xbox 版：`fh6/Content/forzahorizon6.exe` 与 `fh6/media`
+
+FH6 的 `version.dll`、`OmniPcmShared.dll`、`.omnimix_instance_id` 和 `omnimix_port.txt` 会落到实际运行目录。Steam 版为游戏根目录，Xbox 版为 `Content` 目录。自定义电台 UI 与媒体生成文件会写入真实的 `media` 目录。
+
+### 自定义电台 UI
+
+FH6 集成页面提供“替换电台 UI”功能：
+
+1. 选择有效 FH6 目录。
+2. 点击“替换电台 UI”。
+3. 选择自定义 PNG。
+4. 前端会调用媒体生成器生成文件、备份原始文件并写入游戏 `media` 目录。
+
+如需恢复，点击“还原原始电台 UI”。
+
+## 构建
+
+安装项目所需 .NET SDK 后运行：
 
 ```powershell
-dotnet build "OmniMixPlayer/OmniMixPlayer.sln" -c Debug -v minimal
+dotnet build "OmniMixPlayer/gui_vbnet/OmniMixFrontend.sln" -c Debug -v minimal
 ```
 
-Local single-file publish:
+本地发布单文件 exe：
 
 ```powershell
 dotnet publish "OmniMixPlayer/gui_vbnet/OmniMixFrontend/OmniMixFrontend.vbproj" `
@@ -77,24 +107,38 @@ dotnet publish "OmniMixPlayer/gui_vbnet/OmniMixFrontend/OmniMixFrontend.vbproj" 
   -v minimal
 ```
 
-Expected output:
+输出文件：
 
 ```text
 OmniMixPlayer/bin/GuiVbnetSingle/OmniMixPlayer.Gui.Vbnet.exe
 ```
 
-## Deployment
+构建完整包：
 
-For local development or compatibility testing, copy the generated executable into an existing OmniMix distribution directory, for example:
-
-```text
-E:\FH6\ChillPatcher\OmniMixPlayer.Gui.Vbnet.exe
+```powershell
+python scripts/build_all.py player --skip-flutter
 ```
 
-The directory should also contain the backend executable and existing backend assets/modules.
+`--skip-flutter` 只跳过 Flutter 桌面 GUI 复制步骤，不会移除后端 Web 资源。
 
-## License
+## 分支说明
 
-This project is licensed under the GNU General Public License v3.0. See `LICENSE`.
+- 当前 VB.NET/WPF 分支是主维护分支。
+- `main` 分支保留用于历史基线和未来必要的拉取/比对。
+- 如需参考原项目更新，应使用临时同步分支，仅迁移确实需要的后端、SDK、模块或构建脚本变化。
 
-Third-party components keep their own licenses in their original subdirectories.
+## 关于原项目
+
+OmniMix 的部分历史实现来自 BeyondtheApex 的 ChillPatcher 项目。感谢原作者的早期工作。本仓库现在作为 Dr.Hydra 长期维护的分支版本继续演进。
+
+原项目仓库：
+
+```text
+https://github.com/BeyondtheApex/ChillPatcher
+```
+
+## 开源协议
+
+本项目按 GNU General Public License v3.0 开源，详见 [LICENSE](LICENSE)。
+
+第三方组件保留其各自目录中的原始协议。

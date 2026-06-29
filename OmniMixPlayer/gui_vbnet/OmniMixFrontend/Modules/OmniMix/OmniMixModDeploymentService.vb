@@ -3,6 +3,7 @@ Imports System.IO.Compression
 Imports System.Security.Cryptography
 Imports System.Text
 Imports Newtonsoft.Json
+Imports Newtonsoft.Json.Linq
 
 Public Enum OmniMixBepInExStatus
     NotInstalled
@@ -205,18 +206,141 @@ Public Module OmniMixModDeploymentService
         File.WriteAllText(PathsDbPath, JsonConvert.SerializeObject(Paths, JsonSettings), Encoding.UTF8)
     End Sub
 
-    Public Function VerifyGameDirectory(GamePath As String, Game As OmniMixGameDeclaration) As Boolean
-        If String.IsNullOrWhiteSpace(GamePath) OrElse Game Is Nothing Then Return False
+    Private Class OmniMixGameInstallLayout
+        Public Property IsValid As Boolean
+        Public Property Kind As String = "default"
+        Public Property SelectedRoot As String = ""
+        Public Property RuntimeDir As String = ""
+        Public Property MediaRoot As String = ""
+        Public Property ConfigDir As String = ""
+        Public Property MarkerDir As String = ""
+    End Class
+
+    Private Function ResolveGameInstallLayout(GamePath As String, Game As OmniMixGameDeclaration) As OmniMixGameInstallLayout
+        Dim Layout As New OmniMixGameInstallLayout With {
+            .SelectedRoot = If(GamePath, ""),
+            .RuntimeDir = If(GamePath, ""),
+            .MediaRoot = If(GamePath, ""),
+            .ConfigDir = If(GamePath, ""),
+            .MarkerDir = If(GamePath, "")
+        }
+        If String.IsNullOrWhiteSpace(GamePath) OrElse Game Is Nothing Then Return Layout
+
         Try
-            If Not Directory.Exists(GamePath) Then Return False
+            If Not Directory.Exists(GamePath) Then Return Layout
+            If String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
+                Dim RootExePath = Path.Combine(GamePath, Game.ExeName)
+                Dim ContentDir = Path.Combine(GamePath, "Content")
+                Dim ContentExePath = Path.Combine(ContentDir, Game.ExeName)
+                Dim RootMediaDir = ResolveExistingMediaDir(GamePath)
+                Dim ParentDir = Directory.GetParent(GamePath)?.FullName
+                Dim ParentMediaDir = ResolveExistingMediaDir(ParentDir)
+
+                If File.Exists(ContentExePath) AndAlso Not String.IsNullOrWhiteSpace(RootMediaDir) Then
+                    Layout.Kind = "xbox"
+                    Layout.RuntimeDir = ContentDir
+                    Layout.MediaRoot = GamePath
+                    Layout.ConfigDir = If(File.Exists(Path.Combine(ContentDir, "MicrosoftGame.Config")), ContentDir, GamePath)
+                    Layout.MarkerDir = ContentDir
+                    Layout.IsValid = True
+                    Return Layout
+                End If
+
+                If File.Exists(RootExePath) AndAlso
+                   String.Equals(Path.GetFileName(GamePath.TrimEnd("\"c, "/"c)), "Content", StringComparison.OrdinalIgnoreCase) AndAlso
+                   Not String.IsNullOrWhiteSpace(ParentDir) AndAlso
+                   Not String.IsNullOrWhiteSpace(ParentMediaDir) Then
+                    Layout.Kind = "xbox"
+                    Layout.SelectedRoot = ParentDir
+                    Layout.RuntimeDir = GamePath
+                    Layout.MediaRoot = ParentDir
+                    Layout.ConfigDir = If(File.Exists(Path.Combine(GamePath, "MicrosoftGame.Config")), GamePath, ParentDir)
+                    Layout.MarkerDir = GamePath
+                    Layout.IsValid = True
+                    Return Layout
+                End If
+
+                If File.Exists(RootExePath) AndAlso Not String.IsNullOrWhiteSpace(RootMediaDir) Then
+                    Layout.Kind = "steam"
+                    Layout.RuntimeDir = GamePath
+                    Layout.MediaRoot = GamePath
+                    Layout.ConfigDir = GamePath
+                    Layout.MarkerDir = GamePath
+                    Layout.IsValid = True
+                    Return Layout
+                End If
+
+                If File.Exists(RootExePath) Then
+                    Layout.Kind = "steam"
+                    Layout.RuntimeDir = GamePath
+                    Layout.MediaRoot = GamePath
+                    Layout.ConfigDir = GamePath
+                    Layout.MarkerDir = GamePath
+                    Layout.IsValid = True
+                    Return Layout
+                End If
+
+                Return Layout
+            End If
+
             For Each Signature In Game.SignatureFiles
                 Dim Candidate = Path.Combine(GamePath, Signature)
-                If Not File.Exists(Candidate) AndAlso Not Directory.Exists(Candidate) Then Return False
+                If Not File.Exists(Candidate) AndAlso Not Directory.Exists(Candidate) Then Return Layout
             Next
-            Return True
+            Layout.IsValid = True
         Catch
-            Return False
         End Try
+        Return Layout
+    End Function
+
+    Private Function ResolveExistingMediaDir(BaseDir As String) As String
+        If String.IsNullOrWhiteSpace(BaseDir) Then Return ""
+        Dim Lower = Path.Combine(BaseDir, "media")
+        If Directory.Exists(Lower) Then Return Lower
+        Dim Upper = Path.Combine(BaseDir, "Media")
+        If Directory.Exists(Upper) Then Return Upper
+        Return ""
+    End Function
+
+    Private Function GetMediaDirectoryName(MediaRoot As String) As String
+        Dim MediaDir = ResolveExistingMediaDir(MediaRoot)
+        If Not String.IsNullOrWhiteSpace(MediaDir) Then Return Path.GetFileName(MediaDir)
+        Return "media"
+    End Function
+
+    Private Function ResolveRootModInstallDir(GamePath As String, ModInfo As OmniMixModDeclaration) As String
+        If ModInfo Is Nothing Then Return GamePath
+        Dim Game = GetGameCatalog().FirstOrDefault(Function(Item) Item.SupportedMods.Contains(ModInfo.Id))
+        Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+        If Layout.IsValid Then Return Layout.RuntimeDir
+        Return GamePath
+    End Function
+
+    Private Function ResolveGameMarkerDir(GamePath As String, ModInfo As OmniMixModDeclaration) As String
+        If ModInfo Is Nothing Then Return GamePath
+        Dim Game = GetGameCatalog().FirstOrDefault(Function(Item) Item.SupportedMods.Contains(ModInfo.Id))
+        Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+        If Layout.IsValid Then Return Layout.MarkerDir
+        Return GamePath
+    End Function
+
+    Private Function ResolveMediaRoot(GamePath As String) As String
+        Dim Game = GetGame("forza_horizon_6")
+        Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+        If Layout.IsValid Then Return Layout.MediaRoot
+        Return GamePath
+    End Function
+
+    Public Function GetGameInstallLayoutDescription(GamePath As String, Game As OmniMixGameDeclaration) As String
+        Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+        If Not Layout.IsValid Then Return ""
+        If String.Equals(Layout.Kind, "xbox", StringComparison.OrdinalIgnoreCase) Then Return "Xbox 版结构"
+        If String.Equals(Layout.Kind, "steam", StringComparison.OrdinalIgnoreCase) Then Return "Steam 版结构"
+        Return "标准结构"
+    End Function
+
+    Public Function VerifyGameDirectory(GamePath As String, Game As OmniMixGameDeclaration) As Boolean
+        Return ResolveGameInstallLayout(GamePath, Game).IsValid
     End Function
 
     Public Function CheckBepInExStatus(GamePath As String) As OmniMixBepInExStatus
@@ -238,14 +362,16 @@ Public Module OmniMixModDeploymentService
 
     Public Function CheckModStatus(GamePath As String, ModInfo As OmniMixModDeclaration) As OmniMixModInstallStatus
         If String.IsNullOrWhiteSpace(GamePath) OrElse ModInfo Is Nothing Then Return OmniMixModInstallStatus.NotInstalled
+        Dim InstallDir = ResolveRootModInstallDir(GamePath, ModInfo)
+        Dim MarkerDir = ResolveGameMarkerDir(GamePath, ModInfo)
         If ModInfo.InstallsToGameRoot Then
-            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", ModInfo.Id & ".managed")
+            Dim MarkerPath = Path.Combine(MarkerDir, ".omnimix_mods", ModInfo.Id & ".managed")
             If Not File.Exists(MarkerPath) Then Return OmniMixModInstallStatus.NotInstalled
             For Each RelativeFile In ModInfo.RootFilesToLink
-                If Not File.Exists(Path.Combine(GamePath, RelativeFile)) Then Return OmniMixModInstallStatus.NotInstalled
+                If Not File.Exists(Path.Combine(InstallDir, RelativeFile)) Then Return OmniMixModInstallStatus.NotInstalled
             Next
             For Each RelativeDir In ModInfo.RootDirsToLink
-                If Not Directory.Exists(Path.Combine(GamePath, RelativeDir)) Then Return OmniMixModInstallStatus.NotInstalled
+                If Not Directory.Exists(Path.Combine(InstallDir, RelativeDir)) Then Return OmniMixModInstallStatus.NotInstalled
             Next
             Return If(NeedsVersionUpdate(GamePath, ModInfo), OmniMixModInstallStatus.NeedsUpdate, OmniMixModInstallStatus.Installed)
         End If
@@ -259,7 +385,9 @@ Public Module OmniMixModDeploymentService
     Public Function GetGameVersion(GamePath As String, Game As OmniMixGameDeclaration) As String
         If Game Is Nothing OrElse Not String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then Return "1.0.0"
         Try
-            Dim ConfigPath = Path.Combine(GamePath, "MicrosoftGame.Config")
+            Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+            Dim ConfigDir = If(Layout.IsValid, Layout.ConfigDir, GamePath)
+            Dim ConfigPath = Path.Combine(ConfigDir, "MicrosoftGame.Config")
             If Not File.Exists(ConfigPath) Then Return "0.0.0.0"
             Dim Match = Text.RegularExpressions.Regex.Match(File.ReadAllText(ConfigPath), "\bVersion=""([^""]+)""", Text.RegularExpressions.RegexOptions.IgnoreCase)
             If Match.Success Then Return Match.Groups(1).Value
@@ -270,7 +398,7 @@ Public Module OmniMixModDeploymentService
 
     Public Function NeedsVersionUpdate(GamePath As String, ModInfo As OmniMixModDeclaration) As Boolean
         If ModInfo Is Nothing OrElse String.IsNullOrWhiteSpace(ModInfo.Version) Then Return False
-        Dim InstalledVersion = ReadManagedMarker(GamePath, ModInfo.Id)
+        Dim InstalledVersion = ReadManagedMarker(ResolveGameMarkerDir(GamePath, ModInfo), ModInfo.Id)
         If String.IsNullOrWhiteSpace(InstalledVersion) Then InstalledVersion = GetInstalledVersion(ModInfo.Id)
         Return Not String.IsNullOrWhiteSpace(InstalledVersion) AndAlso
             Not String.Equals(InstalledVersion, ModInfo.Version, StringComparison.OrdinalIgnoreCase)
@@ -424,7 +552,7 @@ Public Module OmniMixModDeploymentService
             If ModInfo.InstallsToGameRoot Then
                 If Not DeployRootModFiles(GamePath, ModInfo, ExtractPath, Logs) Then Return ""
             Else
-                Dim LinkPath = Path.Combine(GamePath, "BepInEx", "plugins", ModInfo.FolderName)
+                Dim LinkPath = Path.Combine(ResolveRootModInstallDir(GamePath, ModInfo), "BepInEx", "plugins", ModInfo.FolderName)
                 If Not CreateDirectoryLinkOrCopy(LinkPath, ExtractPath) Then
                     AddLog(Logs, "ERROR placing plugin directory.")
                     Return ""
@@ -434,13 +562,13 @@ Public Module OmniMixModDeploymentService
             RecordInstalledVersion(ModInfo.Id, ModInfo.Version)
 
             Dim InstanceId = GetExpectedInstanceId(GamePath, ModInfo)
-            Dim ExistingInstanceId = ReadInstanceId(GamePath)
+            Dim ExistingInstanceId = ReadInstanceId(GamePath, ModInfo)
             If Not String.IsNullOrWhiteSpace(ExistingInstanceId) AndAlso
                Not String.Equals(ExistingInstanceId, InstanceId, StringComparison.OrdinalIgnoreCase) Then
                 AddLog(Logs, "  Rewriting stale instance marker: " & ExistingInstanceId & " -> " & InstanceId)
             End If
-            WriteInstanceId(GamePath, InstanceId)
-            If BackendPort > 0 Then WritePortFile(GamePath, BackendPort)
+            WriteInstanceId(GamePath, InstanceId, ModInfo)
+            If BackendPort > 0 Then WritePortFile(GamePath, BackendPort, ModInfo)
             AddLog(Logs, ModInfo.Name & " deployment completed. Instance: " & InstanceId)
             Return InstanceId
         Catch Ex As Exception
@@ -453,6 +581,8 @@ Public Module OmniMixModDeploymentService
         Try
             If ModInfo Is Nothing Then Return False
             AddLog(Logs, "Starting " & ModInfo.Name & " undeployment...")
+            Dim InstallDir = ResolveRootModInstallDir(GamePath, ModInfo)
+            Dim MarkerDir = ResolveGameMarkerDir(GamePath, ModInfo)
 
             ' If media UI was replaced, restore it as part of mod uninstallation
             If CheckMediaUiReplaced(GamePath) Then
@@ -460,21 +590,21 @@ Public Module OmniMixModDeploymentService
             End If
 
             If ModInfo.InstallsToGameRoot Then
-                Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", ModInfo.Id & ".managed")
+                Dim MarkerPath = Path.Combine(MarkerDir, ".omnimix_mods", ModInfo.Id & ".managed")
                 If Not File.Exists(MarkerPath) Then
                     AddLog(Logs, "ERROR this root mod is not managed by OmniMix.")
                     Return False
                 End If
                 RestoreAndRemoveRootModFiles(GamePath, ModInfo, Logs)
                 If File.Exists(MarkerPath) Then File.Delete(MarkerPath)
-                DeleteDirectoryIfEmpty(Path.Combine(GamePath, ".omnimix_mods"), Logs)
+                DeleteDirectoryIfEmpty(Path.Combine(MarkerDir, ".omnimix_mods"), Logs)
             Else
-                DeletePathSafely(Path.Combine(GamePath, "BepInEx", "plugins", ModInfo.FolderName))
+                DeletePathSafely(Path.Combine(InstallDir, "BepInEx", "plugins", ModInfo.FolderName))
                 AddLog(Logs, "  Removed plugin directory: " & ModInfo.FolderName)
             End If
 
-            DeleteInstanceId(GamePath)
-            DeletePortFile(GamePath)
+            DeleteInstanceId(GamePath, ModInfo)
+            DeletePortFile(GamePath, ModInfo)
             RemoveVersionRecord(ModInfo.Id)
             AddLog(Logs, ModInfo.Name & " undeployment completed.")
             Return True
@@ -484,18 +614,20 @@ Public Module OmniMixModDeploymentService
         End Try
     End Function
 
-    Public Function ReadInstanceId(GamePath As String) As String
+    Public Function ReadInstanceId(GamePath As String, Optional ModInfo As OmniMixModDeclaration = Nothing) As String
         Try
-            Dim MarkerPath = Path.Combine(GamePath, InstanceMarkerName)
+            Dim MarkerDir = If(ModInfo Is Nothing, GamePath, ResolveGameMarkerDir(GamePath, ModInfo))
+            Dim MarkerPath = Path.Combine(MarkerDir, InstanceMarkerName)
             If File.Exists(MarkerPath) Then Return CleanInstanceId(File.ReadAllText(MarkerPath, PlainUtf8))
         Catch
         End Try
         Return ""
     End Function
 
-    Public Sub WritePortFile(GamePath As String, BackendPort As Integer)
+    Public Sub WritePortFile(GamePath As String, BackendPort As Integer, Optional ModInfo As OmniMixModDeclaration = Nothing)
         Try
-            File.WriteAllText(Path.Combine(GamePath, PortFileName), BackendPort.ToString(), PlainUtf8)
+            Dim MarkerDir = If(ModInfo Is Nothing, GamePath, ResolveGameMarkerDir(GamePath, ModInfo))
+            File.WriteAllText(Path.Combine(MarkerDir, PortFileName), BackendPort.ToString(), PlainUtf8)
         Catch
         End Try
     End Sub
@@ -510,21 +642,22 @@ Public Module OmniMixModDeploymentService
         If CheckModStatus(GamePath, ModInfo) = OmniMixModInstallStatus.NotInstalled Then Return ""
 
         Dim ExpectedInstanceId = GetExpectedInstanceId(GamePath, ModInfo)
-        Dim ExistingInstanceId = ReadInstanceId(GamePath)
+        Dim ExistingInstanceId = ReadInstanceId(GamePath, ModInfo)
         If Not String.Equals(ExistingInstanceId, ExpectedInstanceId, StringComparison.OrdinalIgnoreCase) Then
-            WriteInstanceId(GamePath, ExpectedInstanceId)
+            WriteInstanceId(GamePath, ExpectedInstanceId, ModInfo)
             AddLog(Logs, "  Fixed instance marker: " & If(String.IsNullOrWhiteSpace(ExistingInstanceId), "(missing)", ExistingInstanceId) & " -> " & ExpectedInstanceId)
         End If
         If BackendPort > 0 Then
-            WritePortFile(GamePath, BackendPort)
+            WritePortFile(GamePath, BackendPort, ModInfo)
             AddLog(Logs, "  Updated game port file: " & BackendPort)
         End If
         Return ExpectedInstanceId
     End Function
 
-    Public Sub DeletePortFile(GamePath As String)
+    Public Sub DeletePortFile(GamePath As String, Optional ModInfo As OmniMixModDeclaration = Nothing)
         Try
-            Dim FilePath = Path.Combine(GamePath, PortFileName)
+            Dim MarkerDir = If(ModInfo Is Nothing, GamePath, ResolveGameMarkerDir(GamePath, ModInfo))
+            Dim FilePath = Path.Combine(MarkerDir, PortFileName)
             If File.Exists(FilePath) Then File.Delete(FilePath)
         Catch
         End Try
@@ -599,14 +732,24 @@ Public Module OmniMixModDeploymentService
     End Sub
 
     Private Function DeployRootModFiles(GamePath As String, ModInfo As OmniMixModDeclaration, ExtractPath As String, Logs As List(Of String)) As Boolean
-        Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", ModInfo.Id & ".managed")
+        Dim InstallDir = ResolveRootModInstallDir(GamePath, ModInfo)
+        Dim MarkerDir = ResolveGameMarkerDir(GamePath, ModInfo)
+        If String.IsNullOrWhiteSpace(InstallDir) OrElse Not Directory.Exists(InstallDir) Then
+            AddLog(Logs, "ERROR invalid root mod install directory.")
+            Return False
+        End If
+        If Not String.Equals(InstallDir, GamePath, StringComparison.OrdinalIgnoreCase) Then
+            AddLog(Logs, "  Detected nested runtime directory: " & InstallDir)
+        End If
+
+        Dim MarkerPath = Path.Combine(MarkerDir, ".omnimix_mods", ModInfo.Id & ".managed")
         Dim WasManaged = File.Exists(MarkerPath)
         Dim BackupDir = GetRootModBackupDir(GamePath, ModInfo)
         Directory.CreateDirectory(BackupDir)
 
         For Each RelativeFile In ModInfo.RootFilesToLink
             Dim TargetPath = Path.Combine(ExtractPath, RelativeFile)
-            Dim LinkPath = Path.Combine(GamePath, RelativeFile)
+            Dim LinkPath = Path.Combine(InstallDir, RelativeFile)
             Dim BackupPath = Path.Combine(BackupDir, RelativeFile)
             If Not File.Exists(TargetPath) Then
                 AddLog(Logs, "ERROR missing packaged file: " & RelativeFile)
@@ -629,7 +772,7 @@ Public Module OmniMixModDeploymentService
 
         For Each RelativeDir In ModInfo.RootDirsToLink
             Dim TargetPath = Path.Combine(ExtractPath, RelativeDir)
-            Dim LinkPath = Path.Combine(GamePath, RelativeDir)
+            Dim LinkPath = Path.Combine(InstallDir, RelativeDir)
             Dim BackupPath = Path.Combine(BackupDir, RelativeDir)
             If Not Directory.Exists(TargetPath) Then
                 AddLog(Logs, "ERROR missing packaged directory: " & RelativeDir)
@@ -650,11 +793,12 @@ Public Module OmniMixModDeploymentService
     End Function
 
     Private Sub RestoreAndRemoveRootModFiles(GamePath As String, ModInfo As OmniMixModDeclaration, Logs As List(Of String))
+        Dim InstallDir = ResolveRootModInstallDir(GamePath, ModInfo)
         Dim BackupDir = GetRootModBackupDir(GamePath, ModInfo)
         Dim LegacyBackupDir = Path.Combine(GamePath, ".omnimix_backup", ModInfo.Id)
         If Not Directory.Exists(BackupDir) AndAlso Directory.Exists(LegacyBackupDir) Then BackupDir = LegacyBackupDir
         For Each RelativeFile In ModInfo.RootFilesToLink
-            Dim LinkPath = Path.Combine(GamePath, RelativeFile)
+            Dim LinkPath = Path.Combine(InstallDir, RelativeFile)
             Dim BackupPath = Path.Combine(BackupDir, RelativeFile)
             DeletePathSafely(LinkPath)
             If File.Exists(BackupPath) Then
@@ -668,7 +812,7 @@ Public Module OmniMixModDeploymentService
         Next
 
         For Each RelativeDir In ModInfo.RootDirsToLink
-            Dim LinkPath = Path.Combine(GamePath, RelativeDir)
+            Dim LinkPath = Path.Combine(InstallDir, RelativeDir)
             Dim BackupPath = Path.Combine(BackupDir, RelativeDir)
             DeletePathSafely(LinkPath)
             If Directory.Exists(BackupPath) Then
@@ -779,16 +923,16 @@ Public Module OmniMixModDeploymentService
         End Try
     End Sub
 
-    Private Sub WriteInstanceId(GamePath As String, InstanceId As String)
+    Private Sub WriteInstanceId(GamePath As String, InstanceId As String, ModInfo As OmniMixModDeclaration)
         Try
-            File.WriteAllText(Path.Combine(GamePath, InstanceMarkerName), CleanInstanceId(InstanceId), PlainUtf8)
+            File.WriteAllText(Path.Combine(ResolveGameMarkerDir(GamePath, ModInfo), InstanceMarkerName), CleanInstanceId(InstanceId), PlainUtf8)
         Catch
         End Try
     End Sub
 
-    Private Sub DeleteInstanceId(GamePath As String)
+    Private Sub DeleteInstanceId(GamePath As String, ModInfo As OmniMixModDeclaration)
         Try
-            Dim MarkerPath = Path.Combine(GamePath, InstanceMarkerName)
+            Dim MarkerPath = Path.Combine(ResolveGameMarkerDir(GamePath, ModInfo), InstanceMarkerName)
             If File.Exists(MarkerPath) Then File.Delete(MarkerPath)
         Catch
         End Try
@@ -844,21 +988,75 @@ Public Module OmniMixModDeploymentService
         Return ""
     End Function
 
+    Private Function ResolveMediaGenConfigPath(MediaGenPath As String) As String
+        Dim Candidates As New List(Of String)
+        Try
+            Dim MediaGenDir = Path.GetDirectoryName(MediaGenPath)
+            If Not String.IsNullOrWhiteSpace(MediaGenDir) Then Candidates.Add(Path.Combine(MediaGenDir, "config.json"))
+        Catch
+        End Try
+        Candidates.Add(Path.Combine(PathExeFolder, "config.json"))
+        Candidates.Add(Path.Combine(PathExeFolder, "OmniMixAssets", "config.json"))
+        Candidates.Add(Path.Combine(PathExeFolder, "assets", "config.json"))
+
+        For Each Candidate In Candidates
+            Try
+                If File.Exists(Candidate) Then Return Candidate
+            Catch
+            End Try
+        Next
+        Return ""
+    End Function
+
+    Private Function PrepareMediaGenConfig(MediaGenPath As String, TempOutputDir As String, RadioDisplayName As String, RadioArtist As String, Logs As List(Of String)) As String
+        Dim SourceConfigPath = ResolveMediaGenConfigPath(MediaGenPath)
+        If String.IsNullOrWhiteSpace(SourceConfigPath) Then
+            AddLog(Logs, "错误：未找到媒体生成器配置 config.json。")
+            Return ""
+        End If
+
+        Try
+            Dim Root = JObject.Parse(File.ReadAllText(SourceConfigPath, Encoding.UTF8))
+            Dim RadioInfo = TryCast(Root("radioInfo"), JObject)
+            If RadioInfo Is Nothing Then
+                RadioInfo = New JObject()
+                Root("radioInfo") = RadioInfo
+            End If
+
+            If Not String.IsNullOrWhiteSpace(RadioDisplayName) Then RadioInfo("displayName") = RadioDisplayName.Trim()
+            If Not String.IsNullOrWhiteSpace(RadioArtist) Then RadioInfo("artist") = RadioArtist.Trim()
+
+            Dim TempConfigPath = Path.Combine(TempOutputDir, "config.json")
+            File.WriteAllText(TempConfigPath, Root.ToString(Formatting.Indented), PlainUtf8)
+            AddLog(Logs, "已写入电台显示名：" & If(String.IsNullOrWhiteSpace(RadioDisplayName), RadioInfo("displayName")?.ToString(), RadioDisplayName.Trim()))
+            Return TempConfigPath
+        Catch Ex As Exception
+            AddLog(Logs, "错误：生成临时媒体配置失败：" & Ex.Message)
+            Return ""
+        End Try
+    End Function
+
     Public Function CheckMediaUiReplaced(GamePath As String) As Boolean
         If String.IsNullOrWhiteSpace(GamePath) Then Return False
         Try
-            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            Dim MarkerPath = Path.Combine(ResolveMediaRoot(GamePath), ".omnimix_mods", "media_ui_replaced.managed")
             Return File.Exists(MarkerPath)
         Catch
             Return False
         End Try
     End Function
 
-    Public Function DeployMediaUiReplacement(GamePath As String, PngPath As String, Logs As List(Of String)) As Boolean
+    Public Function DeployMediaUiReplacement(GamePath As String, PngPath As String, Logs As List(Of String), Optional RadioDisplayName As String = "", Optional RadioArtist As String = "") As Boolean
         Try
             AddLog(Logs, "开始执行电台 UI 替换...")
             If String.IsNullOrWhiteSpace(GamePath) OrElse Not Directory.Exists(GamePath) Then
                 AddLog(Logs, "错误：无效的游戏目录。")
+                Return False
+            End If
+            Dim MediaRoot = ResolveMediaRoot(GamePath)
+            Dim MediaDirName = GetMediaDirectoryName(MediaRoot)
+            If String.IsNullOrWhiteSpace(MediaRoot) OrElse Not Directory.Exists(MediaRoot) Then
+                AddLog(Logs, "错误：无法识别游戏媒体目录。")
                 Return False
             End If
 
@@ -875,8 +1073,11 @@ Public Module OmniMixModDeploymentService
             End If
             Directory.CreateDirectory(TempOutputDir)
 
+            Dim ConfigPath = PrepareMediaGenConfig(MediaGenPath, TempOutputDir, RadioDisplayName, RadioArtist, Logs)
+            If String.IsNullOrWhiteSpace(ConfigPath) Then Return False
+
             AddLog(Logs, "正在生成修改后的电台媒体资源...")
-            Dim Arguments = $"-g {Quote(GamePath)} -o {Quote(TempOutputDir)} -r {Quote(PngPath)}"
+            Dim Arguments = $"-c {Quote(ConfigPath)} -g {Quote(MediaRoot)} -o {Quote(TempOutputDir)} -r {Quote(PngPath)}"
             Using Proc = New Process()
                 Proc.StartInfo = New ProcessStartInfo With {
                     .FileName = MediaGenPath,
@@ -921,20 +1122,20 @@ Public Module OmniMixModDeploymentService
             End Using
 
             AddLog(Logs, "电台媒体资源生成成功。正在备份游戏原始文件...")
-            Dim BackupDir = Path.Combine(GamePath, ".omnimix_backup", "media_original")
+            Dim BackupDir = Path.Combine(MediaRoot, ".omnimix_backup", "media_original")
             Directory.CreateDirectory(BackupDir)
 
             Dim FilesToBackup As New List(Of String) From {
-                Path.Combine("media", "UI", "Textures", "Anthem.zip"),
-                Path.Combine("media", "UI", "Textures", "HiRes", "Anthem.zip")
+                Path.Combine(MediaDirName, "UI", "Textures", "Anthem.zip"),
+                Path.Combine(MediaDirName, "UI", "Textures", "HiRes", "Anthem.zip")
             }
             Dim Locales = {"BR", "CN", "DE", "EN", "ES", "IT", "JP", "KO", "MX", "TW"}
             For Each Locale In Locales
-                FilesToBackup.Add(Path.Combine("media", "Audio", $"RadioInfo_{Locale}.xml"))
+                FilesToBackup.Add(Path.Combine(MediaDirName, "Audio", $"RadioInfo_{Locale}.xml"))
             Next
 
             For Each RelativePath In FilesToBackup
-                Dim GameFile = Path.Combine(GamePath, RelativePath)
+                Dim GameFile = Path.Combine(MediaRoot, RelativePath)
                 Dim BackupFile = Path.Combine(BackupDir, RelativePath)
 
                 If File.Exists(GameFile) Then
@@ -953,10 +1154,10 @@ Public Module OmniMixModDeploymentService
                 Return False
             End If
 
-            CopyDirectory(TempMediaDir, Path.Combine(GamePath, "media"))
+            CopyDirectory(TempMediaDir, Path.Combine(MediaRoot, MediaDirName))
             AddLog(Logs, "应用成功。")
 
-            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            Dim MarkerPath = Path.Combine(MediaRoot, ".omnimix_mods", "media_ui_replaced.managed")
             Directory.CreateDirectory(Path.GetDirectoryName(MarkerPath))
             File.WriteAllText(MarkerPath, "replaced", Encoding.UTF8)
 
@@ -975,15 +1176,16 @@ Public Module OmniMixModDeploymentService
                 AddLog(Logs, "错误：无效的游戏目录。")
                 Return False
             End If
+            Dim MediaRoot = ResolveMediaRoot(GamePath)
 
-            Dim BackupDir = Path.Combine(GamePath, ".omnimix_backup", "media_original")
+            Dim BackupDir = Path.Combine(MediaRoot, ".omnimix_backup", "media_original")
             If Not Directory.Exists(BackupDir) Then
                 AddLog(Logs, "未找到原始备份，将尝试直接清理生成的文件。")
             Else
                 Dim BackupFiles = Directory.GetFiles(BackupDir, "*", SearchOption.AllDirectories)
                 For Each BackupFile In BackupFiles
                     Dim Relative = BackupFile.Substring(BackupDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                    Dim GameFile = Path.Combine(GamePath, Relative)
+                    Dim GameFile = Path.Combine(MediaRoot, Relative)
 
                     Directory.CreateDirectory(Path.GetDirectoryName(GameFile))
                     File.Copy(BackupFile, GameFile, True)
@@ -994,9 +1196,9 @@ Public Module OmniMixModDeploymentService
                 AddLog(Logs, "原始备份目录已清理。")
             End If
 
-            Dim MarkerPath = Path.Combine(GamePath, ".omnimix_mods", "media_ui_replaced.managed")
+            Dim MarkerPath = Path.Combine(MediaRoot, ".omnimix_mods", "media_ui_replaced.managed")
             If File.Exists(MarkerPath) Then File.Delete(MarkerPath)
-            DeleteDirectoryIfEmpty(Path.Combine(GamePath, ".omnimix_mods"), Logs)
+            DeleteDirectoryIfEmpty(Path.Combine(MediaRoot, ".omnimix_mods"), Logs)
 
             AddLog(Logs, "电台 UI 还原成功完成！")
             Return True

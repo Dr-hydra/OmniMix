@@ -248,7 +248,7 @@ namespace OmniMixPlayer.Module.Kugou
             var pageSize = _context?.ConfigManager?.GetValue<int>("PlaylistPageSize", 100) ?? 100;
 
             var root = SlintUi.Column(spacing: 14, padding: 20)
-                .AddChild(SlintUi.Text("Kugou Music", fontSize: 18))
+                .AddChild(SlintUi.Text("酷狗音乐", fontSize: 18))
                 .AddChild(SlintUi.Text(loggedIn ? $"已登录: {_session.UserId}" : "未登录", fontSize: 12, color: loggedIn ? "#4caf50" : "#f97316"))
                 .AddChild(SlintUi.Text(string.IsNullOrWhiteSpace(_statusText) ? "登录后可导入账号歌单；VIP 内容取决于账号权限和平台返回结果。" : _statusText, fontSize: 12, color: "#94a3b8"));
 
