@@ -48,7 +48,7 @@ namespace OmniMixPlayer.Backend
             var builder = WebApplication.CreateBuilder(args);
 
             // File logging — always log to omni_backend.log next to exe for debugging
-            var logFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "omni_backend.log");
+            var logFilePath = Path.Combine(AppContext.BaseDirectory, "omni_backend.log");
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
             builder.Logging.AddProvider(new SimpleFileLoggerProvider(logFilePath));
@@ -59,7 +59,7 @@ namespace OmniMixPlayer.Backend
             builder.Host.UseWindowsService();
             builder.Host.UseSystemd();
 
-            var pluginPath = AppDomain.CurrentDomain.BaseDirectory;
+            var pluginPath = AppContext.BaseDirectory;
             var modulesPath = Path.Combine(pluginPath, "modules");
             var configDir = Path.Combine(pluginPath, "config");
 

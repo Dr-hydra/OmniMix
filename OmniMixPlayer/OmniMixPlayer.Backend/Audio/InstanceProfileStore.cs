@@ -41,7 +41,7 @@ namespace OmniMixPlayer.Backend.Audio
         {
             _logger = logger;
             var dbDir = string.IsNullOrEmpty(configBaseDir)
-                ? AppDomain.CurrentDomain.BaseDirectory
+                ? AppContext.BaseDirectory
                 : configBaseDir;
 
             if (!Directory.Exists(dbDir))
