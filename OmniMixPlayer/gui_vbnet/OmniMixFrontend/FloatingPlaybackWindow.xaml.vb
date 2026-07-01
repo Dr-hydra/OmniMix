@@ -297,12 +297,64 @@ Public Class FloatingPlaybackWindow
         Dim Style = Settings.Get(Of Integer)("OmniMixFloatingWindowStyle")
         Dim Scale = GetFloatingWindowScale()
         PanRoot.LayoutTransform = New ScaleTransform(Scale, Scale)
-        If Style = 1 Then
+        If Style = 2 Then
+            MinWidth = 340 * Scale
+            MinHeight = 230 * Scale
+            Width = 420 * Scale
+            Height = 252 * Scale
+            PanRoot.Padding = New Thickness(16)
+
+            PanCover.Visibility = Visibility.Collapsed
+            LabTitle.Visibility = Visibility.Collapsed
+            LabMeta.Visibility = Visibility.Collapsed
+            LabState.Visibility = Visibility.Collapsed
+
+            PanLayout.ColumnDefinitions(0).Width = New GridLength(1, GridUnitType.Star)
+            PanLayout.ColumnDefinitions(1).Width = New GridLength(0)
+            PanLayout.ColumnDefinitions(2).Width = GridLength.Auto
+            PanLayout.RowDefinitions(0).Height = New GridLength(1, GridUnitType.Star)
+            PanLayout.RowDefinitions(1).Height = New GridLength(10)
+            PanLayout.RowDefinitions(2).Height = GridLength.Auto
+            PanLayout.RowDefinitions(3).Height = GridLength.Auto
+
+            Grid.SetRow(PanInfo, 0)
+            Grid.SetColumn(PanInfo, 0)
+            Grid.SetColumnSpan(PanInfo, 3)
+            Grid.SetRowSpan(PanInfo, 1)
+            PanInfo.Margin = New Thickness(0, 2, 0, 0)
+            LabLyricCurrent.TextAlignment = TextAlignment.Center
+            LabLyricNext.TextAlignment = TextAlignment.Center
+            LabLyricCurrent.FontSize = 23
+            LabLyricNext.FontSize = 16
+            LabLyricCurrent.MaxHeight = 128
+            LabLyricNext.MaxHeight = 42
+            LabLyricCurrent.Margin = New Thickness(0, 0, 0, 0)
+            LabLyricNext.Margin = New Thickness(0, 8, 0, 0)
+
+            Grid.SetRow(PanProgress, 2)
+            Grid.SetColumn(PanProgress, 0)
+            Grid.SetColumnSpan(PanProgress, 3)
+            PanProgress.VerticalAlignment = VerticalAlignment.Center
+            PanProgress.Margin = New Thickness(6, 4, 6, 0)
+
+            Grid.SetRow(PanCommandButtons, 3)
+            Grid.SetColumn(PanCommandButtons, 0)
+            Grid.SetColumnSpan(PanCommandButtons, 3)
+            PanCommandButtons.HorizontalAlignment = HorizontalAlignment.Center
+            PanCommandButtons.VerticalAlignment = VerticalAlignment.Center
+            PanCommandButtons.Margin = New Thickness(0, 10, 0, 0)
+            SetCommandButtonSizes(32, 42, 16)
+        ElseIf Style = 1 Then
             MinWidth = 260 * Scale
             MinHeight = 360 * Scale
             Width = 280 * Scale
             Height = 374 * Scale
             PanRoot.Padding = New Thickness(14)
+
+            PanCover.Visibility = Visibility.Visible
+            LabTitle.Visibility = Visibility.Visible
+            LabMeta.Visibility = Visibility.Visible
+            LabState.Visibility = Visibility.Visible
 
             PanLayout.ColumnDefinitions(0).Width = New GridLength(1, GridUnitType.Star)
             PanLayout.ColumnDefinitions(1).Width = New GridLength(0)
@@ -330,8 +382,12 @@ Public Class FloatingPlaybackWindow
             LabMeta.TextAlignment = TextAlignment.Center
             LabLyricCurrent.TextAlignment = TextAlignment.Center
             LabLyricNext.TextAlignment = TextAlignment.Center
+            LabLyricCurrent.FontSize = 13
+            LabLyricNext.FontSize = 11
             LabLyricCurrent.MaxHeight = 38
             LabLyricNext.MaxHeight = 34
+            LabLyricCurrent.Margin = New Thickness(0, 10, 0, 0)
+            LabLyricNext.Margin = New Thickness(0, 6, 0, 0)
 
             Grid.SetRow(PanProgress, 2)
             Grid.SetColumn(PanProgress, 0)
@@ -352,6 +408,11 @@ Public Class FloatingPlaybackWindow
             Width = 430 * Scale
             Height = 224 * Scale
             PanRoot.Padding = New Thickness(12)
+
+            PanCover.Visibility = Visibility.Visible
+            LabTitle.Visibility = Visibility.Visible
+            LabMeta.Visibility = Visibility.Visible
+            LabState.Visibility = Visibility.Visible
 
             PanLayout.ColumnDefinitions(0).Width = New GridLength(116)
             PanLayout.ColumnDefinitions(1).Width = New GridLength(1, GridUnitType.Star)
@@ -379,8 +440,12 @@ Public Class FloatingPlaybackWindow
             LabMeta.TextAlignment = TextAlignment.Left
             LabLyricCurrent.TextAlignment = TextAlignment.Left
             LabLyricNext.TextAlignment = TextAlignment.Left
+            LabLyricCurrent.FontSize = 13
+            LabLyricNext.FontSize = 11
             LabLyricCurrent.MaxHeight = 38
             LabLyricNext.MaxHeight = 18
+            LabLyricCurrent.Margin = New Thickness(0, 10, 0, 0)
+            LabLyricNext.Margin = New Thickness(0, 6, 0, 0)
 
             Grid.SetRow(PanProgress, 2)
             Grid.SetColumn(PanProgress, 1)
@@ -396,6 +461,7 @@ Public Class FloatingPlaybackWindow
             PanCommandButtons.Margin = New Thickness(0, 8, 0, 8)
             SetCommandButtonSizes(28, 36, 7)
         End If
+        ApplyLyricTypography()
         KeepInsideWorkArea()
     End Sub
 
@@ -514,7 +580,11 @@ Public Class FloatingPlaybackWindow
         RenderStatus(Title, String.Join(" · ", MetaParts), State, TimeText, Progress)
         Await EnsureLyricsForTrackAsync(BaseUrl, Track)
         RenderLyrics(PositionToShow)
-        SetCoverImage(ResolveTrackCover(Track, BaseUrl))
+        If Settings.Get(Of Integer)("OmniMixFloatingWindowStyle") = 2 Then
+            ClearCoverImage()
+        Else
+            SetCoverImage(ResolveTrackCover(Track, BaseUrl))
+        End If
     End Function
 
     Private Async Function EnsureLyricsForTrackAsync(BaseUrl As String, Track As OmniMixTrackInfo) As Task
@@ -561,11 +631,13 @@ Public Class FloatingPlaybackWindow
         If Index < 0 Then
             LabLyricCurrent.Text = OmniMixLyricHelper.FormatLyricLine(CurrentLyricLines(0), True)
             LabLyricNext.Text = If(CurrentLyricLines.Count > 1, OmniMixLyricHelper.FormatLyricLine(CurrentLyricLines(1), True), " ")
+            ApplyLyricTypography()
             Return
         End If
 
         LabLyricCurrent.Text = OmniMixLyricHelper.FormatLyricLine(CurrentLyricLines(Index), True)
         LabLyricNext.Text = If(Index + 1 < CurrentLyricLines.Count, OmniMixLyricHelper.FormatLyricLine(CurrentLyricLines(Index + 1), True), " ")
+        ApplyLyricTypography()
     End Sub
 
     Private Sub ClearLyrics(Optional Text As String = "暂无歌词")
@@ -573,6 +645,23 @@ Public Class FloatingPlaybackWindow
         CurrentLyricLines = New List(Of OmniMixLyricLineInfo)
         LabLyricCurrent.Text = If(String.IsNullOrWhiteSpace(Text), "暂无歌词", Text)
         LabLyricNext.Text = " "
+        ApplyLyricTypography()
+    End Sub
+
+    Private Sub ApplyLyricTypography()
+        If Settings.Get(Of Integer)("OmniMixFloatingWindowStyle") <> 2 Then Return
+        Dim Text = If(LabLyricCurrent.Text, "")
+        Dim CleanLength = Text.Replace(vbCr, "").Replace(vbLf, "").Trim().Length
+        Dim LineCount = Text.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf).Split({vbLf}, StringSplitOptions.None).Length
+
+        If LineCount >= 3 OrElse CleanLength > 58 Then
+            LabLyricCurrent.FontSize = 18
+        ElseIf LineCount >= 2 OrElse CleanLength > 38 Then
+            LabLyricCurrent.FontSize = 20
+        Else
+            LabLyricCurrent.FontSize = 23
+        End If
+        LabLyricNext.FontSize = If(CleanLength > 58, 14, 16)
     End Sub
 
     Private Async Function SendPlaybackCommandAsync(Command As String) As Task

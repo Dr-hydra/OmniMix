@@ -254,11 +254,12 @@ void OmniPcmSource::pump(RingBuffer& ring) {
         }
     }
 
-    // 5. Check for stream errors
+    // 5. Check for stream errors. Backend handles auto-advance for
+    // ServerControlledPlayback instances, so the game bridge should not
+    // inject an extra Next command here.
     if (api_.has_error(pcm_)) {
-        log::warn("[omni] shared memory stream error: {} — requesting skip",
+        log::warn("[omni] shared memory stream error: {} — waiting for server to handle",
                   api_.last_error(pcm_));
-        if (connected_) api_.client_command(client_, instance_id_.c_str(), OMNI_PCM_COMMAND_NEXT);
         reset_stream_state(&ring);
         eof_advanced_ = false;
         return;
@@ -345,17 +346,25 @@ void OmniPcmSource::on_sdk_event(const OmniPcmEventInfo* evt, void* user_data) {
 void OmniPcmSource::handle_sdk_event(const OmniPcmEventInfo& evt) {
     // Update cached TrackInfo from backend status events
     std::string type{evt.type};
-    if (type == "playback_status" || type == "track_change" || type == "play_state") {
+    if (type == "playback_status" || type == "track_change" || type == "play_state" ||
+        type == "track.changed" || type == "state.changed" || type == "position.changed") {
         TrackInfo t{};
         if (evt.title[0])   t.title       = evt.title;
-        else                t.title       = "OmniMixPlayer";
+        else                t.title       = track_.title.empty() ? "OmniMixPlayer" : track_.title;
         if (evt.artist[0])  t.artist      = evt.artist;
-        else                t.artist      = playing_ ? "Playing" : "Idle";
-        t.album      = evt.album_id;
-        t.duration_ms = static_cast<uint64_t>(std::max(0.0f, evt.duration) * 1000.0f);
+        else                t.artist      = track_.artist.empty() ? (playing_ ? "Playing" : "Idle") : track_.artist;
+        t.album       = evt.album_id[0] ? evt.album_id : track_.album;
+        t.duration_ms = evt.duration > 0.0f
+            ? static_cast<uint64_t>(std::max(0.0f, evt.duration) * 1000.0f)
+            : track_.duration_ms;
         t.position_ms = static_cast<uint64_t>(std::max(0.0f, evt.position) * 1000.0f);
         track_ = std::move(t);
-        playing_ = (evt.state == OMNI_PCM_STATE_PLAYING);
+        // Backend StateChangedEvent uses 1=playing, 2=paused-with-track.
+        // A transient paused/stopped event can arrive during FH6 scene retargeting;
+        // do not let it close the audio pump. Explicit pause/stop and heartbeat
+        // still move playing_ to false.
+        if ((type == "state.changed" || type == "play_state") && evt.state == 1)
+            playing_ = true;
     }
 }
 
@@ -505,18 +514,28 @@ void OmniPcmSource::heartbeat_if_due() {
         return;
     }
     // Fallback: poll status every heartbeat tick as a safety net in case
-    // SDK events are delayed or dropped. Only backfills metadata; once
-    // events have populated track_ the poll becomes a no-op for title/artist.
+    // SDK events are delayed or dropped. Always refresh metadata when the
+    // backend reports a different title/artist/duration so game UI follows
+    // client-side skips even if the WebSocket event was missed.
     OmniPcmPlaybackStatusInfo status{};
     if (api_.client_status(client_, instance_id_.c_str(), &status) == OMNI_PCM_OK) {
         playing_ = status.is_playing != 0;
-        if (track_.title.empty() && status.title[0]) {
+        const uint64_t duration_ms =
+            static_cast<uint64_t>(std::max(0.0f, status.duration) * 1000.0f);
+        const bool metadata_changed =
+            status.title[0] &&
+            (track_.title != status.title ||
+             track_.artist != status.artist ||
+             track_.duration_ms != duration_ms);
+        if (metadata_changed) {
             TrackInfo t{};
             t.title       = status.title;
             t.artist      = status.artist;
-            t.duration_ms = static_cast<uint64_t>(std::max(0.0f, status.duration) * 1000.0f);
+            t.duration_ms = duration_ms;
             t.position_ms = static_cast<uint64_t>(std::max(0.0f, status.position) * 1000.0f);
             track_ = std::move(t);
+        } else if (!track_.title.empty()) {
+            track_.position_ms = static_cast<uint64_t>(std::max(0.0f, status.position) * 1000.0f);
         }
     }
     next_heartbeat_ = now + std::chrono::seconds(10);

@@ -259,10 +259,31 @@ def read_version_info(mod_dir: Path, flutter_dir: Path,
         if m:
             fh6_ver = m.group(1)
 
+    music_versions = {}
+    modules_root = flutter_dir.parent / "modules"
+    for module_dir, key in [
+        ("Netease", "netease"),
+        ("QQMusic", "qqmusic"),
+        ("Kugou", "kugou"),
+        ("Kuwo", "kuwo"),
+    ]:
+        info_file = modules_root / module_dir / "ModuleInfo.cs"
+        if not info_file.exists():
+            continue
+        m = re.search(r'MODULE_VERSION\s*=\s*"([^"]+)"',
+                      info_file.read_text(encoding="utf-8"))
+        if m:
+            music_versions[key] = m.group(1)
+
     return {
         "flutter_version": flutter_ver,
         "mod_version": cs_ver,
         "fh6_bridge_version": fh6_ver,
+        "mod_versions": {
+            "chill_patcher": cs_ver,
+            "fh6_omni_bridge": fh6_ver,
+        },
+        "music_module_versions": music_versions,
         "build_time": datetime.now().isoformat(),
     }
 

@@ -240,14 +240,22 @@
 
                 <StackPanel x:Name="PanAboutNav" Visibility="Collapsed">
                     <local:MyListItem x:Name="ItemAboutOverview"
-                                      Checked="True"
-                                      Type="RadioBox"
-                                      Tag="overview"
-                                      MinPaddingRight="35"
-                                      Height="36"
-                                      VerticalAlignment="Top"
-                                      Title="关于"
-                                      IsScaleAnimationEnabled="False" />
+                                       Checked="True"
+                                       Type="RadioBox"
+                                       Tag="overview"
+                                       MinPaddingRight="35"
+                                       Height="36"
+                                       VerticalAlignment="Top"
+                                       Title="项目介绍"
+                                       IsScaleAnimationEnabled="False" />
+                    <local:MyListItem x:Name="ItemAboutUsage"
+                                       Type="RadioBox"
+                                       Tag="usage"
+                                       MinPaddingRight="35"
+                                       Height="36"
+                                       VerticalAlignment="Top"
+                                       Title="使用说明"
+                                       IsScaleAnimationEnabled="False" />
                 </StackPanel>
             </StackPanel>
         </local:MyScrollViewer>

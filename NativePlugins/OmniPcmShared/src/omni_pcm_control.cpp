@@ -413,6 +413,7 @@ void fill_event(const omni_mix_player::WsEvent& evt, OmniPcmEventInfo* out) {
     switch (evt.event_case()) {
         case omni_mix_player::WsEvent::kTrackChanged: {
             const auto& e = evt.track_changed();
+            copy_text(out->type, sizeof(out->type), "track_change");
             copy_text(out->instance_id, sizeof(out->instance_id), e.instance_id());
             copy_text(out->track_uuid, sizeof(out->track_uuid), e.uuid());
             copy_text(out->title, sizeof(out->title), e.title());
@@ -423,10 +424,12 @@ void fill_event(const omni_mix_player::WsEvent& evt, OmniPcmEventInfo* out) {
             break;
         }
         case omni_mix_player::WsEvent::kStateChanged:
+            copy_text(out->type, sizeof(out->type), "play_state");
             copy_text(out->instance_id, sizeof(out->instance_id), evt.state_changed().instance_id());
             out->state = evt.state_changed().state();
             break;
         case omni_mix_player::WsEvent::kPositionChanged:
+            copy_text(out->type, sizeof(out->type), "playback_status");
             copy_text(out->instance_id, sizeof(out->instance_id), evt.position_changed().instance_id());
             out->position = evt.position_changed().position();
             break;

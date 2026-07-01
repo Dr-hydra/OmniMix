@@ -124,7 +124,7 @@ Public Module OmniMixModDeploymentService
             New OmniMixModDeclaration With {
                 .Id = "fh6_omni_bridge",
                 .Name = "Forza Horizon 6 Omni Bridge",
-                .Version = GetBundledModVersion("fh6_omni_bridge", "3.0.0"),
+                .Version = GetBundledModVersion("fh6_omni_bridge", "3.0.2"),
                 .ArchiveName = "FH6OmniBridge.zip",
                 .FolderName = "fh6-omnimix",
                 .RootFilesToLink = New List(Of String) From {"version.dll", "OmniPcmShared.dll"},
@@ -137,7 +137,7 @@ Public Module OmniMixModDeploymentService
 
     Private Function GetBundledModVersion(ModId As String, Fallback As String) As String
         If String.Equals(ModId, "fh6_omni_bridge", StringComparison.OrdinalIgnoreCase) Then
-            Return "3.0.0"
+            Return "3.0.2"
         End If
         Try
             Dim VersionInfoPath = ResolveAssetPath("version_info.json")

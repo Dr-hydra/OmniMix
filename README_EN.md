@@ -8,7 +8,7 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.0.1`
+Current version: `4.1.1`
 
 Primary local artifact:
 

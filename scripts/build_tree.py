@@ -144,6 +144,8 @@ def _flutter_gui(full: bool, skip_flutter: bool) -> TaskNode:
         # 即使跳过 Flutter, assets 里的 zip 还是要构建
         g.children.append(_chillpatcher_asset(full))
         g.children.append(_fh6_asset(full))
+        g.create_leaf("Version Info", "写入 version_info.json → assets/",
+                      run_fn=_write_version_assets)
         return g
 
     g.create_leaf("gen-l10n", "",

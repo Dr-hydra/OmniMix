@@ -67,6 +67,9 @@ Public Class PageOmniMixLeft
         ElseIf Page = FormMain.PageType.Setup Then
             ItemSettingsConfig.SetChecked(True, False, False)
             CurrentRight?.SetSettingsPane("config")
+        ElseIf Page = FormMain.PageType.Other Then
+            ItemAboutOverview.SetChecked(True, False, False)
+            CurrentRight?.SetAboutPane("overview")
         End If
         UpdatePlayerAutoRefreshTimer()
     End Sub
@@ -699,6 +702,11 @@ Public Class PageOmniMixLeft
     Private Sub SettingsNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemSettingsConfig.Check, ItemSettingsPersonalization.Check, ItemSettingsFloating.Check, ItemSettingsMaintenance.Check, ItemSettingsInstances.Check, ItemSettingsEqualizer.Check, ItemSettingsArchives.Check
         If CurrentRight Is Nothing OrElse sender.Tag Is Nothing Then Return
         CurrentRight.SetSettingsPane(sender.Tag.ToString())
+    End Sub
+
+    Private Sub AboutNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemAboutOverview.Check, ItemAboutUsage.Check
+        If CurrentRight Is Nothing OrElse sender.Tag Is Nothing Then Return
+        CurrentRight.SetAboutPane(sender.Tag.ToString())
     End Sub
 
 End Class

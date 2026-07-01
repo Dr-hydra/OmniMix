@@ -34,6 +34,7 @@ Public Class PageOmniMixRight
     Private ExpandedModuleTitle As String = ""
     Private ModuleUiRequestSerial As Integer = 0
     Private CurrentSettingsPane As String = "config"
+    Private CurrentAboutPane As String = "overview"
     Private CurrentEqualizerInstanceId As String = ""
     Private CurrentEqualizerState As OmniMixEqualizerStateInfo = Nothing
     Private CurrentEqualizerPresets As Dictionary(Of String, OmniMixEqualizerStateInfo) = New Dictionary(Of String, OmniMixEqualizerStateInfo)
@@ -87,6 +88,7 @@ Public Class PageOmniMixRight
         CardModules.Visibility = If(PageKey = "Modules", Visibility.Visible, Visibility.Collapsed)
         CardSettings.Visibility = If(PageKey = "Settings", Visibility.Visible, Visibility.Collapsed)
         CardAbout.Visibility = If(PageKey = "About", Visibility.Visible, Visibility.Collapsed)
+        If PageKey = "About" Then SetAboutPane(CurrentAboutPane)
         CardModuleUi.Visibility = Visibility.Collapsed
         Select Case PageKey
             Case "Home"
@@ -242,6 +244,18 @@ Public Class PageOmniMixRight
         ElseIf ShowConfig Then
             Await RefreshServiceStatusAsync()
         End If
+    End Sub
+
+    Public Sub SetAboutPane(Pane As String)
+        CurrentAboutPane = If(String.IsNullOrWhiteSpace(Pane), "overview", Pane)
+        If PageKey <> "About" Then Return
+
+        Dim ShowOverview = String.Equals(CurrentAboutPane, "overview", StringComparison.OrdinalIgnoreCase)
+        Dim ShowUsage = String.Equals(CurrentAboutPane, "usage", StringComparison.OrdinalIgnoreCase)
+
+        CardAbout.Title = If(ShowUsage, "关于 - 使用说明", "关于 - 项目介绍")
+        CardAboutOverview.Visibility = If(ShowOverview, Visibility.Visible, Visibility.Collapsed)
+        CardAboutUsage.Visibility = If(ShowUsage, Visibility.Visible, Visibility.Collapsed)
     End Sub
 
     Private Async Sub PageOmniMixRight_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
