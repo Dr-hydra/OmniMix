@@ -167,13 +167,7 @@ namespace OmniMixPlayer.Backend.Http
             // Backend stop
             endpoints.MapPost("/api/backend/stop", () =>
             {
-                _ = BroadcastProtoEvent(new ProtoEvents.WsEvent
-                {
-                    Type = "backend.state.changed",
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    BackendState = new ProtoEvents.BackendStateEvent { Running = false }
-                });
-                _ = Task.Run(async () => { await Task.Delay(500); Environment.Exit(0); });
+                RequestBackendStop();
                 return Results.Ok(new { message = "Shutting down" });
             });
 
@@ -366,6 +360,17 @@ namespace OmniMixPlayer.Backend.Http
                     finally { sem.Release(); }
                 }
             }
+        }
+
+        public void RequestBackendStop()
+        {
+            _ = BroadcastProtoEvent(new ProtoEvents.WsEvent
+            {
+                Type = "backend.state.changed",
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                BackendState = new ProtoEvents.BackendStateEvent { Running = false }
+            });
+            _ = Task.Run(async () => { await Task.Delay(500); Environment.Exit(0); });
         }
 
         /// <summary>For UI push and other non-proto events, still use JSON text.</summary>

@@ -1,11 +1,15 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"qqmusic_bridge/crypto"
 	"qqmusic_bridge/models"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // GetSongURLFCG tries to get song URL using FCG API (2025.9 format)
@@ -154,13 +158,13 @@ func (c *Client) GetSongURL(songMid string, quality models.AudioQuality) (*model
 	filename := fmt.Sprintf("%s%s.%s", prefix, songMid, ext)
 
 	params := map[string]interface{}{
-		"filename":     []string{filename},
-		"guid":         guid,
-		"songmid":      []string{songMid},
-		"songtype":     []int{0},
-		"uin":          fmt.Sprintf("%d", uin),
-		"loginflag":    1,
-		"platform":     "20",
+		"filename":  []string{filename},
+		"guid":      guid,
+		"songmid":   []string{songMid},
+		"songtype":  []int{0},
+		"uin":       fmt.Sprintf("%d", uin),
+		"loginflag": 1,
+		"platform":  "20",
 	}
 
 	data, err := c.RequestCGI("music.vkey.GetVkey", "GetVkey", params)
@@ -169,7 +173,7 @@ func (c *Client) GetSongURL(songMid string, quality models.AudioQuality) (*model
 	}
 
 	var result struct {
-		Sip      []string `json:"sip"`
+		Sip        []string `json:"sip"`
 		Midurlinfo []struct {
 			Purl     string `json:"purl"`
 			Songmid  string `json:"songmid"`
@@ -618,9 +622,9 @@ func (c *Client) SearchSongs(keyword string, page, pageSize int) ([]models.SongI
 	}
 
 	params := map[string]interface{}{
-		"searchid": crypto.GenerateSearchID(),
-		"query":    keyword,
-		"page_num": page,
+		"searchid":     crypto.GenerateSearchID(),
+		"query":        keyword,
+		"page_num":     page,
 		"num_per_page": pageSize,
 		"search_type":  0, // 0: songs
 	}
@@ -696,59 +700,386 @@ func (c *Client) SearchSongs(keyword string, page, pageSize int) ([]models.SongI
 func (c *Client) GetSongLyric(songMid string) (string, error) {
 	c.mu.RLock()
 	cookies := c.cookies
+	gtk := c.gtk
+	uin := c.uin
 	c.mu.RUnlock()
 
 	debugLog("[GetSongLyric] songMid=%s", songMid)
 
-	// Use the traditional lyrics endpoint which is more reliable
-	reqURL := "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
+	// Rain120/qq-music-api uses the traditional lyric endpoint. In practice
+	// it can include translations when GetPlayLyricInfo only returns main LRC.
+	traditional, traditionalErr := c.getSongLyricTraditional(songMid, cookies, gtk, uin)
+	if traditionalErr == nil && strings.TrimSpace(traditional.lrc) != "" && strings.TrimSpace(traditional.tlyric) != "" {
+		return marshalLyricData(traditional.lrc, traditional.tlyric, traditional.rlyric), nil
+	}
+	if traditionalErr != nil {
+		debugLog("[GetSongLyric] Traditional method failed: %v", traditionalErr)
+	}
 
+	cgi, cgiErr := c.getSongLyricCGI(songMid)
+	if cgiErr != nil {
+		debugLog("[GetSongLyric] CGI method failed: %v", cgiErr)
+	}
+
+	combined := mergeLyricPayloads(traditional, cgi)
+	download, downloadErr := c.getSongLyricDownload(songMid, combined.songID)
+	if downloadErr != nil {
+		debugLog("[GetSongLyric] Lyric download method failed: %v", downloadErr)
+	}
+	combined = mergeLyricPayloads(combined, download)
+	if strings.TrimSpace(combined.lrc) != "" && strings.TrimSpace(combined.tlyric) != "" {
+		return marshalLyricData(combined.lrc, combined.tlyric, combined.rlyric), nil
+	}
+
+	if strings.TrimSpace(combined.lrc) != "" {
+		return marshalLyricData(combined.lrc, combined.tlyric, combined.rlyric), nil
+	}
+
+	if traditionalErr != nil {
+		return "", traditionalErr
+	}
+	if cgiErr != nil {
+		return "", cgiErr
+	}
+
+	return marshalLyricData("", "", ""), nil
+}
+
+type lyricPayload struct {
+	lrc    string
+	tlyric string
+	rlyric string
+	songID int64
+}
+
+func (c *Client) getSongLyricCGI(songMid string) (lyricPayload, error) {
+	params := map[string]interface{}{
+		"songMID": songMid,
+		"songID":  0,
+	}
+	data, err := c.RequestCGI("music.musichallSong.PlayLyricInfo", "GetPlayLyricInfo", params)
+	if err != nil {
+		return lyricPayload{}, err
+	}
+
+	payload := lyricPayload{
+		lrc:    findLyricString(data, lyricFieldKeys),
+		tlyric: findLyricString(data, translationFieldKeys),
+		rlyric: findLyricString(data, romanFieldKeys),
+	}
+	var result struct {
+		SongID int64 `json:"songID"`
+	}
+	if err := json.Unmarshal(data, &result); err == nil {
+		payload.songID = result.SongID
+	}
+	debugLog("[GetSongLyric] CGI lyric fields (songID=%d, lrc=%d, trans=%d, roma=%d)", payload.songID, len(payload.lrc), len(payload.tlyric), len(payload.rlyric))
+	if strings.TrimSpace(payload.lrc) == "" {
+		debugLog("[GetSongLyric] CGI method returned empty lyric. Data: %s", string(data[:min(300, len(data))]))
+	}
+	return payload, nil
+}
+
+func (c *Client) getSongLyricTraditional(songMid, cookies string, gtk int, uin int64) (lyricPayload, error) {
+	reqURL := "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
 	resp, err := c.httpClient.R().
-		SetHeader("Referer", "https://y.qq.com/portal/player.html").
+		SetHeader("Referer", "https://c.y.qq.com/").
+		SetHeader("Host", "c.y.qq.com").
 		SetHeader("Cookie", cookies).
 		SetQueryParam("songmid", songMid).
 		SetQueryParam("format", "json").
-		SetQueryParam("nobase64", "0").
+		SetQueryParam("outCharset", "utf-8").
+		SetQueryParam("pcachetime", fmt.Sprintf("%d", timeNowMillis())).
+		SetQueryParam("g_tk", fmt.Sprintf("%d", gtk)).
+		SetQueryParam("loginUin", fmt.Sprintf("%d", uin)).
+		SetQueryParam("hostUin", "0").
+		SetQueryParam("inCharset", "utf8").
+		SetQueryParam("notice", "0").
+		SetQueryParam("platform", "yqq.json").
+		SetQueryParam("needNewCode", "0").
 		Get(reqURL)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to get lyrics: %w", err)
+		return lyricPayload{}, fmt.Errorf("failed to get lyrics via traditional method: %w", err)
 	}
 
-	debugLog("[GetSongLyric] Response: %s", string(resp.Body()[:min(300, len(resp.Body()))]))
+	debugLog("[GetSongLyric] Traditional Response: %s", string(resp.Body()[:min(500, len(resp.Body()))]))
 
-	var result struct {
-		RetCode int    `json:"retcode"`
-		Code    int    `json:"code"`
-		Lyric   string `json:"lyric"`
-		Trans   string `json:"trans"`
-	}
-
+	var result map[string]interface{}
 	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		return "", fmt.Errorf("failed to parse lyrics response: %w", err)
+		return lyricPayload{}, fmt.Errorf("failed to parse traditional lyrics response: %w", err)
 	}
 
-	if result.RetCode != 0 && result.Code != 0 {
-		// Fallback: try CGI method with corrected params
-		debugLog("[GetSongLyric] Traditional endpoint failed (retcode=%d), trying CGI fallback", result.RetCode)
-		params := map[string]interface{}{
-			"songMID": songMid,
-			"songID":  0,
-		}
-		data, err := c.RequestCGI("music.musichallSong.PlayLyricInfo", "GetPlayLyricInfo", params)
+	payload := lyricPayload{
+		lrc:    findLyricValue(result, lyricFieldKeys),
+		tlyric: findLyricValue(result, translationFieldKeys),
+		rlyric: findLyricValue(result, romanFieldKeys),
+	}
+	debugLog("[GetSongLyric] Traditional lyric fields (lrc=%d, trans=%d, roma=%d)", len(payload.lrc), len(payload.tlyric), len(payload.rlyric))
+
+	return payload, nil
+}
+
+func (c *Client) getSongLyricDownload(songMid string, songID int64) (lyricPayload, error) {
+	if songID <= 0 {
+		info, err := c.GetSongInfo(songMid)
 		if err != nil {
-			return "", fmt.Errorf("failed to get lyrics (both methods): %w", err)
+			return lyricPayload{}, fmt.Errorf("failed to get song id for lyric download: %w", err)
 		}
-		var cgiResult struct {
-			Lyric string `json:"lyric"`
+		if info != nil {
+			songID = info.ID
 		}
-		if err := json.Unmarshal(data, &cgiResult); err != nil {
-			return "", fmt.Errorf("failed to parse CGI lyrics: %w", err)
-		}
-		return cgiResult.Lyric, nil
+	}
+	if songID <= 0 {
+		return lyricPayload{}, fmt.Errorf("missing song id for lyric download")
 	}
 
-	return result.Lyric, nil
+	resp, err := c.httpClient.R().
+		SetHeader("Referer", "https://c.y.qq.com/").
+		SetHeader("Host", "c.y.qq.com").
+		SetFormData(map[string]string{
+			"version":     "15",
+			"miniversion": "82",
+			"lrctype":     "4",
+			"musicid":     fmt.Sprintf("%d", songID),
+		}).
+		Post("https://c.y.qq.com/qqmusic/fcgi-bin/lyric_download.fcg")
+	if err != nil {
+		return lyricPayload{}, fmt.Errorf("failed to download QQ lyric package: %w", err)
+	}
+
+	body := strings.ReplaceAll(string(resp.Body()), "<!--", "")
+	body = strings.ReplaceAll(body, "-->", "")
+	payload := lyricPayload{
+		lrc:    normalizeQQDownloadedLyric(extractQQDownloadedLyric(body, "content")),
+		tlyric: normalizeQQDownloadedLyric(extractQQDownloadedLyric(body, "contentts")),
+		rlyric: normalizeQQDownloadedLyric(extractQQDownloadedLyric(body, "contentroma")),
+		songID: songID,
+	}
+	debugLog("[GetSongLyric] Lyric download fields (songID=%d, lrc=%d, trans=%d, roma=%d)", songID, len(payload.lrc), len(payload.tlyric), len(payload.rlyric))
+	if strings.TrimSpace(payload.tlyric) != "" {
+		debugLog("[GetSongLyric] Lyric download translation preview: %s", previewLyric(payload.tlyric, 120))
+	}
+
+	return payload, nil
+}
+
+func mergeLyricPayloads(primary, fallback lyricPayload) lyricPayload {
+	if strings.TrimSpace(primary.lrc) == "" {
+		primary.lrc = fallback.lrc
+	}
+	if strings.TrimSpace(primary.tlyric) == "" {
+		primary.tlyric = fallback.tlyric
+	}
+	if strings.TrimSpace(primary.rlyric) == "" {
+		primary.rlyric = fallback.rlyric
+	}
+	if primary.songID <= 0 {
+		primary.songID = fallback.songID
+	}
+	return primary
+}
+
+func marshalLyricData(lrc, tlyric, rlyric string) string {
+	data := struct {
+		Lrc    string `json:"lrc"`
+		Tlyric string `json:"tlyric"`
+		Rlyric string `json:"rlyric"`
+	}{
+		Lrc:    decodeBase64Lyric(lrc),
+		Tlyric: decodeBase64Lyric(tlyric),
+		Rlyric: decodeBase64Lyric(rlyric),
+	}
+	debugLog("[GetSongLyric] Decoded lyric fields (lrc=%d, trans=%d, roma=%d)", len(data.Lrc), len(data.Tlyric), len(data.Rlyric))
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return data.Lrc
+	}
+	return string(jsonBytes)
+}
+
+func decodeBase64Lyric(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	encodings := []*base64.Encoding{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	}
+	for _, encoding := range encodings {
+		if decoded, err := encoding.DecodeString(value); err == nil {
+			return string(decoded)
+		}
+	}
+
+	if decoded, err := base64.StdEncoding.DecodeString(padBase64(value)); err == nil {
+		return string(decoded)
+	}
+
+	return value
+}
+
+var lyricFieldKeys = []string{"lyric", "lrc", "lyricContent", "content"}
+var translationFieldKeys = []string{"trans", "transLyric", "translyric", "trans_lyric", "trans_lrc", "tlyric", "translate", "translation"}
+var romanFieldKeys = []string{"roma", "roman", "romaLyric", "romalyric", "roma_lyric", "roma_lrc", "rlyric"}
+
+func findLyricString(raw []byte, keys []string) string {
+	var value interface{}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return findLyricValue(value, keys)
+}
+
+func findLyricValue(value interface{}, keys []string) string {
+	keySet := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		keySet[strings.ToLower(key)] = struct{}{}
+	}
+	return findLyricValueRecursive(value, keys, keySet)
+}
+
+func findLyricValueRecursive(value interface{}, orderedKeys []string, keySet map[string]struct{}) string {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for _, key := range orderedKeys {
+			if child, ok := getCaseInsensitive(typed, key); ok {
+				if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
+					return text
+				}
+				if text := findLyricValueRecursive(child, orderedKeys, keySet); text != "" {
+					return text
+				}
+			}
+		}
+		for key, child := range typed {
+			if _, isLyricKey := keySet[strings.ToLower(key)]; isLyricKey {
+				continue
+			}
+			if text := findLyricValueRecursive(child, orderedKeys, keySet); text != "" {
+				return text
+			}
+		}
+	case []interface{}:
+		for _, child := range typed {
+			if text := findLyricValueRecursive(child, orderedKeys, keySet); text != "" {
+				return text
+			}
+		}
+	}
+
+	return ""
+}
+
+func getCaseInsensitive(values map[string]interface{}, key string) (interface{}, bool) {
+	if value, ok := values[key]; ok {
+		return value, true
+	}
+	lowerKey := strings.ToLower(key)
+	for currentKey, value := range values {
+		if strings.ToLower(currentKey) == lowerKey {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func padBase64(value string) string {
+	remainder := len(value) % 4
+	if remainder == 0 {
+		return value
+	}
+	return value + strings.Repeat("=", 4-remainder)
+}
+
+var qqVerbatimLineRegex = regexp.MustCompile(`^\[(\d+),(\d+)\](.*)$`)
+var qqVerbatimWordTimeRegex = regexp.MustCompile(`\(\d+,\d+\)`)
+var qqEmptyTranslationLineRegex = regexp.MustCompile(`^(\[\d{1,2}:\d{1,2}(?:\.\d{1,3})?\])//$`)
+
+func extractQQDownloadedLyric(body, nodeName string) string {
+	re := regexp.MustCompile(`(?s)<` + regexp.QuoteMeta(nodeName) + `\b.*?<!\[CDATA\[(.*?)\]\]>`)
+	matches := re.FindStringSubmatch(body)
+	if len(matches) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(matches[1])
+}
+
+func normalizeQQDownloadedLyric(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || isHexString(value) {
+		return ""
+	}
+
+	lines := strings.Split(strings.ReplaceAll(value, "\r\n", "\n"), "\n")
+	converted := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimRight(line, "\r")
+		if strings.TrimSpace(line) == "//" {
+			converted = append(converted, "")
+			continue
+		}
+		if match := qqEmptyTranslationLineRegex.FindStringSubmatch(line); len(match) == 2 {
+			converted = append(converted, match[1])
+			continue
+		}
+
+		if match := qqVerbatimLineRegex.FindStringSubmatch(line); len(match) == 4 {
+			start, err := strconv.ParseInt(match[1], 10, 64)
+			if err == nil {
+				content := qqVerbatimWordTimeRegex.ReplaceAllString(match[3], "")
+				converted = append(converted, formatLrcTimestamp(start)+content)
+				continue
+			}
+		}
+
+		converted = append(converted, line)
+	}
+
+	return strings.TrimSpace(strings.Join(converted, "\n"))
+}
+
+func isHexString(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value)%2 != 0 {
+		return false
+	}
+	for _, ch := range value {
+		if (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func formatLrcTimestamp(milliseconds int64) string {
+	if milliseconds < 0 {
+		milliseconds = 0
+	}
+	totalSeconds := milliseconds / 1000
+	minutes := totalSeconds / 60
+	seconds := totalSeconds % 60
+	centiseconds := (milliseconds % 1000) / 10
+	return fmt.Sprintf("[%02d:%02d.%02d]", minutes, seconds, centiseconds)
+}
+
+func previewLyric(value string, limit int) string {
+	value = strings.ReplaceAll(value, "\r", "")
+	value = strings.ReplaceAll(value, "\n", " | ")
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit]
+}
+
+func timeNowMillis() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
 }
 
 // GetRecommendSongs gets daily recommended songs (similar to personal FM)

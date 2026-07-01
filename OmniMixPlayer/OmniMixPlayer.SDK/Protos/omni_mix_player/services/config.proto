@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package omni_mix_player;
+
+option csharp_namespace = "OmniMixPlayer.SDK.Protos.Services";
+
+service ConfigService {
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc UpdateConfig(UpdateConfigRequest) returns (UpdateConfigResponse);
+  rpc SaveConfig(SaveConfigRequest) returns (SaveConfigResponse);
+}
+
+message GetConfigRequest {}
+
+message GetConfigResponse {
+  string json = 1;
+}
+
+message UpdateConfigRequest {
+  string json = 1;
+}
+
+message UpdateConfigResponse {
+  bool updated = 1;
+}
+
+message SaveConfigRequest {}
+
+message SaveConfigResponse {
+  bool saved = 1;
+}

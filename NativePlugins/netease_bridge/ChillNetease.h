@@ -99,6 +99,7 @@ extern int NeteaseIsLoggedIn(void);
 extern char* NeteaseGetUserInfo(void);
 extern int NeteaseRefreshLogin(void);
 extern char* NeteaseGetLikeSongs(int getAll);
+extern char* NeteaseGetDailyRecommendSongs(void);
 extern char* NeteaseGetSongURL(long long songId, char* quality);
 extern char* NeteaseGetLastError(void);
 extern void NeteaseFreeString(char* ptr);

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package omni_mix_player;
+
+option csharp_namespace = "OmniMixPlayer.SDK.Protos.Services";
+
+service BackendService {
+  rpc StopBackend(StopBackendRequest) returns (StopBackendResponse);
+}
+
+message StopBackendRequest {}
+
+message StopBackendResponse {
+  bool stopping = 1;
+}

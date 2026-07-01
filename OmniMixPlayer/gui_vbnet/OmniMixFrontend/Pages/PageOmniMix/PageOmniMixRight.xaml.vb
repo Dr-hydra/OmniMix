@@ -18,6 +18,7 @@ Public Class PageOmniMixRight
     Private ActiveInstanceId As String = ""
     Private CanControlActiveInstance As Boolean = False
     Private IsShowingHistory As Boolean = False
+    Private CurrentHomePane As String = "playlist"
     Private IsUpdatingPlaybackUi As Boolean = False
     Private CurrentModulesPane As String = "launchpad"
     Private PreviousModulesPaneForDetail As String = "launchpad"
@@ -45,6 +46,9 @@ Public Class PageOmniMixRight
     Private ReadOnly PlaybackAutoRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(1)}
     Private IsAutoRefreshingPlayback As Boolean = False
     Private CurrentQueueRenderKey As String = ""
+    Private CurrentHomeLyricUuid As String = ""
+    Private CurrentHomeLyricLines As New List(Of OmniMixLyricLineInfo)
+    Private ReadOnly HomeLyricCache As New Dictionary(Of String, List(Of OmniMixLyricLineInfo))(StringComparer.OrdinalIgnoreCase)
     Private Const IconMoveUp As String = "M512 170.667 192 490.667h192v341.333h128V490.667h192L512 170.667z"
     Private Const IconMoveDown As String = "M512 853.333 832 533.333H640V192H512v341.333H320L512 853.333z"
     Private Const IconPlay As String = "M352 224v672l480-336-480-336z"
@@ -92,11 +96,11 @@ Public Class PageOmniMixRight
             Case "Library"
                 LabTitle.Text = "音乐库"
                 LabSubtitle.Text = "按来源浏览后端聚合出的音乐库。"
-                LabStatus.Text = "接口：/api/playlist。"
+                LabStatus.Text = "接口：OmniMixPlayer.SDK LibraryService。"
             Case "Modules"
                 LabTitle.Text = "音源管理"
                 LabSubtitle.Text = "管理音乐源、快捷入口与游戏集成。"
-                LabStatus.Text = "接口：/api/modules、音源设置 UI、快捷入口、播放实例和 WebSocket UI 事件。"
+                LabStatus.Text = "接口：ModuleService、音源 UI 资源、播放实例和 WebSocket UI 事件。"
             Case "Settings"
                 LabTitle.Text = "设置"
                 LabSubtitle.Text = "后端配置、播放实例档案和 GUI 本地偏好。"
@@ -111,6 +115,7 @@ Public Class PageOmniMixRight
                 LabStatus.Text = "页面键：" & PageKey
         End Select
         InitialStatusText = LabStatus.Text
+        If PageKey = "Home" Then UpdateHomePaneSelection()
     End Sub
 
     Public Async Sub SetLibraryPane(Pane As String)
@@ -181,6 +186,7 @@ Public Class PageOmniMixRight
 
         Dim ShowConfig = String.Equals(CurrentSettingsPane, "config", StringComparison.OrdinalIgnoreCase)
         Dim ShowPersonalization = String.Equals(CurrentSettingsPane, "personalization", StringComparison.OrdinalIgnoreCase)
+        Dim ShowFloating = String.Equals(CurrentSettingsPane, "floating", StringComparison.OrdinalIgnoreCase)
         Dim ShowMaintenance = String.Equals(CurrentSettingsPane, "maintenance", StringComparison.OrdinalIgnoreCase)
         Dim ShowInstances = String.Equals(CurrentSettingsPane, "instances", StringComparison.OrdinalIgnoreCase)
         Dim ShowArchives = String.Equals(CurrentSettingsPane, "archives", StringComparison.OrdinalIgnoreCase)
@@ -192,6 +198,8 @@ Public Class PageOmniMixRight
             CardSettings.Title = "设置 - 归档"
         ElseIf ShowEqualizer Then
             CardSettings.Title = "设置 - 均衡器"
+        ElseIf ShowFloating Then
+            CardSettings.Title = "设置 - 悬浮窗"
         ElseIf ShowPersonalization Then
             CardSettings.Title = "设置 - 个性化"
         ElseIf ShowMaintenance Then
@@ -205,6 +213,7 @@ Public Class PageOmniMixRight
         PanSettingsConfigButtons.Visibility = If(ShowConfig, Visibility.Visible, Visibility.Collapsed)
         PanSettingsService.Visibility = Visibility.Collapsed
         PanSettingsPersonalization.Visibility = If(ShowPersonalization, Visibility.Visible, Visibility.Collapsed)
+        PanSettingsFloating.Visibility = If(ShowFloating, Visibility.Visible, Visibility.Collapsed)
         PanSettingsMaintenance.Visibility = If(ShowMaintenance, Visibility.Visible, Visibility.Collapsed)
         PanSettingsEqualizer.Visibility = If(ShowEqualizer, Visibility.Visible, Visibility.Collapsed)
         LabInstanceStats.Visibility = If(ShowInstances, Visibility.Visible, Visibility.Collapsed)
@@ -216,6 +225,9 @@ Public Class PageOmniMixRight
         If ShowPersonalization Then
             SettingService.RefreshSettings(PanSettingsPersonalization)
             RefreshPersonalizationUi()
+        ElseIf ShowFloating Then
+            SettingService.RefreshSettings(PanSettingsFloating)
+            RefreshFloatingWindowSettingsUi()
         ElseIf ShowMaintenance Then
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
@@ -242,6 +254,7 @@ Public Class PageOmniMixRight
         AddHandler PlaybackAutoRefreshTimer.Tick, AddressOf PlaybackAutoRefreshTimer_Tick
         RemoveHandler WsClient.MessageReceived, AddressOf WsClient_MessageReceived
         AddHandler WsClient.MessageReceived, AddressOf WsClient_MessageReceived
+        If PageKey = "Home" Then UpdateHomePaneSelection()
         If HasCheckedBackend Then
             UpdatePlaybackAutoRefreshTimer()
             Return
@@ -708,14 +721,21 @@ Public Class PageOmniMixRight
         TxtCachePath.HintText = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
     End Sub
 
-    Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change, SliderFloatingWindowOpacity.Change
+    Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change, SliderFloatingWindowOpacity.Change, SliderFloatingWindowBackgroundOpacity.Change, SliderFloatingWindowScale.Change, SliderFloatingThemeHue.Change, SliderFloatingThemeSat.Change, SliderFloatingThemeLight.Change, SliderFloatingBackgroundThemeHue.Change, SliderFloatingBackgroundThemeSat.Change, SliderFloatingBackgroundThemeLight.Change
+        If sender Is SliderFloatingWindowScale AndAlso SliderFloatingWindowScale.Value < 70 Then
+            SliderFloatingWindowScale.Value = 70
+            Return
+        End If
         RefreshPersonalizationUi()
+        RefreshFloatingWindowSettingsUi()
         If FrmMain Is Nothing Then Return
         If sender Is SliderWindowOpacity Then
             FrmMain.UpdateWindowOpacity()
         ElseIf sender Is SliderControlOpacity Then
             FrmMain.UpdateControlOpacity()
-        ElseIf sender Is SliderFloatingWindowOpacity Then
+        ElseIf sender Is SliderFloatingWindowOpacity OrElse sender Is SliderFloatingWindowBackgroundOpacity OrElse sender Is SliderFloatingWindowScale OrElse
+               sender Is SliderFloatingThemeHue OrElse sender Is SliderFloatingThemeSat OrElse sender Is SliderFloatingThemeLight OrElse
+               sender Is SliderFloatingBackgroundThemeHue OrElse sender Is SliderFloatingBackgroundThemeSat OrElse sender Is SliderFloatingBackgroundThemeLight Then
             FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()
         Else
             FrmMain.LoadBackgroundImage()
@@ -767,7 +787,6 @@ Public Class PageOmniMixRight
         LabControlOpacity.Text = "控件不透明度：" & CInt(SliderControlOpacity.Value) & "%"
         LabBackgroundOpacity.Text = "背景图不透明度：" & CInt(SliderBackgroundOpacity.Value) & "%"
         LabBackgroundClarity.Text = "背景清晰度：" & CInt(SliderBackgroundClarity.Value) & "%"
-        LabFloatingWindowOpacity.Text = "悬浮窗透明度：" & CInt(SliderFloatingWindowOpacity.Value) & "%"
         LabThemeHue.Text = "色调：" & CInt(SliderThemeHue.Value)
         LabThemeSat.Text = "饱和度：" & CInt(SliderThemeSat.Value) & "%"
         LabThemeLight.Text = "亮度微调：" & (CInt(SliderThemeLight.Value) - 20)
@@ -2034,13 +2053,21 @@ Public Class PageOmniMixRight
             Dim ActiveInstance = PickActiveInstance(Instances, ConfigString(Config, "active_instance", ""))
             ActiveInstanceId = If(ActiveInstance Is Nothing, "", ActiveInstance.Id)
             RenderPlayback(Instances, ActiveInstance)
+            If ActiveInstance Is Nothing Then
+                ClearHomeLyrics("暂无歌词")
+            Else
+                Await EnsureHomeLyricsForTrackAsync(BaseUrl, ActiveInstance.CurrentTrack)
+                RenderHomeLyrics(ActiveInstance.Position)
+            End If
             Await ShowPlaybackFailureNoticeAsync(BaseUrl, ActiveInstanceId)
             Await RefreshQueuePaneAsync(BaseUrl)
         Catch Ex As Exception
             ActiveInstanceId = ""
             CanControlActiveInstance = False
             LabPlaybackSummary.Text = "播放实例加载失败：" & Ex.Message
+            LabHomeInstance.Text = "播放实例加载失败：" & Ex.Message
             RenderPlayback(New List(Of OmniMixPlaybackInstanceInfo), Nothing)
+            ClearHomeLyrics("歌词等待中...")
             RenderQueueItems(New List(Of OmniMixQueueItemInfo), IsShowingHistory)
         End Try
     End Function
@@ -2079,6 +2106,10 @@ Public Class PageOmniMixRight
                 LabPlaybackMeta.Text = "后端已连接，但还没有可控制的音频实例。"
                 LabPlaybackInstance.Text = "GUI 控制端已注册；等待音频实例连接。"
                 LabPlaybackPosition.Text = "进度：--"
+                LabHomeTrack.Text = LabPlaybackTrack.Text
+                LabHomeMeta.Text = LabPlaybackMeta.Text
+                LabHomeInstance.Text = LabPlaybackInstance.Text
+                LabHomePosition.Text = LabPlaybackPosition.Text
                 SliderVolume.Value = 100
                 LabPlaybackVolume.Text = "100%"
                 LabQueueSummary.Text = ""
@@ -2098,6 +2129,8 @@ Public Class PageOmniMixRight
                 If Not String.IsNullOrWhiteSpace(Track.ModuleId) Then TrackParts.Add("来源 " & Track.ModuleId)
                 LabPlaybackMeta.Text = String.Join(" · ", TrackParts)
             End If
+            LabHomeTrack.Text = LabPlaybackTrack.Text
+            LabHomeMeta.Text = LabPlaybackMeta.Text
 
             Dim InstanceParts As New List(Of String) From {
                 "实例 " & NonEmpty(ActiveInstance.Id, ActiveInstance.ClientId),
@@ -2109,15 +2142,74 @@ Public Class PageOmniMixRight
             If ActiveInstance.HistoryCount > 0 Then InstanceParts.Add($"历史 {ActiveInstance.HistoryCount}")
             If ActiveInstance.TargetLatency > 0 Then InstanceParts.Add($"延迟 {CInt(Math.Round(ActiveInstance.TargetLatency * 1000))} ms")
             LabPlaybackInstance.Text = String.Join(" · ", InstanceParts)
+            LabHomeInstance.Text = LabPlaybackInstance.Text
 
             Dim Duration = If(Track Is Nothing, 0, Track.Duration)
             LabPlaybackPosition.Text = "进度：" & FormatDuration(ActiveInstance.Position) & If(Duration > 0, " / " & FormatDuration(Duration), "")
+            LabHomePosition.Text = LabPlaybackPosition.Text
             Dim VolumeValue = CInt(Math.Max(0, Math.Min(100, Math.Round(ActiveInstance.Volume * 100))))
             SliderVolume.Value = VolumeValue
             LabPlaybackVolume.Text = VolumeValue & "%"
         Finally
             IsUpdatingPlaybackUi = False
         End Try
+    End Sub
+
+    Private Async Function EnsureHomeLyricsForTrackAsync(BaseUrl As String, Track As OmniMixTrackInfo) As Task
+        Dim Uuid = If(Track?.Uuid, "")
+        If String.IsNullOrWhiteSpace(Uuid) Then
+            ClearHomeLyrics("暂无歌词")
+            Return
+        End If
+        If String.Equals(CurrentHomeLyricUuid, Uuid, StringComparison.OrdinalIgnoreCase) Then Return
+
+        CurrentHomeLyricUuid = Uuid
+        Dim CachedLines As List(Of OmniMixLyricLineInfo) = Nothing
+        If HomeLyricCache.TryGetValue(Uuid, CachedLines) Then
+            CurrentHomeLyricLines = CachedLines
+            Return
+        End If
+
+        LabHomeLyricPrevious.Text = ""
+        LabHomeLyricCurrent.Text = "歌词加载中..."
+        LabHomeLyricNext.Text = ""
+        Try
+            Dim Lyric = Await OmniMixApiClient.GetTrackLyricAsync(BaseUrl, Uuid)
+            Dim Lines = OmniMixLyricHelper.ParseCombinedLyrics(Lyric?.Lrc, Lyric?.Tlyric, Lyric?.Rlyric)
+            HomeLyricCache(Uuid) = Lines
+            If String.Equals(CurrentHomeLyricUuid, Uuid, StringComparison.OrdinalIgnoreCase) Then
+                CurrentHomeLyricLines = Lines
+            End If
+        Catch Ex As Exception
+            Logger.Warn(Ex, "主页加载歌词失败：" & Uuid)
+            HomeLyricCache(Uuid) = New List(Of OmniMixLyricLineInfo)
+            If String.Equals(CurrentHomeLyricUuid, Uuid, StringComparison.OrdinalIgnoreCase) Then
+                CurrentHomeLyricLines = HomeLyricCache(Uuid)
+            End If
+        End Try
+    End Function
+
+    Private Sub RenderHomeLyrics(Position As Double)
+        If CurrentHomeLyricLines Is Nothing OrElse CurrentHomeLyricLines.Count = 0 Then
+            LabHomeLyricPrevious.Text = ""
+            LabHomeLyricCurrent.Text = "暂无歌词"
+            LabHomeLyricNext.Text = ""
+            Return
+        End If
+
+        Dim Index = OmniMixLyricHelper.GetCurrentLineIndex(CurrentHomeLyricLines, Position)
+        If Index < 0 Then Index = 0
+        LabHomeLyricPrevious.Text = If(Index > 0, OmniMixLyricHelper.FormatLyricLine(CurrentHomeLyricLines(Index - 1)), "")
+        LabHomeLyricCurrent.Text = OmniMixLyricHelper.FormatLyricLine(CurrentHomeLyricLines(Index))
+        LabHomeLyricNext.Text = If(Index + 1 < CurrentHomeLyricLines.Count, OmniMixLyricHelper.FormatLyricLine(CurrentHomeLyricLines(Index + 1)), "")
+    End Sub
+
+    Private Sub ClearHomeLyrics(Optional Text As String = "暂无歌词")
+        CurrentHomeLyricUuid = ""
+        CurrentHomeLyricLines = New List(Of OmniMixLyricLineInfo)
+        LabHomeLyricPrevious.Text = ""
+        LabHomeLyricCurrent.Text = If(String.IsNullOrWhiteSpace(Text), "暂无歌词", Text)
+        LabHomeLyricNext.Text = ""
     End Sub
 
     Private Async Function RefreshQueuePaneAsync(BaseUrl As String) As Task
@@ -2158,6 +2250,52 @@ Public Class PageOmniMixRight
         BtnPlaybackRefresh.Logo = Logo.IconButtonRefresh
         BtnPlaybackRefresh.LogoScale = 0.84
         BtnPlaybackRefresh.Theme = MyIconButton.Themes.Color
+    End Sub
+
+    Private Sub UpdateHomePaneSelection()
+        Dim ShowLyrics = Not String.Equals(CurrentHomePane, "playlist", StringComparison.OrdinalIgnoreCase)
+        PanHomeLyrics.Visibility = If(ShowLyrics, Visibility.Visible, Visibility.Collapsed)
+        PanHomePlaylist.Visibility = If(ShowLyrics, Visibility.Collapsed, Visibility.Visible)
+        If ShowLyrics Then
+            PanHomeLyricsTab.SetResourceReference(Border.BackgroundProperty, "ColorBrush7")
+            PanHomePlaylistTab.SetResourceReference(Border.BackgroundProperty, "ColorBrushSemiTransparent")
+        Else
+            PanHomeLyricsTab.SetResourceReference(Border.BackgroundProperty, "ColorBrushSemiTransparent")
+            PanHomePlaylistTab.SetResourceReference(Border.BackgroundProperty, "ColorBrush7")
+        End If
+    End Sub
+
+    Private Sub RefreshFloatingWindowSettingsUi()
+        If LabFloatingWindowOpacity Is Nothing Then Return
+        Dim ScaleValue = Math.Max(70, Math.Min(140, CInt(SliderFloatingWindowScale.Value)))
+        LabFloatingWindowOpacity.Text = "窗口不透明度：" & CInt(SliderFloatingWindowOpacity.Value) & "%"
+        LabFloatingWindowBackgroundOpacity.Text = "背景不透明度：" & CInt(SliderFloatingWindowBackgroundOpacity.Value) & "%"
+        LabFloatingWindowScale.Text = "悬浮窗大小：" & ScaleValue & "%"
+
+        ' UI 配色自定义显隐与文本
+        Dim UiTheme = Settings.Get(Of Integer)("OmniMixFloatingWindowTheme")
+        CardFloatingCustomTheme.Visibility = If(UiTheme = 14, Visibility.Visible, Visibility.Collapsed)
+        LabFloatingThemeHue.Text = "色调：" & CInt(SliderFloatingThemeHue.Value)
+        LabFloatingThemeSat.Text = "饱和度：" & CInt(SliderFloatingThemeSat.Value) & "%"
+        LabFloatingThemeLight.Text = "亮度微调：" & (CInt(SliderFloatingThemeLight.Value) - 20)
+
+        ' 背景配色自定义显隐与文本
+        Dim BgTheme = Settings.Get(Of Integer)("OmniMixFloatingWindowBackgroundTheme")
+        CardFloatingCustomBackgroundTheme.Visibility = If(BgTheme = 14, Visibility.Visible, Visibility.Collapsed)
+        LabFloatingBackgroundThemeHue.Text = "色调：" & CInt(SliderFloatingBackgroundThemeHue.Value)
+        LabFloatingBackgroundThemeSat.Text = "饱和度：" & CInt(SliderFloatingBackgroundThemeSat.Value) & "%"
+        LabFloatingBackgroundThemeLight.Text = "亮度微调：" & (CInt(SliderFloatingBackgroundThemeLight.Value) - 20)
+    End Sub
+
+    Private Sub BtnHomeLyricsTab_Click(sender As Object, e As EventArgs) Handles BtnHomeLyricsTab.Click
+        CurrentHomePane = "lyrics"
+        UpdateHomePaneSelection()
+    End Sub
+
+    Private Async Sub BtnHomePlaylistTab_Click(sender As Object, e As EventArgs) Handles BtnHomePlaylistTab.Click
+        CurrentHomePane = "playlist"
+        UpdateHomePaneSelection()
+        Await RefreshQueuePaneOrBackendAsync()
     End Sub
 
     Private Sub UpdateQueueTabSelection(IsHistory As Boolean)
@@ -2693,6 +2831,20 @@ Public Class PageOmniMixRight
             Else
                 AddGameDetailAction(PanModuleUi, "替换电台 UI", "生成并注入自定义电台 UI (需要选择自定义 Logo PNG 图像)。", Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
             End If
+
+            ' 自动写入默认配置文件（防首次没有文件产生）
+            If IsValidPath Then
+                Dim SavedVal = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
+                If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
+                Dim ConfigDir = System.IO.Path.Combine(GamePath, "fh6-omnimix")
+                Dim ConfigFile = System.IO.Path.Combine(ConfigDir, "race_start_playback.txt")
+                If Not System.IO.File.Exists(ConfigFile) Then
+                    OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
+                End If
+            End If
+
+            ' 添加比赛播放行为设置项
+            AddGameRaceStartPlaybackOption(PanModuleUi, GamePath)
         End If
 
         If DeploymentLogs.Count > 0 Then
@@ -2832,6 +2984,11 @@ Public Class PageOmniMixRight
             Hint(ModInfo.Name & " 安装失败。", HintType.Red)
         Else
             Await RegisterDeployedInstanceAsync(InstanceId, ModInfo, GamePath)
+            If String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
+                Dim SavedVal = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
+                If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
+                OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
+            End If
             Hint(ModInfo.Name & " 安装完成。", HintType.Green)
         End If
         Await RefreshGameIntegrationAfterOperationAsync(Game)
@@ -3038,7 +3195,7 @@ Public Class PageOmniMixRight
         }
     End Function
 
-    Private Shared Function GetPortFromBaseUrl(BaseUrl As String, Fallback As Integer) As Integer
+    Public Shared Function GetPortFromBaseUrl(BaseUrl As String, Fallback As Integer) As Integer
         Try
             Dim Parsed As New Uri(BaseUrl)
             If Parsed.Port > 0 Then Return Parsed.Port
@@ -4460,4 +4617,79 @@ Public Class PageOmniMixRight
         Dim TotalSeconds = CInt(Math.Floor(Seconds))
         Return $"{TotalSeconds \ 60}:{(TotalSeconds Mod 60).ToString().PadLeft(2, "0"c)}"
     End Function
+
+    Private Sub AddGameRaceStartPlaybackOption(Panel As Panel, GamePath As String)
+        Dim RowGrid As New Grid With {
+            .Height = 52,
+            .Margin = New Thickness(0, 0, 0, 5),
+            .Background = CType(Application.Current.FindResource("ColorBrushSemiTransparent"), Brush)
+        }
+        RowGrid.ColumnDefinitions.Add(New ColumnDefinition With {.Width = New GridLength(1, GridUnitType.Star)})
+        RowGrid.ColumnDefinitions.Add(New ColumnDefinition With {.Width = GridLength.Auto})
+
+        Dim TextPanel As New StackPanel With {
+            .VerticalAlignment = VerticalAlignment.Center,
+            .Margin = New Thickness(12, 0, 0, 0)
+        }
+        Dim LabTitle As New TextBlock With {
+            .Text = "比赛播放行为",
+            .FontSize = 14,
+            .Foreground = CType(Application.Current.FindResource("ColorBrush1"), Brush)
+        }
+        Dim LabInfo As New TextBlock With {
+            .Text = "设定地平线6进入比赛或比赛重启时的音乐播放动作",
+            .FontSize = 11,
+            .Foreground = CType(Application.Current.FindResource("ColorBrushGray2"), Brush),
+            .Margin = New Thickness(0, 2, 0, 0)
+        }
+        TextPanel.Children.Add(LabTitle)
+        TextPanel.Children.Add(LabInfo)
+        Grid.SetColumn(TextPanel, 0)
+        RowGrid.Children.Add(TextPanel)
+
+        Dim Combo As New MyComboBox With {
+            .MinWidth = 180,
+            .MaxWidth = 300,
+            .Height = 32,
+            .VerticalAlignment = VerticalAlignment.Center,
+            .HorizontalAlignment = HorizontalAlignment.Right,
+            .Margin = New Thickness(0, 0, 12, 0)
+        }
+        
+        Dim ItemIgnore As New MyComboBoxItem With {.Content = "继续播放 (默认)", .Tag = "ignore"}
+        Dim ItemNext As New MyComboBoxItem With {.Content = "切换下一首", .Tag = "next"}
+        Dim ItemRestart As New MyComboBoxItem With {.Content = "重新开始当前歌曲", .Tag = "restart"}
+
+        Combo.Items.Add(ItemIgnore)
+        Combo.Items.Add(ItemNext)
+        Combo.Items.Add(ItemRestart)
+
+        Dim SavedValue = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
+        If String.IsNullOrWhiteSpace(SavedValue) Then SavedValue = "ignore"
+        
+        If SavedValue = "next" Then
+            Combo.SelectedItem = ItemNext
+        ElseIf SavedValue = "restart" Then
+            Combo.SelectedItem = ItemRestart
+        Else
+            Combo.SelectedItem = ItemIgnore
+        End If
+
+        Dim IsInitializing = True
+        AddHandler Combo.SelectionChanged, Sub()
+                                               If IsInitializing Then Return
+                                               If TypeOf Combo.SelectedItem Is MyComboBoxItem Then
+                                                   Dim Val = CType(Combo.SelectedItem, MyComboBoxItem).Tag?.ToString()
+                                                   Settings.Set("OmniMixFh6RaceStartPlayback", Val)
+                                                   OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, Val)
+                                               End If
+                                           End Sub
+        IsInitializing = False
+
+        Grid.SetColumn(Combo, 1)
+        RowGrid.Children.Add(Combo)
+
+        Panel.Children.Add(RowGrid)
+    End Sub
+
 End Class

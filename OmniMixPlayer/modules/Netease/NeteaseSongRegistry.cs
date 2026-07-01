@@ -15,6 +15,7 @@ namespace OmniMixPlayer.Module.Netease
 
         public const string PLAYLIST_FAVORITES = "netease_favorites";
         public const string PLAYLIST_PERSONAL_FM = "netease_personal_fm";
+        public const string PLAYLIST_DAILY_RECOMMEND = "netease_daily_recommend";
 
         public NeteaseSongRegistry(
             IModuleContext context,
@@ -51,6 +52,18 @@ namespace OmniMixPlayer.Module.Netease
             _context.Library.ReplacePlaylistEntries(PLAYLIST_PERSONAL_FM, Array.Empty<PlaylistEntrySpec>());
         }
 
+        public void RegisterDailyRecommendPlaylist(int songCount)
+        {
+            _context.Library.UpsertPlaylist(new Playlist
+            {
+                Id = PLAYLIST_DAILY_RECOMMEND,
+                Name = "每日推荐",
+                ModuleId = _moduleId,
+                Kind = PlaylistKind.System
+            });
+            _context.Library.ReplacePlaylistEntries(PLAYLIST_DAILY_RECOMMEND, Array.Empty<PlaylistEntrySpec>());
+        }
+
         public List<Track> RegisterFavoritesSongs(IEnumerable<NeteaseBridge.SongInfo> songs)
         {
             var tracks = new List<Track>();
@@ -84,6 +97,23 @@ namespace OmniMixPlayer.Module.Netease
                 position++;
             }
 
+            return tracks;
+        }
+
+        public List<Track> RegisterDailyRecommendSongs(IEnumerable<NeteaseBridge.SongInfo> songs)
+        {
+            var tracks = new List<Track>();
+            var entries = new List<PlaylistEntrySpec>();
+            var position = 0;
+
+            foreach (var song in songs ?? Enumerable.Empty<NeteaseBridge.SongInfo>())
+            {
+                var track = UpsertSong(song, _favoriteManager.IsSongLiked(song.Id));
+                tracks.Add(track);
+                entries.Add(new PlaylistEntrySpec { TrackUuid = track.Uuid, Position = position++ });
+            }
+
+            _context.Library.ReplacePlaylistEntries(PLAYLIST_DAILY_RECOMMEND, entries);
             return tracks;
         }
 

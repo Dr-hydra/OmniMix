@@ -1,7 +1,6 @@
 Imports System.Net.Http
 Imports System.Net
 Imports System.Collections.Concurrent
-Imports System.Text
 Imports System.Text.Json
 Imports System.Text.Json.Serialization
 Imports Grpc.Core
@@ -113,6 +112,7 @@ Public Class OmniMixPlaybackInstanceInfo
     Public Property GameName As String = ""
     Public Property SharedMemoryReady As Boolean = True
     Public Property CanControlVolume As Boolean = True
+    Public Property CustomSystemMediaService As Boolean
 
     Public ReadOnly Property IsServerManaged As Boolean
         Get
@@ -289,301 +289,207 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function GetPlaylistAsync(BaseUrl As String) As Task(Of OmniMixPlaylistData)
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Library = New LibraryService.LibraryServiceClient(Channel)
-                Dim TagsResponse = Await Library.QueryTagsAsync(New TagQuery())
-                Dim AlbumsResponse = Await Library.QueryAlbumsAsync(New AlbumQuery())
-                Dim TracksResponse = Await Library.QueryTracksAsync(New TrackQuery())
-                Dim PlaylistsResponse = Await Library.QueryPlaylistsAsync(New PlaylistQuery())
-                Dim LibraryPlaylists As New List(Of OmniMixLibraryPlaylistInfo)
-                For Each PlaylistInfo In PlaylistsResponse.Playlists
-                    Dim PlaylistWithEntries = Await Library.GetPlaylistWithEntriesAsync(New GetPlaylistWithEntriesRequest With {.PlaylistId = PlaylistInfo.Id})
-                    LibraryPlaylists.Add(New OmniMixLibraryPlaylistInfo With {
-                        .Id = PlaylistInfo.Id,
-                        .Name = PlaylistInfo.Name,
-                        .ModuleId = PlaylistInfo.ModuleId,
-                        .CoverPath = PlaylistInfo.CoverUri,
-                        .SortOrder = PlaylistInfo.SortOrder,
-                        .Songs = PlaylistWithEntries.Entries.
-                            OrderBy(Function(Entry) Entry.Position).
-                            Select(Function(Entry) New OmniMixSongInfo With {
-                                .Uuid = Entry.TrackUuid,
-                                .Title = Entry.Title,
-                                .Artist = Entry.Artist,
-                                .AlbumId = Entry.AlbumId,
-                                .Duration = Entry.Duration,
-                                .ModuleId = PlaylistInfo.ModuleId,
-                                .CoverPath = Entry.CoverUri,
-                                .CoverUrl = Entry.CoverUri,
-                                .ImageUrl = Entry.CoverUri
-                            }).
-                            ToList()
-                    })
-                Next
-                Return New OmniMixPlaylistData With {
-                    .Tags = TagsResponse.Tags.Select(AddressOf MapTag).ToList(),
-                    .Albums = AlbumsResponse.Albums.Select(AddressOf MapAlbum).ToList(),
-                    .Songs = TracksResponse.Tracks.Select(AddressOf MapSong).ToList(),
-                    .Playlists = LibraryPlaylists
-                }
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Dim Playlist = Await GetJsonAsync(Of OmniMixPlaylistData)(BaseUrl, "/api/playlist")
-            Return If(Playlist, New OmniMixPlaylistData)
-        End If
-        Return New OmniMixPlaylistData
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Library = New LibraryService.LibraryServiceClient(Channel)
+            Dim TagsResponse = Await Library.QueryTagsAsync(New TagQuery())
+            Dim AlbumsResponse = Await Library.QueryAlbumsAsync(New AlbumQuery())
+            Dim TracksResponse = Await Library.QueryTracksAsync(New TrackQuery())
+            Dim PlaylistsResponse = Await Library.QueryPlaylistsAsync(New PlaylistQuery())
+            Dim LibraryPlaylists As New List(Of OmniMixLibraryPlaylistInfo)
+            For Each PlaylistInfo In PlaylistsResponse.Playlists
+                Dim PlaylistWithEntries = Await Library.GetPlaylistWithEntriesAsync(New GetPlaylistWithEntriesRequest With {.PlaylistId = PlaylistInfo.Id})
+                LibraryPlaylists.Add(New OmniMixLibraryPlaylistInfo With {
+                    .Id = PlaylistInfo.Id,
+                    .Name = PlaylistInfo.Name,
+                    .ModuleId = PlaylistInfo.ModuleId,
+                    .CoverPath = PlaylistInfo.CoverUri,
+                    .SortOrder = PlaylistInfo.SortOrder,
+                    .Songs = PlaylistWithEntries.Entries.
+                        OrderBy(Function(Entry) Entry.Position).
+                        Select(Function(Entry) New OmniMixSongInfo With {
+                            .Uuid = Entry.TrackUuid,
+                            .Title = Entry.Title,
+                            .Artist = Entry.Artist,
+                            .AlbumId = Entry.AlbumId,
+                            .Duration = Entry.Duration,
+                            .ModuleId = PlaylistInfo.ModuleId,
+                            .CoverPath = Entry.CoverUri,
+                            .CoverUrl = Entry.CoverUri,
+                            .ImageUrl = Entry.CoverUri
+                        }).
+                        ToList()
+                })
+            Next
+            Return New OmniMixPlaylistData With {
+                .Tags = TagsResponse.Tags.Select(AddressOf MapTag).ToList(),
+                .Albums = AlbumsResponse.Albums.Select(AddressOf MapAlbum).ToList(),
+                .Songs = TracksResponse.Tracks.Select(AddressOf MapSong).ToList(),
+                .Playlists = LibraryPlaylists
+            }
+        End Using
     End Function
 
     Public Async Function GetSongsAsync(BaseUrl As String, Optional AlbumId As String = "", Optional TagId As String = "") As Task(Of List(Of OmniMixSongInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Library = New LibraryService.LibraryServiceClient(Channel)
-                Dim Query As New TrackQuery With {
-                    .AlbumId = If(AlbumId, "")
-                }
-                If Not String.IsNullOrWhiteSpace(TagId) Then Query.TagIds.Add(TagId)
-                Dim Response = Await Library.QueryTracksAsync(Query)
-                Return Response.Tracks.Select(AddressOf MapSong).ToList()
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Dim Query As New List(Of String)
-            If Not String.IsNullOrWhiteSpace(AlbumId) Then Query.Add("albumId=" & Uri.EscapeDataString(AlbumId))
-            If Not String.IsNullOrWhiteSpace(TagId) Then Query.Add("tagId=" & Uri.EscapeDataString(TagId))
-            Dim ApiPath = "/api/songs" & If(Query.Count = 0, "", "?" & String.Join("&", Query))
-            Dim Songs = Await GetJsonAsync(Of List(Of OmniMixSongInfo))(BaseUrl, ApiPath)
-            Return If(Songs, New List(Of OmniMixSongInfo))
-        End If
-        Return New List(Of OmniMixSongInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Library = New LibraryService.LibraryServiceClient(Channel)
+            Dim Query As New TrackQuery With {
+                .AlbumId = If(AlbumId, "")
+            }
+            If Not String.IsNullOrWhiteSpace(TagId) Then Query.TagIds.Add(TagId)
+            Dim Response = Await Library.QueryTracksAsync(Query)
+            Return Response.Tracks.Select(AddressOf MapSong).ToList()
+        End Using
     End Function
 
     Public Async Function GetInstancesAsync(BaseUrl As String) As Task(Of List(Of OmniMixPlaybackInstanceInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Instances = New InstanceService.InstanceServiceClient(Channel)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Response = Await Instances.ListInstancesAsync(New ListInstancesRequest())
-                Dim Result As New List(Of OmniMixPlaybackInstanceInfo)
-                For Each Summary In Response.Instances
-                    Dim Profile As InstanceProfile = Nothing
-                    Dim Status As PlaybackStatus = Nothing
-                    Try
-                        Profile = Await Instances.GetProfileAsync(New GetProfileRequest With {.InstanceId = Summary.Id})
-                    Catch
-                    End Try
-                    Try
-                        Status = Await Playback.GetStatusAsync(New GetStatusRequest With {.InstanceId = Summary.Id})
-                    Catch
-                    End Try
-                    Result.Add(MapInstance(Summary, Profile, Status))
-                Next
-                Return Result
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Dim Instances = Await GetJsonAsync(Of List(Of OmniMixPlaybackInstanceInfo))(BaseUrl, "/api/instances")
-            Return If(Instances, New List(Of OmniMixPlaybackInstanceInfo))
-        End If
-        Return New List(Of OmniMixPlaybackInstanceInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Response = Await Instances.ListInstancesAsync(New ListInstancesRequest())
+            Dim Result As New List(Of OmniMixPlaybackInstanceInfo)
+            For Each Summary In Response.Instances
+                Dim Profile As InstanceProfile = Nothing
+                Dim Status As PlaybackStatus = Nothing
+                Try
+                    Profile = Await Instances.GetProfileAsync(New GetProfileRequest With {.InstanceId = Summary.Id})
+                Catch
+                End Try
+                Try
+                    Status = Await Playback.GetStatusAsync(New GetStatusRequest With {.InstanceId = Summary.Id})
+                Catch
+                End Try
+                Result.Add(MapInstance(Summary, Profile, Status))
+            Next
+            Return Result
+        End Using
     End Function
 
     Public Async Function GetInstanceStatsAsync(BaseUrl As String) As Task(Of OmniMixInstanceStatsInfo)
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Instances = New InstanceService.InstanceServiceClient(Channel)
-                Dim Response = Await Instances.ListInstancesAsync(New ListInstancesRequest())
-                Dim Stats As New OmniMixInstanceStatsInfo With {
-                    .InstanceCount = Response.Instances.Count,
-                    .AttachedAudioClients = Response.Instances.Where(Function(Item) Item.IsOnline).Count(),
-                    .ControllerClients = Response.Instances.Where(Function(Item) Item.Kind = CType(3, InstanceKind)).Count(),
-                    .ObserverClients = Response.Instances.Where(Function(Item) Item.Kind = CType(4, InstanceKind)).Count(),
-                    .TotalQueueItems = Response.Instances.Sum(Function(Item) Item.QueueCount)
-                }
-                Return Stats
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-        End Try
-        Try
-            Dim Stats = Await GetJsonAsync(Of OmniMixInstanceStatsInfo)(BaseUrl, "/api/instances/stats")
-            Return If(Stats, New OmniMixInstanceStatsInfo)
-        Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
-            Return New OmniMixInstanceStatsInfo
-        End Try
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Dim Response = Await Instances.ListInstancesAsync(New ListInstancesRequest())
+            Return New OmniMixInstanceStatsInfo With {
+                .InstanceCount = Response.Instances.Count,
+                .AttachedAudioClients = Response.Instances.Where(Function(Item) Item.IsOnline).Count(),
+                .ControllerClients = Response.Instances.Where(Function(Item) Item.Kind = CType(3, InstanceKind)).Count(),
+                .ObserverClients = Response.Instances.Where(Function(Item) Item.Kind = CType(4, InstanceKind)).Count(),
+                .TotalQueueItems = Response.Instances.Sum(Function(Item) Item.QueueCount)
+            }
+        End Using
     End Function
 
     Public Async Function ConsumePlaybackFailureNoticeAsync(BaseUrl As String, InstanceId As String) As Task(Of OmniMixPlaybackFailureNoticeInfo)
         If String.IsNullOrWhiteSpace(InstanceId) Then Return Nothing
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Response = Await Playback.GetFailureNoticeAsync(New GetFailureNoticeRequest With {
+                .InstanceId = If(InstanceId, ""),
+                .Consume = True
+            })
+            If Not Response.HasNotice OrElse Response.Notice Is Nothing Then Return Nothing
+            Return MapFailureNotice(Response.Notice)
+        End Using
+    End Function
+
+    Public Async Function GetTrackLyricAsync(BaseUrl As String, Uuid As String) As Task(Of OmniMixLyricInfo)
+        If String.IsNullOrWhiteSpace(BaseUrl) OrElse String.IsNullOrWhiteSpace(Uuid) Then Return New OmniMixLyricInfo With {.Uuid = If(Uuid, "")}
         Try
-            Return Await GetJsonAsync(Of OmniMixPlaybackFailureNoticeInfo)(BaseUrl, "/api/playback/" & Uri.EscapeDataString(InstanceId) & "/failure-notice?consume=true")
-        Catch Ex As HttpRequestException When Ex.StatusCode = HttpStatusCode.NoContent OrElse Ex.StatusCode = HttpStatusCode.NotFound
-            Return Nothing
+            Using Channel = CreateGrpcChannel(BaseUrl)
+                Dim Lyrics = New LyricService.LyricServiceClient(Channel)
+                Dim Response = Await Lyrics.GetLyricAsync(New GetLyricRequest With {.Uuid = If(Uuid, "")})
+                Return New OmniMixLyricInfo With {
+                    .Uuid = If(Response.Uuid, ""),
+                    .ModuleId = If(Response.ModuleId, ""),
+                    .Lrc = If(Response.Lrc, ""),
+                    .Tlyric = If(Response.Tlyric, ""),
+                    .Rlyric = If(Response.Rlyric, "")
+                }
+            End Using
+        Catch Ex As RpcException When Ex.StatusCode = StatusCode.NotFound OrElse Ex.StatusCode = StatusCode.Unimplemented OrElse Ex.StatusCode = StatusCode.InvalidArgument
+            Return New OmniMixLyricInfo With {.Uuid = If(Uuid, "")}
         End Try
     End Function
 
     Public Async Function GetInstanceQueueAsync(BaseUrl As String, InstanceId As String) As Task(Of List(Of OmniMixQueueItemInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Response = Await Playback.GetQueueAsync(New GetQueueRequest With {.InstanceId = If(InstanceId, "")})
-                Return Response.Queue.Select(AddressOf MapQueueTrack).ToList()
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Dim Queue = Await GetJsonAsync(Of List(Of OmniMixQueueItemInfo))(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/queue")
-            Return If(Queue, New List(Of OmniMixQueueItemInfo))
-        End If
-        Return New List(Of OmniMixQueueItemInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Response = Await Playback.GetQueueAsync(New GetQueueRequest With {.InstanceId = If(InstanceId, "")})
+            Return Response.Queue.Select(AddressOf MapQueueTrack).ToList()
+        End Using
     End Function
 
     Public Async Function GetPlaylistSourcesAsync(BaseUrl As String, InstanceId As String) As Task(Of List(Of OmniMixPlaylistSourceInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Response = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
-                Return Response.Sources.Select(Function(Source) New OmniMixPlaylistSourceInfo With {
-                    .Id = Source.Id,
-                    .Name = Source.Name,
-                    .SongCount = Source.SongCount
-                }).ToList()
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Try
-                Dim Sources = Await GetJsonAsync(Of List(Of OmniMixPlaylistSourceInfo))(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/playlist/sources")
-                Return If(Sources, New List(Of OmniMixPlaylistSourceInfo))
-            Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
-                Return New List(Of OmniMixPlaylistSourceInfo)
-            End Try
-        End If
-        Return New List(Of OmniMixPlaylistSourceInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Response = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
+            Return Response.Sources.Select(Function(Source) New OmniMixPlaylistSourceInfo With {
+                .Id = Source.Id,
+                .Name = Source.Name,
+                .SongCount = Source.SongCount
+            }).ToList()
+        End Using
     End Function
 
     Public Async Function AddPlaylistSourceAsync(BaseUrl As String, InstanceId As String, SourceId As String, SourceName As String, Uuids As IEnumerable(Of String)) As Task
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Existing = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
-                Dim Request As New SetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")}
-                For Each Source In Existing.Sources
-                    Request.Sources.Add(New PlaylistSourceSpec With {
-                        .Id = Source.Id,
-                        .Name = Source.Name,
-                        .Kind = Source.Kind,
-                        .RefId = Source.RefId
-                    })
-                Next
-                Dim NewSource As New PlaylistSourceSpec With {
-                    .Id = If(SourceId, ""),
-                    .Name = If(SourceName, ""),
-                    .Kind = CType(4, PlaylistSourceKind)
-                }
-                NewSource.Uuids.AddRange(If(Uuids, Enumerable.Empty(Of String)()).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)))
-                Request.Sources.Add(NewSource)
-                Await Playback.SetPlaylistSourcesAsync(Request)
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Await PostJsonAsync(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/playlist/sources", New With {
-                .index = -1,
-                .source = New With {
-                    .id = If(SourceId, ""),
-                    .name = If(SourceName, ""),
-                    .uuids = If(Uuids, Enumerable.Empty(Of String)()).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)).ToArray()
-                }
-            })
-        End If
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Existing = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
+            Dim Request As New SetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")}
+            For Each Source In Existing.Sources
+                Request.Sources.Add(New PlaylistSourceSpec With {
+                    .Id = Source.Id,
+                    .Name = Source.Name,
+                    .Kind = Source.Kind,
+                    .RefId = Source.RefId
+                })
+            Next
+            Dim NewSource As New PlaylistSourceSpec With {
+                .Id = If(SourceId, ""),
+                .Name = If(SourceName, ""),
+                .Kind = CType(4, PlaylistSourceKind)
+            }
+            NewSource.Uuids.AddRange(If(Uuids, Enumerable.Empty(Of String)()).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)))
+            Request.Sources.Add(NewSource)
+            Await Playback.SetPlaylistSourcesAsync(Request)
+        End Using
     End Function
 
     Public Async Function RemovePlaylistSourceAsync(BaseUrl As String, InstanceId As String, SourceId As String) As Task
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Existing = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
-                Dim Request As New SetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")}
-                For Each Source In Existing.Sources
-                    If String.Equals(Source.Id, SourceId, StringComparison.OrdinalIgnoreCase) Then Continue For
-                    Request.Sources.Add(New PlaylistSourceSpec With {
-                        .Id = Source.Id,
-                        .Name = Source.Name,
-                        .Kind = Source.Kind,
-                        .RefId = Source.RefId
-                    })
-                Next
-                Await Playback.SetPlaylistSourcesAsync(Request)
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Await DeleteAsync(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/playlist/sources/" & Uri.EscapeDataString(SourceId))
-        End If
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Existing = Await Playback.GetPlaylistSourcesAsync(New GetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")})
+            Dim Request As New SetPlaylistSourcesRequest With {.InstanceId = If(InstanceId, "")}
+            For Each Source In Existing.Sources
+                If String.Equals(Source.Id, SourceId, StringComparison.OrdinalIgnoreCase) Then Continue For
+                Request.Sources.Add(New PlaylistSourceSpec With {
+                    .Id = Source.Id,
+                    .Name = Source.Name,
+                    .Kind = Source.Kind,
+                    .RefId = Source.RefId
+                })
+            Next
+            Await Playback.SetPlaylistSourcesAsync(Request)
+        End Using
     End Function
 
     Public Async Function GetInstanceHistoryAsync(BaseUrl As String, InstanceId As String) As Task(Of List(Of OmniMixQueueItemInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim Response = Await Playback.GetHistoryAsync(New GetHistoryRequest With {.InstanceId = If(InstanceId, "")})
-                Return Response.History.Select(AddressOf MapQueueTrack).ToList()
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Try
-                Dim History = Await GetJsonAsync(Of List(Of OmniMixQueueItemInfo))(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/history")
-                Return If(History, New List(Of OmniMixQueueItemInfo))
-            Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
-                Return New List(Of OmniMixQueueItemInfo)
-            End Try
-        End If
-        Return New List(Of OmniMixQueueItemInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim Response = Await Playback.GetHistoryAsync(New GetHistoryRequest With {.InstanceId = If(InstanceId, "")})
+            Return Response.History.Select(AddressOf MapQueueTrack).ToList()
+        End Using
     End Function
 
     Public Async Function ConnectControllerAsync(BaseUrl As String, Optional ClientId As String = "vbnet-gui") As Task
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Instances = New InstanceService.InstanceServiceClient(Channel)
-                Await Instances.ConnectAsync(New InstanceConnectRequest With {
-                    .ClientId = If(ClientId, "vbnet-gui"),
-                    .Kind = CType(2, InstanceKind),
-                    .DisplayName = "VB.NET GUI",
-                    .Capabilities = FullGuiCapabilities()
-                })
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Await PostJsonAsync(BaseUrl, "/api/instances/connect", New With {
-                .clientId = ClientId,
-                .role = "controller",
-                .mode = "server"
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Await Instances.ConnectAsync(New InstanceConnectRequest With {
+                .ClientId = If(ClientId, "vbnet-gui"),
+                .Kind = CType(2, InstanceKind),
+                .DisplayName = "VB.NET GUI",
+                .Capabilities = FullGuiCapabilities()
             })
-        End If
+        End Using
     End Function
 
     Public Async Function ConnectDesktopPlayerInstanceAsync(BaseUrl As String) As Task(Of String)
@@ -755,7 +661,7 @@ Public Module OmniMixApiClient
                 Case "stop"
                     Await Playback.StopAsync(New StopRequest With {.InstanceId = If(InstanceId, "")})
                 Case Else
-                    Await PostEmptyAsync(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/" & Uri.EscapeDataString(Command))
+                    Throw New NotSupportedException("不支持的播放命令：" & If(Command, ""))
             End Select
         End Using
     End Function
@@ -835,25 +741,11 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function GetInstanceEqualizerAsync(BaseUrl As String, InstanceId As String) As Task(Of OmniMixEqualizerStateInfo)
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
-                Dim State = Await Playback.GetEqualizerAsync(New GetEqualizerRequest With {.InstanceId = If(InstanceId, "")})
-                Return MapEqualizer(State)
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Try
-                Dim State = Await GetJsonAsync(Of OmniMixEqualizerStateInfo)(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/equalizer")
-                Return If(State, New OmniMixEqualizerStateInfo)
-            Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
-                Return New OmniMixEqualizerStateInfo
-            End Try
-        End If
-        Return New OmniMixEqualizerStateInfo
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Playback = New PlaybackService.PlaybackServiceClient(Channel)
+            Dim State = Await Playback.GetEqualizerAsync(New GetEqualizerRequest With {.InstanceId = If(InstanceId, "")})
+            Return MapEqualizer(State)
+        End Using
     End Function
 
     Public Async Function PutInstanceEqualizerAsync(BaseUrl As String, InstanceId As String, State As OmniMixEqualizerStateInfo) As Task
@@ -867,25 +759,33 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function GetInstanceEqualizerPresetsAsync(BaseUrl As String, InstanceId As String) As Task(Of Dictionary(Of String, OmniMixEqualizerStateInfo))
-        Try
-            Dim Presets = Await GetJsonAsync(Of Dictionary(Of String, OmniMixEqualizerStateInfo))(BaseUrl, "/api/instances/" & Uri.EscapeDataString(InstanceId) & "/equalizer/presets")
-            Return If(Presets, New Dictionary(Of String, OmniMixEqualizerStateInfo))
-        Catch Ex As Exception When IsOptionalEndpointMissing(Ex)
-            Return New Dictionary(Of String, OmniMixEqualizerStateInfo)
-        End Try
+        Await Task.CompletedTask
+        Return New Dictionary(Of String, OmniMixEqualizerStateInfo)
     End Function
 
     Public Async Function GetConfigAsync(BaseUrl As String) As Task(Of Dictionary(Of String, JsonElement))
-        Dim Config = Await GetJsonAsync(Of Dictionary(Of String, JsonElement))(BaseUrl, "/api/config")
-        Return If(Config, New Dictionary(Of String, JsonElement))
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Config = New ConfigService.ConfigServiceClient(Channel)
+            Dim Response = Await Config.GetConfigAsync(New GetConfigRequest())
+            If String.IsNullOrWhiteSpace(Response.Json) Then Return New Dictionary(Of String, JsonElement)
+            Dim Result = JsonSerializer.Deserialize(Of Dictionary(Of String, JsonElement))(Response.Json, JsonOptions)
+            Return If(Result, New Dictionary(Of String, JsonElement))
+        End Using
     End Function
 
     Public Async Function PutConfigRawAsync(BaseUrl As String, Updates As Dictionary(Of String, Object)) As Task
-        Await PutJsonAsync(BaseUrl, "/api/config", Updates)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Config = New ConfigService.ConfigServiceClient(Channel)
+            Dim Json = JsonSerializer.Serialize(If(Updates, New Dictionary(Of String, Object)), JsonOptions)
+            Await Config.UpdateConfigAsync(New UpdateConfigRequest With {.Json = Json})
+        End Using
     End Function
 
     Public Async Function SaveConfigAsync(BaseUrl As String) As Task
-        Await PostEmptyAsync(BaseUrl, "/api/config/save")
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Config = New ConfigService.ConfigServiceClient(Channel)
+            Await Config.SaveConfigAsync(New SaveConfigRequest())
+        End Using
     End Function
 
     Public Async Function AddPortFileDirAsync(BaseUrl As String, DirectoryPath As String) As Task
@@ -945,7 +845,10 @@ Public Module OmniMixApiClient
     End Sub
 
     Public Async Function StopBackendAsync(BaseUrl As String) As Task
-        Await PostEmptyAsync(BaseUrl, "/api/backend/stop")
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Backend = New BackendService.BackendServiceClient(Channel)
+            Await Backend.StopBackendAsync(New StopBackendRequest())
+        End Using
     End Function
 
     Public Async Function SetActiveInstanceAsync(BaseUrl As String, InstanceId As String) As Task
@@ -956,25 +859,11 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function GetArchivesAsync(BaseUrl As String) As Task(Of List(Of OmniMixArchiveInfo))
-        Dim UseRestFallback = False
-        Try
-            Using Channel = CreateGrpcChannel(BaseUrl)
-                Dim Instances = New InstanceService.InstanceServiceClient(Channel)
-                Dim Response = Await Instances.ListArchivesAsync(New ListArchivesRequest())
-                Return Response.Archives.Select(AddressOf MapArchive).ToList()
-            End Using
-        Catch Ex As Exception When IsGrpcEndpointUnavailable(Ex)
-            UseRestFallback = True
-        End Try
-        If UseRestFallback Then
-            Try
-                Dim Archives = Await GetJsonAsync(Of List(Of OmniMixArchiveInfo))(BaseUrl, "/api/instances/archives")
-                Return If(Archives, New List(Of OmniMixArchiveInfo))
-            Catch RestEx As Exception When IsOptionalEndpointMissing(RestEx)
-                Return New List(Of OmniMixArchiveInfo)
-            End Try
-        End If
-        Return New List(Of OmniMixArchiveInfo)
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Dim Response = Await Instances.ListArchivesAsync(New ListArchivesRequest())
+            Return Response.Archives.Select(AddressOf MapArchive).ToList()
+        End Using
     End Function
 
     Public Async Function DeleteInstanceAsync(BaseUrl As String, InstanceId As String) As Task
@@ -1043,9 +932,13 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function RenameArchiveAsync(BaseUrl As String, InstanceId As String, Label As String) As Task
-        Await PutJsonAsync(BaseUrl, "/api/instances/archives/" & Uri.EscapeDataString(InstanceId) & "/rename", New With {
-            .label = If(Label, "")
-        })
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Instances = New InstanceService.InstanceServiceClient(Channel)
+            Await Instances.RenameArchiveAsync(New RenameArchiveRequest With {
+                .ArchiveId = If(InstanceId, ""),
+                .Label = If(Label, "")
+            })
+        End Using
     End Function
 
     Public Async Function DeleteArchiveAsync(BaseUrl As String, InstanceId As String) As Task
@@ -1067,17 +960,20 @@ Public Module OmniMixApiClient
     End Function
 
     Public Async Function GetModulesAsync(BaseUrl As String) As Task(Of List(Of OmniMixModuleInfo))
-        Dim Modules = Await GetJsonAsync(Of List(Of OmniMixModuleInfo))(BaseUrl, "/api/modules")
-        Return If(Modules, New List(Of OmniMixModuleInfo))
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Modules = New ModuleService.ModuleServiceClient(Channel)
+            Dim Response = Await Modules.ListModulesAsync(New ListModulesRequest())
+            Return Response.Modules.Select(AddressOf MapModule).ToList()
+        End Using
     End Function
 
     Public Async Function SetModuleEnabledAsync(BaseUrl As String, ModuleId As String, Enabled As Boolean) As Task
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & "/api/modules/" & Uri.EscapeDataString(ModuleId)
-        Dim Body = JsonSerializer.Serialize(New With {.enabled = Enabled}, JsonOptions)
-        Using Content As New StringContent(Body, Encoding.UTF8, "application/json")
-            Using Response = Await Client.PostAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-            End Using
+        Using Channel = CreateGrpcChannel(BaseUrl)
+            Dim Modules = New ModuleService.ModuleServiceClient(Channel)
+            Await Modules.SetModuleEnabledAsync(New SetModuleEnabledRequest With {
+                .ModuleId = If(ModuleId, ""),
+                .Enabled = Enabled
+            })
         End Using
     End Function
 
@@ -1099,6 +995,45 @@ Public Module OmniMixApiClient
 
     Public Async Function GetModuleLinkUiAsync(BaseUrl As String, ModuleId As String, LinkId As String) As Task(Of OmniMixRawNodeData)
         Return Await GetJsonAsync(Of OmniMixRawNodeData)(BaseUrl, "/api/modules/" & Uri.EscapeDataString(ModuleId) & "/link/" & Uri.EscapeDataString(LinkId))
+    End Function
+
+    Private Function MapFailureNotice(Notice As PlaybackFailureNotice) As OmniMixPlaybackFailureNoticeInfo
+        If Notice Is Nothing Then Return Nothing
+        Return New OmniMixPlaybackFailureNoticeInfo With {
+            .InstanceId = If(Notice.InstanceId, ""),
+            .ModuleId = If(Notice.ModuleId, ""),
+            .ModuleName = If(Notice.ModuleName, ""),
+            .Count = Notice.Count,
+            .Message = If(Notice.Message, ""),
+            .CreatedAtUnixMs = Notice.CreatedAtUnixMs
+        }
+    End Function
+
+    Private Function MapModule(ModuleInfo As ModuleInfo) As OmniMixModuleInfo
+        If ModuleInfo Is Nothing Then Return New OmniMixModuleInfo
+        Return New OmniMixModuleInfo With {
+            .Id = If(ModuleInfo.Id, ""),
+            .Name = If(ModuleInfo.Name, ""),
+            .Version = If(ModuleInfo.Version, ""),
+            .Priority = ModuleInfo.Priority,
+            .LoadedAt = If(ModuleInfo.LoadedAt, ""),
+            .Enabled = ModuleInfo.Enabled,
+            .HasSettingsUI = ModuleInfo.HasSettingsUi,
+            .HasQuickLinks = ModuleInfo.HasQuickLinks,
+            .LinkEntries = ModuleInfo.LinkEntries.Select(AddressOf MapModuleLinkEntry).ToList()
+        }
+    End Function
+
+    Private Function MapModuleLinkEntry(Link As ModuleLinkEntry) As OmniMixModuleLinkEntryInfo
+        If Link Is Nothing Then Return New OmniMixModuleLinkEntryInfo
+        Return New OmniMixModuleLinkEntryInfo With {
+            .Id = If(Link.Id, ""),
+            .Title = If(Link.Title, ""),
+            .Icon = If(Link.Icon, ""),
+            .Svg = If(Link.Svg, ""),
+            .BackgroundColor = If(Link.BackgroundColor, ""),
+            .IconColor = If(Link.IconColor, "")
+        }
     End Function
 
     Private Function CreateGrpcChannel(BaseUrl As String) As GrpcChannel
@@ -1183,6 +1118,7 @@ Public Module OmniMixApiClient
             Result.ModId = NonEmpty(Profile.ModId, Result.ModId)
             Result.GameName = NonEmpty(Profile.GameName, Result.GameName)
             Result.Mode = ModeFromCapabilities(Profile.Capabilities)
+            Result.CustomSystemMediaService = Profile.Capabilities IsNot Nothing AndAlso Profile.Capabilities.CustomSystemMediaService
             If Profile.PlaybackTimeline IsNot Nothing Then
                 Result.QueueCount = Math.Max(Result.QueueCount, Profile.PlaybackTimeline.ManualQueueUuids.Count)
                 Result.HistoryCount = Profile.PlaybackTimeline.HistoryUuids.Count
@@ -1495,7 +1431,7 @@ Public Module OmniMixApiClient
             .VolumeControl = True,
             .Equalizer = True,
             .AudioPlayback = True,
-            .CustomSystemMediaService = True
+            .CustomSystemMediaService = False
         }
     End Function
 
@@ -1599,65 +1535,6 @@ Public Module OmniMixApiClient
         Catch
             Return ""
         End Try
-    End Function
-
-    Private Async Function PostJsonAsync(BaseUrl As String, ApiPath As String, BodyObject As Object) As Task
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Dim Body = JsonSerializer.Serialize(BodyObject, JsonOptions)
-        Using Content As New StringContent(Body, Encoding.UTF8, "application/json")
-            Using Response = Await Client.PostAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-            End Using
-        End Using
-    End Function
-
-    Private Async Function PostJsonForResultAsync(Of T)(BaseUrl As String, ApiPath As String, BodyObject As Object) As Task(Of T)
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Dim Body = JsonSerializer.Serialize(BodyObject, JsonOptions)
-        Using Content As New StringContent(Body, Encoding.UTF8, "application/json")
-            Using Response = Await Client.PostAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-                Dim Json = Await Response.Content.ReadAsStringAsync()
-                Return JsonSerializer.Deserialize(Of T)(Json, JsonOptions)
-            End Using
-        End Using
-    End Function
-
-    Private Async Function PostEmptyAsync(BaseUrl As String, ApiPath As String) As Task
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Using Content As New StringContent("", Encoding.UTF8, "application/json")
-            Using Response = Await Client.PostAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-            End Using
-        End Using
-    End Function
-
-    Private Async Function PostEmptyForResultAsync(Of T)(BaseUrl As String, ApiPath As String) As Task(Of T)
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Using Content As New StringContent("", Encoding.UTF8, "application/json")
-            Using Response = Await Client.PostAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-                Dim Json = Await Response.Content.ReadAsStringAsync()
-                Return JsonSerializer.Deserialize(Of T)(Json, JsonOptions)
-            End Using
-        End Using
-    End Function
-
-    Private Async Function DeleteAsync(BaseUrl As String, ApiPath As String) As Task
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Using Response = Await Client.DeleteAsync(RequestUrl)
-            Response.EnsureSuccessStatusCode()
-        End Using
-    End Function
-
-    Private Async Function PutJsonAsync(BaseUrl As String, ApiPath As String, BodyObject As Object) As Task
-        Dim RequestUrl = BaseUrl.TrimEnd("/"c) & ApiPath
-        Dim Body = JsonSerializer.Serialize(BodyObject, JsonOptions)
-        Using Content As New StringContent(Body, Encoding.UTF8, "application/json")
-            Using Response = Await Client.PutAsync(RequestUrl, Content)
-                Response.EnsureSuccessStatusCode()
-            End Using
-        End Using
     End Function
 
     Private Async Function GetJsonAsync(Of T)(BaseUrl As String, ApiPath As String) As Task(Of T)

@@ -238,6 +238,8 @@ namespace OmniMixPlayer.Backend
             builder.Services.AddSingleton(instanceRegistry);
             builder.Services.AddSingleton(timelineStore);
             builder.Services.AddSingleton(sessionManager);
+            builder.Services.AddSingleton(globalConfig);
+            builder.Services.AddSingleton(apiServer);
 
             var app = builder.Build();
 
@@ -253,6 +255,10 @@ namespace OmniMixPlayer.Backend
             app.MapGrpcService<LibraryServiceImpl>();
             app.MapGrpcService<PlaybackServiceImpl>();
             app.MapGrpcService<InstanceServiceImpl>();
+            app.MapGrpcService<LyricServiceImpl>();
+            app.MapGrpcService<ConfigServiceImpl>();
+            app.MapGrpcService<BackendServiceImpl>();
+            app.MapGrpcService<ModuleServiceImpl>();
 
             // 13. Load modules in background
             _ = Task.Run(async () =>

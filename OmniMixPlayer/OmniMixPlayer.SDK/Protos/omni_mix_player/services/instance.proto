@@ -19,6 +19,7 @@ service InstanceService {
   rpc ArchiveInstance(ArchiveInstanceRequest) returns (ArchiveInstanceResponse);
   rpc ListArchives(ListArchivesRequest) returns (ListArchivesResponse);
   rpc GetArchive(GetArchiveRequest) returns (InstanceProfile);
+  rpc RenameArchive(RenameArchiveRequest) returns (RenameArchiveResponse);
   rpc DeleteArchive(DeleteArchiveRequest) returns (DeleteArchiveResponse);
   rpc InheritFromArchive(InheritFromArchiveRequest) returns (InheritFromArchiveResponse);
 }
@@ -68,6 +69,16 @@ message ListArchivesResponse {
 
 message GetArchiveRequest {
   string archive_id = 1;
+}
+
+message RenameArchiveRequest {
+  string archive_id = 1;
+  string label = 2;
+}
+
+message RenameArchiveResponse {
+  bool renamed = 1;
+  InstanceProfile archive = 2;
 }
 
 message DeleteArchiveRequest {

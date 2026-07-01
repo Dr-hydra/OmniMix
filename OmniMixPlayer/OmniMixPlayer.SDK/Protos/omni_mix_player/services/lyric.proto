@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package omni_mix_player;
+
+option csharp_namespace = "OmniMixPlayer.SDK.Protos.Services";
+
+// 歌词服务 — 按曲目查询模块提供的 LRC 歌词
+service LyricService {
+  rpc GetLyric(GetLyricRequest) returns (GetLyricResponse);
+}
+
+message GetLyricRequest {
+  string uuid = 1;
+}
+
+message GetLyricResponse {
+  string uuid = 1;
+  string module_id = 2;
+  string lrc = 3;
+  string tlyric = 4;
+  string rlyric = 5;
+}

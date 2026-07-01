@@ -135,6 +135,7 @@ Public Class PageOmniMixLeft
             CanControlActiveInstance = False
             LabLeftPlaybackTrack.Text = EmptyTrackText
             LabLeftPlaybackMeta.Visibility = Visibility.Collapsed
+            OmniMixSmtcService.UpdatePlayback(Nothing)
             If ShowErrorHint Then Hint("播放状态读取失败：" & Ex.Message, HintType.Red)
         Finally
             IsRefreshingPlayer = False
@@ -207,6 +208,7 @@ Public Class PageOmniMixLeft
             BtnLeftPlaybackNext.IsEnabled = True
             SliderLeftVolume.IsEnabled = ActiveInstance IsNot Nothing
             SliderLeftLatency.IsEnabled = CanControlActiveInstance
+            OmniMixSmtcService.UpdatePlayback(ActiveInstance)
         Finally
             IsUpdatingPlaybackUi = False
         End Try
@@ -694,7 +696,7 @@ Public Class PageOmniMixLeft
         CurrentRight.SetModulesPane(sender.Tag.ToString())
     End Sub
 
-    Private Sub SettingsNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemSettingsConfig.Check, ItemSettingsPersonalization.Check, ItemSettingsMaintenance.Check, ItemSettingsInstances.Check, ItemSettingsEqualizer.Check, ItemSettingsArchives.Check
+    Private Sub SettingsNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemSettingsConfig.Check, ItemSettingsPersonalization.Check, ItemSettingsFloating.Check, ItemSettingsMaintenance.Check, ItemSettingsInstances.Check, ItemSettingsEqualizer.Check, ItemSettingsArchives.Check
         If CurrentRight Is Nothing OrElse sender.Tag Is Nothing Then Return
         CurrentRight.SetSettingsPane(sender.Tag.ToString())
     End Sub

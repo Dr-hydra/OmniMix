@@ -1,5 +1,4 @@
 Imports System.ComponentModel
-Imports System.Runtime.InteropServices
 Imports System.Windows.Interop
 
 Public Class FormMain
@@ -7,26 +6,6 @@ Public Class FormMain
     Private Const DefaultBackgroundImagePath As String = "Images/Backgrounds/default.png"
     Private Const BackgroundModeDefault As String = "__default__"
     Private Const BackgroundModeSolid As String = "__solid__"
-
-    Private Const WmHotkey As Integer = &H312
-    Private Const WmAppCommand As Integer = &H319
-    Private Const ModNoRepeat As UInteger = &H4000UI
-    Private Const VkMediaNextTrack As UInteger = &HB0UI
-    Private Const VkMediaPreviousTrack As UInteger = &HB1UI
-    Private Const VkMediaStop As UInteger = &HB2UI
-    Private Const VkMediaPlayPause As UInteger = &HB3UI
-    Private Const HotkeyMediaNextTrack As Integer = &H4F01
-    Private Const HotkeyMediaPreviousTrack As Integer = &H4F02
-    Private Const HotkeyMediaStop As Integer = &H4F03
-    Private Const HotkeyMediaPlayPause As Integer = &H4F04
-
-    <DllImport("user32.dll", SetLastError:=True)>
-    Private Shared Function RegisterHotKey(hWnd As IntPtr, id As Integer, fsModifiers As UInteger, vk As UInteger) As Boolean
-    End Function
-
-    <DllImport("user32.dll", SetLastError:=True)>
-    Private Shared Function UnregisterHotKey(hWnd As IntPtr, id As Integer) As Boolean
-    End Function
 
     Private FrmOmniMixHome As PageOmniMixRight
     Private FrmOmniMixLibrary As PageOmniMixRight
@@ -161,7 +140,7 @@ Public Class FormMain
 
         Dim HwndSource As Interop.HwndSource = PresentationSource.FromVisual(Me)
         HwndSource.AddHook(New Interop.HwndSourceHook(AddressOf WndProc))
-        RegisterMediaHotkeys()
+        OmniMixSmtcService.Initialize(AddressOf SendSystemMediaCommand)
         AniStart({
             AaCode(Sub() AniControlEnabled -= 1, 50),
             AaOpacity(Me, GetWindowOpacity(), 250, 100),
@@ -180,12 +159,19 @@ Public Class FormMain
         ShowOmniMixFloatingPlaybackWindow(False)
         Logger.Info("OmniMix GUI 已启动。")
         Logger.Info($"第三阶段加载用时：{GetTimeMs() - ApplicationStartTick} ms")
+
+        ' 启动后延迟 3 秒，检查是否有游戏集成需要更新并提示
+        Task.Run(Async Function()
+                     Await Task.Delay(3000)
+                     CheckAndPromptGameIntegrationUpdate()
+                 End Function)
     End Sub
 
     Public Sub EndProgram(SendWarning As Boolean)
         If IsProgramEnding Then Return
         IsProgramEnding = True
         CloseOmniMixFloatingPlaybackWindow()
+        OmniMixSmtcService.Shutdown()
         OmniMixDesktopPlayerService.DisconnectAndWait()
         StopOmniMixBackendOnExit()
         DisposeOmniMixTrayIcon()
@@ -385,7 +371,6 @@ Public Class FormMain
     End Sub
 
     Private Sub DisposeOmniMixTrayIcon()
-        UnregisterMediaHotkeys()
         If OmniMixTrayIcon IsNot Nothing Then
             OmniMixTrayIcon.Visible = False
             OmniMixTrayIcon.Dispose()
@@ -648,74 +633,13 @@ Public Class FormMain
                     ShowWindowToTop()
                     handled = True
                 End If
-            Case WmHotkey
-                handled = HandleMediaHotkey(wParam.ToInt32())
-            Case WmAppCommand
-                Dim Command = (lParam.ToInt64() >> 16) And &H7FFL
-                handled = HandleMediaAppCommand(CInt(Command))
         End Select
         Return IntPtr.Zero
     End Function
 
-    Private Sub RegisterMediaHotkeys()
-        If Handle = IntPtr.Zero Then Return
-        RegisterMediaHotkey(HotkeyMediaNextTrack, VkMediaNextTrack, "下一首")
-        RegisterMediaHotkey(HotkeyMediaPreviousTrack, VkMediaPreviousTrack, "上一首")
-        RegisterMediaHotkey(HotkeyMediaStop, VkMediaStop, "停止")
-        RegisterMediaHotkey(HotkeyMediaPlayPause, VkMediaPlayPause, "播放/暂停")
-    End Sub
-
-    Private Sub RegisterMediaHotkey(Id As Integer, VirtualKey As UInteger, DisplayName As String)
-        If RegisterHotKey(Handle, Id, ModNoRepeat, VirtualKey) Then
-            Logger.Info("已注册全局媒体快捷键：" & DisplayName)
-        Else
-            Logger.Warn($"无法注册全局媒体快捷键：{DisplayName}，Win32 错误 {Marshal.GetLastWin32Error()}")
-        End If
-    End Sub
-
-    Private Sub UnregisterMediaHotkeys()
-        If Handle = IntPtr.Zero Then Return
-        UnregisterHotKey(Handle, HotkeyMediaNextTrack)
-        UnregisterHotKey(Handle, HotkeyMediaPreviousTrack)
-        UnregisterHotKey(Handle, HotkeyMediaStop)
-        UnregisterHotKey(Handle, HotkeyMediaPlayPause)
-    End Sub
-
-    Private Function HandleMediaHotkey(Id As Integer) As Boolean
-        Select Case Id
-            Case HotkeyMediaNextTrack
-                Return SendMediaCommand("next")
-            Case HotkeyMediaPreviousTrack
-                Return SendMediaCommand("prev")
-            Case HotkeyMediaStop
-                Return SendMediaCommand("stop")
-            Case HotkeyMediaPlayPause
-                Return SendMediaCommand("toggle")
-        End Select
-        Return False
-    End Function
-
-    Private Function HandleMediaAppCommand(Command As Integer) As Boolean
-        Select Case Command
-            Case 11
-                Return SendMediaCommand("next")
-            Case 12
-                Return SendMediaCommand("prev")
-            Case 13
-                Return SendMediaCommand("stop")
-            Case 14
-                Return SendMediaCommand("toggle")
-            Case 46
-                Return SendMediaCommand("resume")
-            Case 47
-                Return SendMediaCommand("pause")
-        End Select
-        Return False
-    End Function
-
-    Private Function SendMediaCommand(Command As String) As Boolean
+    Private Function SendSystemMediaCommand(Command As String) As Boolean
         If FrmOmniMixLeft Is Nothing Then Return False
-        Logger.Info("收到媒体快捷键：" & Command)
+        Logger.Info("发送系统媒体传输控件 (SMTC) 命令：" & Command)
         FrmOmniMixLeft.HandleMediaCommand(Command)
         Return True
     End Function
@@ -913,5 +837,85 @@ Public Class FormMain
         Dim Page As MyPageRight = PanMainRight.Child
         Return Page.FindName(Page.PanScroll)
     End Function
+
+    Private Sub CheckAndPromptGameIntegrationUpdate()
+        Try
+            Dim GameId = "forza_horizon_6"
+            Dim Game = OmniMixModDeploymentService.GetGame(GameId)
+            Dim ModInfo = OmniMixModDeploymentService.GetPrimaryMod(Game)
+            If Game Is Nothing OrElse ModInfo Is Nothing Then
+                Logger.Info("[FH6-Update] 整合配置或 Mod 信息为空，跳过检查")
+                Return
+            End If
+
+            Dim GamePath = OmniMixModDeploymentService.LoadGamePath(GameId)
+            Logger.Info($"[FH6-Update] 已配置的游戏路径: '{GamePath}'")
+            If String.IsNullOrWhiteSpace(GamePath) Then Return
+
+            Dim IsValidPath = OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game)
+            Logger.Info($"[FH6-Update] 游戏目录有效性验证结果: {IsValidPath}")
+            If Not IsValidPath Then Return
+
+            Dim ModStatus = OmniMixModDeploymentService.CheckModStatus(GamePath, ModInfo)
+            
+            Dim MarkerDir = OmniMixModDeploymentService.ResolveGameMarkerDir(GamePath, ModInfo)
+            Dim MarkerPath = System.IO.Path.Combine(MarkerDir, ".omnimix_mods", ModInfo.Id & ".managed")
+            Dim InstalledVersion = "未发现标记"
+            If System.IO.File.Exists(MarkerPath) Then
+                InstalledVersion = System.IO.File.ReadAllText(MarkerPath).Trim()
+            End If
+            
+            Logger.Info($"[FH6-Update] 集成状态: {ModStatus}, 已安装标记版本: {InstalledVersion}, 本地随附最新版本: {ModInfo.Version}")
+
+            If ModStatus = OmniMixModInstallStatus.NeedsUpdate Then
+                RunInUi(Sub()
+                            Dim Title = "集成更新提示"
+                            Dim MsgText = $"检测到您的游戏【{Game.Name}】的集成 Mod 有可用更新。{vbCrLf}更新可优化控制体验，是否现在进行一键更新？"
+                            If MyMsgBox(MsgText, Title, "立刻更新", "暂不更新") = 1 Then
+                                Task.Run(
+                                    Async Sub()
+                                        Try
+                                            Dim Processes = System.Diagnostics.Process.GetProcessesByName("forzahorizon6")
+                                            If Processes.Length > 0 Then
+                                                RunInUi(Sub() Hint("游戏正在运行，请先关闭游戏后再更新集成。", HintType.Red))
+                                                Exit Sub
+                                            End If
+
+                                            Dim Logs As New List(Of String)
+                                            Dim BackendPort = PageOmniMixRight.GetPortFromBaseUrl(OmniMixBaseUrl, 17890)
+                                            Dim InstanceId = Await Task.Run(Function() OmniMixModDeploymentService.DeployMod(GamePath, ModInfo, BackendPort, Logs))
+                                            
+                                            If String.IsNullOrWhiteSpace(InstanceId) Then
+                                                RunInUi(Sub() Hint("一键更新失败，请在[游戏集成]页手动重试。", HintType.Red))
+                                            Else
+                                                Dim SavedVal = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
+                                                If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
+                                                OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
+                                                
+                                                RunInUi(Sub() Hint("地平线 6 集成已一键更新至最新版本！", HintType.Green))
+                                            End If
+                                        Catch Ex As Exception
+                                            RunInUi(Sub() Hint("更新发生异常：" & Ex.Message, HintType.Red))
+                                        End Try
+                                    End Sub)
+                            End If
+                        End Sub)
+            End If
+        Catch Ex As Exception
+            Logger.Error(Ex, "[FH6-Update] 异步检查时发生异常")
+        End Try
+    End Sub
+
+    Public Sub ApplyOmniMixFloatingPlaybackWindowSettings()
+        If IsProgramEnding Then Return
+        RunInUi(Sub()
+                    Dim Visible = Settings.Get(Of Boolean)("OmniMixFloatingWindowVisible")
+                    If Visible Then
+                        ShowOmniMixFloatingPlaybackWindow(True)
+                    Else
+                        CloseOmniMixFloatingPlaybackWindow()
+                    End If
+                End Sub)
+    End Sub
 
 End Class

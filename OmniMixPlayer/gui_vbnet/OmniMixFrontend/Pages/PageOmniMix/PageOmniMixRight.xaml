@@ -90,6 +90,105 @@
                                    Foreground="{DynamicResource ColorBrushGray3}"
                                    Margin="0,0,0,12" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,18">
+                            <local:MyTextButton x:Name="BtnPlaybackPrevLegacy"
+                                                Text="上一首"
+                                                Padding="12,6,12,6"
+                                                Margin="0,0,16,0" />
+                            <local:MyTextButton x:Name="BtnPlaybackToggleLegacy"
+                                                Text="播放 / 暂停"
+                                                Padding="18,7,18,7"
+                                                Margin="0,0,16,0" />
+                            <local:MyTextButton x:Name="BtnPlaybackNextLegacy"
+                                                Text="下一首"
+                                                Padding="12,6,12,6" />
+                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="音量"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ColorBrush2}"
+                                       Margin="0,0,12,0" />
+                            <local:MySlider x:Name="SliderVolumeLegacy"
+                                            Grid.Column="1"
+                                            MaxValue="100"
+                                            Value="100"
+                                            VerticalAlignment="Center" />
+                            <TextBlock x:Name="LabPlaybackVolumeLegacy"
+                                       Grid.Column="2"
+                                       Text="100%"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource ColorBrushGray3}"
+                                       Margin="12,0,0,0" />
+                        </Grid>
+                    </StackPanel>
+                </local:MyCard>
+
+                <local:MyCard x:Name="CardQueue" Title="播放" Grid.Column="2" Margin="0,0,0,15">
+                    <StackPanel Margin="20,20,20,18">
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Visibility="Collapsed">
+                                <TextBlock x:Name="LabHomeTrack"
+                                           Text="暂无曲目"
+                                           TextWrapping="Wrap"
+                                           FontSize="24"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource ColorBrush3}" />
+                                <TextBlock x:Name="LabHomeMeta"
+                                           Text=""
+                                           TextWrapping="Wrap"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource ColorBrushGray3}"
+                                           Margin="0,7,14,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top">
+                                <Border x:Name="PanHomeLyricsTab"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource ColorBrush7}"
+                                        Margin="0,0,6,0">
+                                    <local:MyTextButton x:Name="BtnHomeLyricsTab"
+                                                        Text="歌词"
+                                                        Padding="12,5,12,5" />
+                                </Border>
+                                <Border x:Name="PanHomePlaylistTab"
+                                        CornerRadius="6"
+                                        Background="{DynamicResource ColorBrushSemiTransparent}">
+                                    <local:MyTextButton x:Name="BtnHomePlaylistTab"
+                                                        Text="播放列表"
+                                                        Padding="12,5,12,5" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock x:Name="LabHomeInstance"
+                                   Text=""
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ColorBrush2}"
+                                   Margin="0,0,0,8"
+                                   Visibility="Collapsed" />
+                        <TextBlock x:Name="LabHomePosition"
+                                   Text="进度：--"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ColorBrushGray3}"
+                                   Margin="0,0,0,12"
+                                   Visibility="Collapsed" />
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16" Visibility="Collapsed">
                             <local:MyTextButton x:Name="BtnPlaybackPrev"
                                                 Text="上一首"
                                                 Padding="12,6,12,6"
@@ -102,7 +201,8 @@
                                                 Text="下一首"
                                                 Padding="12,6,12,6" />
                         </StackPanel>
-                        <Grid>
+
+                        <Grid Margin="0,0,0,16" Visibility="Collapsed">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -126,16 +226,57 @@
                                        Foreground="{DynamicResource ColorBrushGray3}"
                                        Margin="12,0,0,0" />
                         </Grid>
-                    </StackPanel>
-                </local:MyCard>
 
-                <local:MyCard x:Name="CardQueue" Title="" Grid.Column="2" Margin="0,0,0,15">
-                    <StackPanel Margin="20,20,20,18">
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="PanHomeLyrics">
+                            <Border MinHeight="230"
+                                    CornerRadius="6"
+                                    Background="{DynamicResource ColorBrushBackground}"
+                                    Padding="24"
+                                    Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="LabHomeLyricPrevious"
+                                               Grid.Row="1"
+                                               Text=""
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               FontSize="15"
+                                               Foreground="{DynamicResource ColorBrushGray3}"
+                                               Opacity="0.72"
+                                               Margin="0,0,0,12" />
+                                    <TextBlock x:Name="LabHomeLyricCurrent"
+                                               Grid.Row="2"
+                                               Text="歌词等待中..."
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource ColorBrush3}"
+                                               Margin="0,0,0,12" />
+                                    <TextBlock x:Name="LabHomeLyricNext"
+                                               Grid.Row="3"
+                                               Text=""
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               FontSize="15"
+                                               Foreground="{DynamicResource ColorBrushGray3}"
+                                               Opacity="0.72"
+                                               VerticalAlignment="Top" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel x:Name="PanHomePlaylist" Visibility="Collapsed">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal">
                                 <Border x:Name="PanQueueTab"
                                         CornerRadius="6"
@@ -168,15 +309,16 @@
                                                     LogoScale="0.84"
                                                     ToolTip="刷新" />
                             </StackPanel>
-                        </Grid>
-                        <TextBlock x:Name="LabQueueSummary"
-                                   Text=""
-                                   TextWrapping="Wrap"
-                                   FontSize="13"
-                                   Foreground="{DynamicResource ColorBrush2}"
-                                   Margin="0,0,0,10"
-                                   Visibility="Collapsed" />
-                        <StackPanel x:Name="PanQueueList" />
+                            </Grid>
+                            <TextBlock x:Name="LabQueueSummary"
+                                       Text=""
+                                       TextWrapping="Wrap"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource ColorBrush2}"
+                                       Margin="0,0,0,10"
+                                       Visibility="Collapsed" />
+                            <StackPanel x:Name="PanQueueList" />
+                        </StackPanel>
                     </StackPanel>
                 </local:MyCard>
             </Grid>
@@ -387,6 +529,10 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="16" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="16" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock x:Name="LabWindowOpacity"
                                            Text="窗口不透明度：100%"
@@ -426,17 +572,7 @@
                                                 Grid.Column="1"
                                                 local:SettingService.Key="UiBackgroundClarity"
                                                 MaxValue="100" />
-                                <TextBlock x:Name="LabFloatingWindowOpacity"
-                                           Grid.Row="8"
-                                           Text="悬浮窗透明度：88%"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,22,0" />
-                                <local:MySlider x:Name="SliderFloatingWindowOpacity"
-                                                Grid.Row="8"
-                                                Grid.Column="1"
-                                                local:SettingService.Key="OmniMixFloatingWindowOpacity"
-                                                MaxValue="100" />
-                                <Border Grid.Row="10"
+                                <Border Grid.Row="8"
                                         Grid.ColumnSpan="2"
                                         Background="{DynamicResource ColorBrushSemiTransparent}"
                                         CornerRadius="6"
@@ -537,6 +673,10 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="10" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock x:Name="LabThemeHue"
                                            Text="色调：210"
@@ -565,6 +705,272 @@
                                                 Grid.Row="4"
                                                 Grid.Column="1"
                                                 local:SettingService.Key="UiLauncherThemeLight"
+                                                MaxValue="40" />
+                            </Grid>
+                        </local:MyCard>
+                    </StackPanel>
+
+                    <StackPanel x:Name="PanSettingsFloating"
+                                Margin="0,0,0,18"
+                                Visibility="Collapsed"
+                                Grid.IsSharedSizeScope="True">
+                        <local:MyCard Title="播放悬浮窗" Margin="0,0,0,15">
+                            <Grid Margin="25,40,25,17">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SettingName" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="显示状态"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MyCheckBox x:Name="CheckFloatingWindowVisible"
+                                                  Grid.Column="1"
+                                                  local:SettingService.Key="OmniMixFloatingWindowVisible"
+                                                  Text="显示播放悬浮窗" />
+
+                                <TextBlock Grid.Row="2"
+                                           Text="排列样式"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <WrapPanel Grid.Row="2"
+                                           Grid.Column="1">
+                                    <local:MyRadioBox x:Name="RadioFloatingWindowStyleHorizontal"
+                                                      Margin="0,0,16,0"
+                                                      local:SettingService.Key="OmniMixFloatingWindowStyle"
+                                                      local:SettingService.Value="0"
+                                                      Text="横向排列" />
+                                    <local:MyRadioBox x:Name="RadioFloatingWindowStyleVertical"
+                                                      local:SettingService.Key="OmniMixFloatingWindowStyle"
+                                                      local:SettingService.Value="1"
+                                                      Text="竖向排列" />
+                                </WrapPanel>
+
+                                <TextBlock x:Name="LabFloatingWindowOpacity"
+                                           Grid.Row="4"
+                                           Text="窗口不透明度：100%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingWindowOpacity"
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowOpacity"
+                                                MaxValue="100" />
+
+                                <TextBlock x:Name="LabFloatingWindowBackgroundOpacity"
+                                           Grid.Row="6"
+                                           Text="背景不透明度：88%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingWindowBackgroundOpacity"
+                                                Grid.Row="6"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowBackgroundOpacity"
+                                                MaxValue="100" />
+
+                                <TextBlock x:Name="LabFloatingWindowScale"
+                                           Grid.Row="8"
+                                           Text="悬浮窗大小：100%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingWindowScale"
+                                                Grid.Row="8"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowScale"
+                                                MaxValue="140" />
+                            </Grid>
+                        </local:MyCard>
+
+                        <local:MyCard Title="悬浮窗 UI 配色" Margin="0,0,0,15">
+                            <StackPanel Margin="25,40,25,17">
+                                <WrapPanel Margin="-1,0,0,4">
+                                    <local:MyRadioBox x:Name="RadioFloatingThemeWhite"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="15"
+                                                      Text="极简白" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme0"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="0"
+                                                      Text="经典蓝" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme1"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="1"
+                                                      Text="翡翠绿" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme5"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="5"
+                                                      Text="炫酷黑" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme7"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="7"
+                                                      Text="紫罗兰" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme9"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="9"
+                                                      Text="活力橙" />
+                                    <local:MyRadioBox x:Name="RadioFloatingTheme10"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="10"
+                                                      Text="玫瑰红" />
+                                    <local:MyRadioBox x:Name="RadioFloatingThemeCustom"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowTheme"
+                                                      local:SettingService.Value="14"
+                                                      Text="自定义配色" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </local:MyCard>
+
+                        <local:MyCard x:Name="CardFloatingCustomTheme"
+                                      Title="悬浮窗自定义 UI 配色"
+                                      Margin="0,0,0,15"
+                                      Visibility="Collapsed">
+                            <Grid Margin="25,40,25,17">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SettingName" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="LabFloatingThemeHue"
+                                           Text="色调：210"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingThemeHue"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowThemeHue"
+                                                MaxValue="360" />
+                                <TextBlock x:Name="LabFloatingThemeSat"
+                                           Grid.Row="2"
+                                           Text="饱和度：85%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingThemeSat"
+                                                Grid.Row="2"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowThemeSat"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabFloatingThemeLight"
+                                           Grid.Row="4"
+                                           Text="亮度微调：0"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingThemeLight"
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowThemeLight"
+                                                MaxValue="40" />
+                            </Grid>
+                        </local:MyCard>
+
+                        <local:MyCard Title="悬浮窗背景配色" Margin="0,0,0,15">
+                            <StackPanel Margin="25,40,25,17">
+                                <WrapPanel Margin="-1,0,0,4">
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme0"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="0"
+                                                      Text="经典蓝" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme1"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="1"
+                                                      Text="翡翠绿" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme5"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="5"
+                                                      Text="炫酷黑" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme7"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="7"
+                                                      Text="紫罗兰" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme9"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="9"
+                                                      Text="活力橙" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundTheme10"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="10"
+                                                      Text="玫瑰红" />
+                                    <local:MyRadioBox x:Name="RadioFloatingBackgroundThemeCustom"
+                                                      Margin="0,0,16,12"
+                                                      local:SettingService.Key="OmniMixFloatingWindowBackgroundTheme"
+                                                      local:SettingService.Value="14"
+                                                      Text="自定义背景色" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </local:MyCard>
+
+                        <local:MyCard x:Name="CardFloatingCustomBackgroundTheme"
+                                      Title="悬浮窗自定义背景配色"
+                                      Margin="0,0,0,15"
+                                      Visibility="Collapsed">
+                            <Grid Margin="25,40,25,17">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SettingName" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="LabFloatingBackgroundThemeHue"
+                                           Text="色调：210"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingBackgroundThemeHue"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowBackgroundThemeHue"
+                                                MaxValue="360" />
+                                <TextBlock x:Name="LabFloatingBackgroundThemeSat"
+                                           Grid.Row="2"
+                                           Text="饱和度：85%"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingBackgroundThemeSat"
+                                                Grid.Row="2"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowBackgroundThemeSat"
+                                                MaxValue="100" />
+                                <TextBlock x:Name="LabFloatingBackgroundThemeLight"
+                                           Grid.Row="4"
+                                           Text="亮度微调：0"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,22,0" />
+                                <local:MySlider x:Name="SliderFloatingBackgroundThemeLight"
+                                                Grid.Row="4"
+                                                Grid.Column="1"
+                                                local:SettingService.Key="OmniMixFloatingWindowBackgroundThemeLight"
                                                 MaxValue="40" />
                             </Grid>
                         </local:MyCard>

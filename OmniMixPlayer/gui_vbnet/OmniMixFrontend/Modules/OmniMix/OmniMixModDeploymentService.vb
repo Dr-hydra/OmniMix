@@ -124,7 +124,7 @@ Public Module OmniMixModDeploymentService
             New OmniMixModDeclaration With {
                 .Id = "fh6_omni_bridge",
                 .Name = "Forza Horizon 6 Omni Bridge",
-                .Version = GetBundledModVersion("fh6_omni_bridge", "2.0.2"),
+                .Version = GetBundledModVersion("fh6_omni_bridge", "3.0.0"),
                 .ArchiveName = "FH6OmniBridge.zip",
                 .FolderName = "fh6-omnimix",
                 .RootFilesToLink = New List(Of String) From {"version.dll", "OmniPcmShared.dll"},
@@ -136,6 +136,9 @@ Public Module OmniMixModDeploymentService
     End Function
 
     Private Function GetBundledModVersion(ModId As String, Fallback As String) As String
+        If String.Equals(ModId, "fh6_omni_bridge", StringComparison.OrdinalIgnoreCase) Then
+            Return "3.0.0"
+        End If
         Try
             Dim VersionInfoPath = ResolveAssetPath("version_info.json")
             If String.IsNullOrWhiteSpace(VersionInfoPath) Then Return Fallback
@@ -316,7 +319,7 @@ Public Module OmniMixModDeploymentService
         Return GamePath
     End Function
 
-    Private Function ResolveGameMarkerDir(GamePath As String, ModInfo As OmniMixModDeclaration) As String
+    Public Function ResolveGameMarkerDir(GamePath As String, ModInfo As OmniMixModDeclaration) As String
         If ModInfo Is Nothing Then Return GamePath
         Dim Game = GetGameCatalog().FirstOrDefault(Function(Item) Item.SupportedMods.Contains(ModInfo.Id))
         Dim Layout = ResolveGameInstallLayout(GamePath, Game)
@@ -1207,5 +1210,17 @@ Public Module OmniMixModDeploymentService
             Return False
         End Try
     End Function
+
+    Public Sub WriteFh6RaceStartPlaybackConfig(GamePath As String, ConfigValue As String)
+        If String.IsNullOrWhiteSpace(GamePath) OrElse Not Directory.Exists(GamePath) Then Return
+        Try
+            Dim ConfigDir = Path.Combine(GamePath, "fh6-omnimix")
+            If Not Directory.Exists(ConfigDir) Then Directory.CreateDirectory(ConfigDir)
+            File.WriteAllText(Path.Combine(ConfigDir, "race_start_playback.txt"), ConfigValue, Encoding.UTF8)
+            Logger.Info("已成功写入 FH6 比赛播放行为配置: " & ConfigValue)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "写入 FH6 比赛播放行为配置异常")
+        End Try
+    End Sub
 
 End Module

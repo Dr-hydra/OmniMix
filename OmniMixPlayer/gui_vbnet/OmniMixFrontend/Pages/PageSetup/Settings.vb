@@ -20,7 +20,19 @@ Public Class Settings
         New Setting("UiLauncherThemeLight", 20),
         New Setting("UiBackgroundColorful", False, OnChanged:=Sub() ThemeRefresh()),
         New Setting("UiControlOpacity", 80, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateControlOpacity()),
-        New Setting("OmniMixFloatingWindowOpacity", 88, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowOpacity", 100, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowBackgroundOpacity", 88, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowScale", 100, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowVisible", True, OnChanged:=Sub(Value As Boolean) If FrmMain IsNot Nothing Then FrmMain.ApplyOmniMixFloatingPlaybackWindowSettings()),
+        New Setting("OmniMixFloatingWindowStyle", 0, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowTheme", 15, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowThemeHue", 210, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowThemeSat", 85, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowThemeLight", 20, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowBackgroundTheme", 5, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowBackgroundThemeHue", 215, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowBackgroundThemeSat", 18, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
+        New Setting("OmniMixFloatingWindowBackgroundThemeLight", 20, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("UiBackgroundOpacity", 100, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
         New Setting("UiBackgroundBlur", 0, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
         New Setting("UiBackgroundClarity", 100, OnChanged:=AddressOf FormMain.UpdateBackgroundAndTitleBar),
@@ -34,7 +46,8 @@ Public Class Settings
         New Setting("HintCustomCommand", False),
         New Setting("OmniMixBackendPath", ""),
         New Setting("OmniMixCloseBackendWithGui", True),
-        New Setting("OmniMixDesktopPlayerEnabled", True)
+        New Setting("OmniMixDesktopPlayerEnabled", True),
+        New Setting("OmniMixFh6RaceStartPlayback", "ignore")
     }).ToDictionary(Function(e) e.Key)
 
     Public Enum Sources

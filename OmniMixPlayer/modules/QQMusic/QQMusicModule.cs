@@ -51,6 +51,7 @@ namespace OmniMixPlayer.Module.QQMusic
         private string _currentLoginType = "qq"; // "qq" | "wx"
 
         // Config (accessed via _context.ConfigManager.GetValue<T>)
+        private bool IsUserPlaylistImportEnabled => _context?.ConfigManager?.GetValue("ImportUserPlaylists", true) ?? true;
 
         #region IMusicModule Implementation
 
@@ -66,7 +67,8 @@ namespace OmniMixPlayer.Module.QQMusic
             CanExclude = false,
             SupportsLiveUpdate = false,
             ProvidesCover = true,
-            ProvidesAlbum = true
+            ProvidesAlbum = true,
+            ProvidesPlaylist = true
         };
 
         public async Task InitializeAsync(IModuleContext context)
@@ -457,8 +459,8 @@ namespace OmniMixPlayer.Module.QQMusic
 
                 _logger?.LogInformation($"Registered {registeredFavorites.Count} favorite songs");
 
-                // Import the user's original QQ Music playlist structure, then
-                // append any manually configured playlist IDs.
+                // Import the user's original QQ Music playlist structure when enabled,
+                // then append any manually configured playlist IDs.
                 await ImportPlaylistsAsync();
                 _logger?.LogInformation("ScanAndRegisterAsync: Completed");
             }
@@ -501,20 +503,27 @@ namespace OmniMixPlayer.Module.QQMusic
             var seenPlaylistIds = new HashSet<long>();
             var loadedUserPlaylists = false;
 
-            try
+            if (IsUserPlaylistImportEnabled)
             {
-                var userPlaylists = await Task.Run(() => _bridge.GetUserPlaylists());
-                loadedUserPlaylists = userPlaylists != null;
-                foreach (var playlist in (userPlaylists?.Created ?? new List<QQMusicBridge.PlaylistInfo>())
-                    .Concat(userPlaylists?.Collected ?? new List<QQMusicBridge.PlaylistInfo>()))
+                try
                 {
-                    if (playlist != null && playlist.DissID > 0 && seenPlaylistIds.Add(playlist.DissID))
-                        playlists.Add(playlist);
+                    var userPlaylists = await Task.Run(() => _bridge.GetUserPlaylists());
+                    loadedUserPlaylists = userPlaylists != null;
+                    foreach (var playlist in (userPlaylists?.Created ?? new List<QQMusicBridge.PlaylistInfo>())
+                        .Concat(userPlaylists?.Collected ?? new List<QQMusicBridge.PlaylistInfo>()))
+                    {
+                        if (playlist != null && playlist.DissID > 0 && seenPlaylistIds.Add(playlist.DissID))
+                            playlists.Add(playlist);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError($"Failed to get QQ Music user playlists: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                _logger?.LogError($"Failed to get QQ Music user playlists: {ex.Message}");
+                _logger?.LogInformation("QQ Music user playlist import is disabled");
             }
 
             var playlistIdsStr = _context.ConfigManager.GetValue<string>("CustomPlaylistIds", "");
@@ -532,6 +541,8 @@ namespace OmniMixPlayer.Module.QQMusic
 
             foreach (var playlist in playlists)
                 await ImportPlaylistAsync(playlist);
+
+            _logger?.LogInformation($"QQ Music playlist import completed, imported {playlists.Count} playlist(s)");
 
             if (loadedUserPlaylists)
             {
@@ -645,6 +656,7 @@ namespace OmniMixPlayer.Module.QQMusic
             if (_isLoggedIn)
             {
                 var audioQuality = _context?.ConfigManager?.GetValue("AudioQuality", 1) ?? 1;
+                var importUserPlaylists = _context?.ConfigManager?.GetValue("ImportUserPlaylists", true) ?? true;
                 var customPlaylistIds = _context?.ConfigManager?.GetValue<string>("CustomPlaylistIds", "") ?? "";
 
                 return SlintUi.Column(spacing: 16, padding: 20)
@@ -667,6 +679,12 @@ namespace OmniMixPlayer.Module.QQMusic
                         })
                     )
                     .AddChild(SlintUi.Text("歌单导入", fontSize: 16))
+                    .AddChild(
+                        SlintUi.Switch("import_user_playlists_toggle", "自动导入我的歌单", importUserPlaylists)
+                    )
+                    .AddChild(
+                        SlintUi.Button("import_user_playlists_now", "立即导入我的歌单")
+                    )
                     .AddChild(
                         SlintUi.Column(spacing: 4)
                             .AddChild(SlintUi.Text("自定义歌单 ID (逗号分隔)", fontSize: 12, color: "#94a3b8"))
@@ -732,6 +750,23 @@ namespace OmniMixPlayer.Module.QQMusic
                     _context?.ConfigManager?.SetValue("CustomPlaylistIds", value ?? "");
                     _context?.ConfigManager?.Save();
                     _logger?.LogInformation("[{DisplayName}] Custom playlist IDs set", DisplayName);
+                    _ = RefreshAsync();
+                    PushUI?.Invoke(BuildUI());
+                    break;
+
+                case "import_user_playlists_toggle":
+                    var importEnabled = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                    _context?.ConfigManager?.SetValue("ImportUserPlaylists", importEnabled);
+                    _context?.ConfigManager?.Save();
+                    _logger?.LogInformation("[{DisplayName}] User playlist import toggled: {Enabled}", DisplayName, importEnabled);
+                    _ = RefreshAsync();
+                    PushUI?.Invoke(BuildUI());
+                    break;
+
+                case "import_user_playlists_now":
+                    _context?.ConfigManager?.SetValue("ImportUserPlaylists", true);
+                    _context?.ConfigManager?.Save();
+                    _logger?.LogInformation("[{DisplayName}] User playlist import requested", DisplayName);
                     _ = RefreshAsync();
                     PushUI?.Invoke(BuildUI());
                     break;

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package omni_mix_player;
+
+option csharp_namespace = "OmniMixPlayer.SDK.Protos.Services";
+
+service ModuleService {
+  rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
+  rpc SetModuleEnabled(SetModuleEnabledRequest) returns (SetModuleEnabledResponse);
+}
+
+message ListModulesRequest {}
+
+message ModuleLinkEntry {
+  string id = 1;
+  string title = 2;
+  string icon = 3;
+  string svg = 4;
+  string background_color = 5;
+  string icon_color = 6;
+}
+
+message ModuleInfo {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  int32 priority = 4;
+  string loaded_at = 5;
+  bool enabled = 6;
+  bool has_settings_ui = 7;
+  bool has_quick_links = 8;
+  repeated ModuleLinkEntry link_entries = 9;
+}
+
+message ListModulesResponse {
+  repeated ModuleInfo modules = 1;
+}
+
+message SetModuleEnabledRequest {
+  string module_id = 1;
+  bool enabled = 2;
+}
+
+message SetModuleEnabledResponse {
+  bool updated = 1;
+}

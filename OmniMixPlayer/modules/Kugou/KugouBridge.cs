@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -18,13 +22,16 @@ namespace OmniMixPlayer.Module.Kugou
         public const string UserAgent = "IPhone-8990-searchSong";
         private const int AppId = 1005;
         private const int LoginAppId = 1001;
-        private const int QrLoginAppId = 3116;
         private const int SrcAppId = 2919;
         private const int ClientVersion = 20489;
         private const string AndroidUserAgent = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi";
         private const string AndroidSignatureSalt = "OIlwieks28dk2k092lksi2UIkp";
         private const string WebSignatureSalt = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt";
         private const string PrivUrlKeySalt = "185672dd44712f60bb1736df5a377e82";
+        private const string TokenRefreshAesKey = "90b8382a1bb4ccdcf063102053fd75b8";
+        private const string TokenRefreshAesIv = "f063102053fd75b8";
+        private const string RsaPublicKeyPem = "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HXqTW6lQ7LC8jr9fWZTwusknp+sVGzwd40MwP6U5yDE27M/X1+UR4tvOGOqp94TJtQ1EPnWGWXngpeIW5GxoQGao1rmYWAu6oi1z9XkChrsUdC6DJE5E221wf/4WLFxwAtRQIDAQAB\n-----END PUBLIC KEY-----";
+        private static readonly byte[] KrcXorKey = { 64, 71, 97, 119, 94, 50, 116, 71, 81, 54, 49, 45, 206, 210, 110, 105 };
 
         private readonly ILogger _logger;
         private readonly HttpClient _client;
@@ -48,7 +55,7 @@ namespace OmniMixPlayer.Module.Kugou
             values["appid"] = LoginAppId.ToString();
             values["type"] = "1";
             values["plat"] = "4";
-            values["qrcode_txt"] = $"https://h5.kugou.com/apps/loginQRCode/html/index.html?appid={QrLoginAppId}&";
+            values["qrcode_txt"] = $"https://h5.kugou.com/apps/loginQRCode/html/index.html?appid={AppId}&";
             values["srcappid"] = SrcAppId.ToString();
             values["signature"] = SignatureWeb(values);
 
@@ -71,7 +78,7 @@ namespace OmniMixPlayer.Module.Kugou
             if (string.IsNullOrWhiteSpace(key)) return (0, null, "二维码无效");
 
             var values = BuildDefaultParams(current, web: true);
-            values["appid"] = QrLoginAppId.ToString();
+            values["appid"] = AppId.ToString();
             values["plat"] = "4";
             values["srcappid"] = SrcAppId.ToString();
             values["qrcode"] = key;
@@ -91,6 +98,7 @@ namespace OmniMixPlayer.Module.Kugou
                 session.LoginTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 if (!session.IsLoggedIn)
                     return (status, null, "扫码已确认，但未取得有效登录凭据，请刷新二维码重试");
+                session = await RefreshLoginAsync(session, cancellationToken);
                 return (status, session, "登录成功");
             }
 
@@ -109,30 +117,69 @@ namespace OmniMixPlayer.Module.Kugou
             session = EnsureSession(session);
             if (!session.IsLoggedIn) return session;
 
-            var values = BuildDefaultParams(session);
-            values["plat"] = "1";
-            values["userid"] = session.UserId;
-            values["token"] = session.Token;
-            values["signature"] = SignatureAndroid(values, "");
-
-            var data = new Dictionary<string, object>
-            {
-                ["userid"] = session.UserId,
-                ["token"] = session.Token,
-                ["total_ver"] = 979,
-                ["type"] = 2,
-                ["page"] = 1,
-                ["pagesize"] = 1
-            };
-
             try
             {
-                await PostJsonAsync("https://gateway.kugou.com/v7/get_all_list", values, data, session, cancellationToken,
-                    new Dictionary<string, string> { ["x-router"] = "cloudlist.service.kugou.com" });
+                var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var tokenPayload = new Dictionary<string, object>
+                {
+                    ["clienttime"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    ["token"] = session.Token
+                };
+                var p3 = AesEncryptHex(ToJson(tokenPayload), TokenRefreshAesKey, TokenRefreshAesIv);
+                var encryptParams = AesEncryptWithRandomKey(new Dictionary<string, object>());
+                var pk = RsaRawEncryptHex(ToJson(new Dictionary<string, object>
+                {
+                    ["clienttime_ms"] = nowMs,
+                    ["key"] = encryptParams.Key
+                }));
+
+                var data = new Dictionary<string, object>
+                {
+                    ["dfid"] = session.Dfid,
+                    ["p3"] = p3,
+                    ["plat"] = 1,
+                    ["t1"] = 0,
+                    ["t2"] = 0,
+                    ["t3"] = "MCwwLDAsMCwwLDAsMCwwLDA=",
+                    ["pk"] = pk,
+                    ["params"] = encryptParams.Hex,
+                    ["userid"] = session.UserId,
+                    ["clienttime_ms"] = nowMs
+                };
+                var body = ToJson(data);
+                var values = BuildDefaultParams(session);
+                values["signature"] = SignatureAndroid(values, body);
+
+                var json = await PostJsonAsync("http://login.user.kugou.com/v5/login_by_token", values, data, session, cancellationToken);
+                var root = JObject.Parse(json);
+                if ((root["status"]?.ToObject<int?>() ?? 0) != 1) return session;
+
+                var dataObj = root["data"] as JObject;
+                if (dataObj?["secu_params"] != null)
+                {
+                    var decrypted = AesDecryptHex(dataObj["secu_params"].ToString(), encryptParams.Key);
+                    if (!string.IsNullOrWhiteSpace(decrypted) && decrypted.TrimStart().StartsWith("{", StringComparison.Ordinal))
+                    {
+                        var secu = JObject.Parse(decrypted);
+                        foreach (var prop in secu.Properties())
+                            dataObj[prop.Name] = prop.Value;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(decrypted))
+                    {
+                        dataObj["token"] = decrypted;
+                    }
+                }
+
+                session.T1 = dataObj?["t1"]?.ToString() ?? session.T1;
+                session.Token = dataObj?["token"]?.ToString() ?? session.Token;
+                session.UserId = dataObj?["userid"]?.ToString() ?? session.UserId;
+                session.VipType = dataObj?["vip_type"]?.ToString() ?? session.VipType;
+                session.VipToken = dataObj?["vip_token"]?.ToString() ?? session.VipToken;
+                session.LoginTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             }
-            catch
+            catch (Exception ex)
             {
-                // A lightweight authenticated call is enough to keep existing token behavior observable.
+                _logger?.LogDebug(ex, "[Kugou] Token refresh failed");
             }
 
             return session;
@@ -408,6 +455,10 @@ namespace OmniMixPlayer.Module.Kugou
                 var id = candidate?["id"]?.ToString();
                 if (string.IsNullOrWhiteSpace(accessKey) || string.IsNullOrWhiteSpace(id)) return "";
 
+                var krc = await GetKrcLyricAsync(id, accessKey, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(krc))
+                    return krc;
+
                 var downloadUrl = "http://lyrics.kugou.com/download?" + ToQueryString(new Dictionary<string, string>
                 {
                     ["charset"] = "utf8",
@@ -426,6 +477,45 @@ namespace OmniMixPlayer.Module.Kugou
             catch (Exception ex)
             {
                 _logger?.LogDebug(ex, "[Kugou] Lyric failed: {Hash}", hash);
+                return "";
+            }
+        }
+
+        private async Task<string> GetKrcLyricAsync(string id, string accessKey, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var downloadUrl = "http://lyrics.kugou.com/download?" + ToQueryString(new Dictionary<string, string>
+                {
+                    ["charset"] = "utf8",
+                    ["accesskey"] = accessKey,
+                    ["id"] = id,
+                    ["client"] = "mobi",
+                    ["fmt"] = "krc",
+                    ["ver"] = "1"
+                });
+
+                var json = await _client.GetStringAsync(downloadUrl, cancellationToken);
+                var root = JObject.Parse(json);
+                var content = root["content"]?.ToString();
+                if (string.IsNullOrWhiteSpace(content)) return "";
+
+                var rawKrc = root["contenttype"]?.ToObject<int?>() == 0
+                    ? DecodeKrc(content)
+                    : Encoding.UTF8.GetString(Convert.FromBase64String(content));
+                var parsed = ParseKrcLyric(rawKrc);
+                if (string.IsNullOrWhiteSpace(parsed.lrc)) return "";
+
+                return new JObject
+                {
+                    ["lrc"] = parsed.lrc,
+                    ["tlyric"] = parsed.tlyric ?? "",
+                    ["rlyric"] = ""
+                }.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "[Kugou] KRC lyric failed: {Id}", id);
                 return "";
             }
         }
@@ -690,6 +780,10 @@ namespace OmniMixPlayer.Module.Kugou
             session ??= new KugouSession();
             if (string.IsNullOrWhiteSpace(session.Guid))
                 session.Guid = Guid.NewGuid().ToString("D").ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(session.DeviceId))
+                session.DeviceId = RandomString(10);
+            if (string.IsNullOrWhiteSpace(session.Mac))
+                session.Mac = "02:00:00:00:00:00";
             if (string.IsNullOrWhiteSpace(session.Dfid))
                 session.Dfid = RandomString(24);
             if (string.IsNullOrWhiteSpace(session.Mid) || session.Mid == "0")
@@ -728,10 +822,15 @@ namespace OmniMixPlayer.Module.Kugou
                 $"token={session.Token}",
                 $"dfid={session.Dfid}",
                 $"KUGOU_API_MID={session.Mid}",
+                $"KUGOU_API_GUID={session.Guid}",
+                $"KUGOU_API_DEV={session.DeviceId}",
+                $"KUGOU_API_MAC={session.Mac}",
                 $"vip_type={session.VipType ?? "0"}"
             };
             if (!string.IsNullOrWhiteSpace(session.VipToken))
                 parts.Add($"vip_token={session.VipToken}");
+            if (!string.IsNullOrWhiteSpace(session.T1))
+                parts.Add($"t1={session.T1}");
             return string.Join("; ", parts);
         }
 
@@ -1023,6 +1122,176 @@ namespace OmniMixPlayer.Module.Kugou
         private static string FormatSongsForLog(IEnumerable<KugouSongInfo> songs)
         {
             return string.Join(" | ", songs.Select(s => $"{s.Artist} - {s.Title}#{s.Hash}/{s.AlbumAudioId}"));
+        }
+
+        private static string DecodeKrc(string content)
+        {
+            var bytes = Convert.FromBase64String(content);
+            if (bytes.Length <= 4) return "";
+
+            var encrypted = bytes.Skip(4).ToArray();
+            for (int i = 0; i < encrypted.Length; i++)
+                encrypted[i] = (byte)(encrypted[i] ^ KrcXorKey[i % KrcXorKey.Length]);
+
+            using var input = new MemoryStream(encrypted);
+            using var zlib = new ZLibStream(input, CompressionMode.Decompress);
+            using var output = new MemoryStream();
+            zlib.CopyTo(output);
+            return Encoding.UTF8.GetString(output.ToArray());
+        }
+
+        private static (string lrc, string tlyric) ParseKrcLyric(string rawKrc)
+        {
+            if (string.IsNullOrWhiteSpace(rawKrc)) return ("", "");
+
+            var translations = ExtractKrcTranslations(rawKrc);
+            var lrcLines = new List<string>();
+            var tlyricLines = new List<string>();
+            var lyricIndex = 0;
+
+            foreach (var rawLine in rawKrc.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            {
+                var line = rawLine.Trim('\uFEFF', ' ', '\t');
+                var match = Regex.Match(line, @"^\[(\d+),(\d+)\](.*)$");
+                if (!match.Success) continue;
+
+                var startMs = int.TryParse(match.Groups[1].Value, out var parsedStart) ? parsedStart : 0;
+                var text = StripKrcWordTags(match.Groups[3].Value).Trim();
+                var time = FormatLrcTime(startMs);
+                if (!string.IsNullOrWhiteSpace(text))
+                    lrcLines.Add($"[{time}]{text}");
+
+                if (lyricIndex < translations.Count)
+                {
+                    var translation = NormalizeLyricText(translations[lyricIndex]);
+                    if (!string.IsNullOrWhiteSpace(translation))
+                        tlyricLines.Add($"[{time}]{translation}");
+                }
+                lyricIndex++;
+            }
+
+            return (string.Join("\n", lrcLines), string.Join("\n", tlyricLines));
+        }
+
+        private static List<string> ExtractKrcTranslations(string rawKrc)
+        {
+            var match = Regex.Match(rawKrc, @"\[language:([^\]]+)\]");
+            if (!match.Success) return new List<string>();
+
+            try
+            {
+                var json = Encoding.UTF8.GetString(Convert.FromBase64String(match.Groups[1].Value));
+                var root = JObject.Parse(json);
+                var content = root["content"] as JArray;
+                if (content == null) return new List<string>();
+
+                var block = content
+                    .OfType<JObject>()
+                    .FirstOrDefault(x => x["type"]?.ToObject<int?>() == 1)
+                    ?? content.OfType<JObject>().FirstOrDefault();
+                var lyricContent = block?["lyricContent"] as JArray;
+                if (lyricContent == null) return new List<string>();
+
+                var result = new List<string>();
+                foreach (var row in lyricContent)
+                {
+                    if (row is JArray parts)
+                        result.Add(string.Join("", parts.Select(x => x?.ToString() ?? "")));
+                    else
+                        result.Add(row?.ToString() ?? "");
+                }
+                return result;
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+
+        private static string StripKrcWordTags(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            return NormalizeLyricText(Regex.Replace(value, @"<\d+,\d+,\d+>", ""));
+        }
+
+        private static string NormalizeLyricText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            return value.Replace("\u00A0", " ").Trim();
+        }
+
+        private static string FormatLrcTime(int milliseconds)
+        {
+            if (milliseconds < 0) milliseconds = 0;
+            var totalSeconds = milliseconds / 1000d;
+            var minutes = (int)(totalSeconds / 60);
+            var seconds = totalSeconds - minutes * 60;
+            return $"{minutes:00}:{seconds:00.00}";
+        }
+
+        private static (string Hex, string Key) AesEncryptWithRandomKey(Dictionary<string, object> data)
+        {
+            var tempKey = RandomString(16).ToLowerInvariant();
+            var key = Md5Hex(tempKey).Substring(0, 32);
+            var iv = key.Substring(key.Length - 16);
+            return (AesEncryptHex(ToJson(data), key, iv), tempKey);
+        }
+
+        private static string AesEncryptHex(string plainText, string key, string iv)
+        {
+            using var aes = Aes.Create();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.Key = Encoding.UTF8.GetBytes(key);
+            aes.IV = Encoding.UTF8.GetBytes(iv);
+            using var encryptor = aes.CreateEncryptor();
+            var bytes = Encoding.UTF8.GetBytes(plainText ?? "");
+            return Convert.ToHexString(encryptor.TransformFinalBlock(bytes, 0, bytes.Length)).ToLowerInvariant();
+        }
+
+        private static string AesDecryptHex(string hex, string tempKey)
+        {
+            if (string.IsNullOrWhiteSpace(hex) || string.IsNullOrWhiteSpace(tempKey)) return "";
+            var key = Md5Hex(tempKey).Substring(0, 32);
+            var iv = key.Substring(key.Length - 16);
+            using var aes = Aes.Create();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.Key = Encoding.UTF8.GetBytes(key);
+            aes.IV = Encoding.UTF8.GetBytes(iv);
+            using var decryptor = aes.CreateDecryptor();
+            var encrypted = Convert.FromHexString(hex);
+            var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+            return Encoding.UTF8.GetString(decrypted);
+        }
+
+        private static string RsaRawEncryptHex(string plainText)
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(RsaPublicKeyPem);
+            var parameters = rsa.ExportParameters(false);
+            var keyLength = parameters.Modulus.Length;
+            var message = Encoding.UTF8.GetBytes(plainText ?? "");
+            if (message.Length > keyLength)
+                throw new InvalidOperationException("Kugou RSA payload exceeds key size");
+
+            var padded = new byte[keyLength];
+            Buffer.BlockCopy(message, 0, padded, 0, message.Length);
+
+            var modulus = new BigInteger(parameters.Modulus, isUnsigned: true, isBigEndian: true);
+            var exponent = new BigInteger(parameters.Exponent, isUnsigned: true, isBigEndian: true);
+            var value = new BigInteger(padded, isUnsigned: true, isBigEndian: true);
+            var encrypted = BigInteger.ModPow(value, exponent, modulus);
+            var output = encrypted.ToByteArray(isUnsigned: true, isBigEndian: true);
+
+            if (output.Length < keyLength)
+            {
+                var fixedOutput = new byte[keyLength];
+                Buffer.BlockCopy(output, 0, fixedOutput, keyLength - output.Length, output.Length);
+                output = fixedOutput;
+            }
+
+            return Convert.ToHexString(output).ToLowerInvariant();
         }
 
         private static (string artist, string title) SplitArtistTitle(string filename)

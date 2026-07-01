@@ -21,7 +21,7 @@ namespace OmniMixPlayer.Module.QQMusic
         }
 
         /// <summary>
-        /// 获取歌词（返回 base64 编码的 LRC 歌词字符串）
+        /// 获取歌词（返回包含 lrc/tlyric/rlyric 的 JSON 字符串）
         /// </summary>
         public string getSongLyric(string songMid)
         {

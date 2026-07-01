@@ -5,7 +5,7 @@ Public Class OmniMixDesktopPcmPlaybackSink
     Implements IDisposable
 
     Private ReadOnly Provider As SharedPcmWaveProvider
-    Private Output As WaveOutEvent
+    Private Output As WasapiOut
     Private IsDisposed As Boolean = False
 
     Public Sub New(MapName As String)
@@ -14,9 +14,11 @@ Public Class OmniMixDesktopPcmPlaybackSink
 
     Public Sub Start()
         If IsDisposed Then Return
-        Output = New WaveOutEvent With {.DesiredLatency = 120, .NumberOfBuffers = 3}
+        ' 桌面播放器升级为现代 WASAPI 共享模式输出，提供 100ms 低延迟
+        Output = New WasapiOut(NAudio.CoreAudioApi.AudioClientShareMode.Shared, 100)
         Output.Init(Provider)
         Output.Play()
+        Logger.Info("桌面播放器已成功启动现代 WASAPI 共享模式输出")
     End Sub
 
     Public Sub Dispose() Implements IDisposable.Dispose

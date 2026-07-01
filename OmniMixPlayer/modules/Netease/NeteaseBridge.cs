@@ -64,6 +64,9 @@ namespace OmniMixPlayer.Module.Netease
         private static extern IntPtr NeteaseGetPersonalFM();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr NeteaseGetDailyRecommendSongs();
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         private static extern int NeteaseFMTrash(long songId);
 
         // 二维码登录 API
@@ -747,6 +750,41 @@ namespace OmniMixPlayer.Module.Netease
             catch (Exception ex)
             {
                 _logger.LogError($"[NeteaseBridge] GetPersonalFM exception: {ex}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 获取每日推荐歌曲
+        /// </summary>
+        /// <returns>每日推荐歌曲列表，失败返回 null</returns>
+        public List<SongInfo> GetDailyRecommendSongs()
+        {
+            if (!_initialized)
+            {
+                _logger.LogWarning("[NeteaseBridge] Not initialized");
+                return null;
+            }
+
+            try
+            {
+                var ptr = NeteaseGetDailyRecommendSongs();
+                if (ptr == IntPtr.Zero)
+                {
+                    _logger.LogWarning($"[NeteaseBridge] GetDailyRecommendSongs failed: {GetLastErrorMessage()}");
+                    return null;
+                }
+
+                var json = Marshal.PtrToStringUTF8(ptr);
+                NeteaseFreeString(ptr);
+
+                var songs = JsonConvert.DeserializeObject<List<SongInfo>>(json);
+                _logger.LogInformation($"[NeteaseBridge] Got {songs?.Count ?? 0} daily recommend songs");
+                return songs;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[NeteaseBridge] GetDailyRecommendSongs exception: {ex}");
                 return null;
             }
         }

@@ -98,6 +98,12 @@ namespace OmniMixPlayer.Backend.Audio
         }
         public bool DeleteArchive(string id) => _store.DeleteArchive(SanitizeId(id));
         public InstanceProfile GetArchive(string id) => _store.GetArchive(SanitizeId(id));
+        public InstanceProfile RenameArchive(string id, string label)
+        {
+            var profile = _store.RenameArchive(SanitizeId(id), label);
+            if (profile != null) OnChanged?.Invoke();
+            return profile;
+        }
         public InstanceProfile InheritFromArchive(string newId, string archiveId)
         {
             var profile = _store.InheritFromArchive(SanitizeId(newId), SanitizeId(archiveId));

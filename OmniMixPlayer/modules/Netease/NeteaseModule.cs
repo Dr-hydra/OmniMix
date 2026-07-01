@@ -38,6 +38,7 @@ namespace OmniMixPlayer.Module.Netease
 
         private List<Track> _musicList = new List<Track>();
         private List<Track> _fmMusicList = new List<Track>();
+        private List<Track> _dailyRecommendMusicList = new List<Track>();
         private Dictionary<string, NeteaseBridge.SongInfo> _songInfoMap = new Dictionary<string, NeteaseBridge.SongInfo>();
         private bool _isReady = false;
         private bool _isLoggedIn = false;
@@ -183,17 +184,7 @@ namespace OmniMixPlayer.Module.Netease
             // 扫描并注册收藏歌曲
             await ScanAndRegisterAsync();
 
-            if (IsPersonalFMEnabled)
-            {
-                // 初始化个人 FM 并注册初始歌曲
-                await InitializePersonalFMAsync();
-            }
-
-            // 搜索并注册自定义歌单（如"献给聪音"）
-            await SearchAndRegisterCustomPlaylistsAsync();
-
-            // 根据 ID 导入指定歌单
-            await ImportPlaylistsByIdAsync();
+            await InitializeRecommendationPlaylistsAsync();
 
             // 订阅收藏变化事件
             SubscribeToFavoriteEvents();
@@ -206,7 +197,8 @@ namespace OmniMixPlayer.Module.Netease
             // 统计自定义歌单歌曲数
             var customSongCount = _customPlaylistMusicLists.Values.Sum(list => list.Count);
             var fmPart = IsPersonalFMEnabled ? $"，FM {_fmMusicList.Count} 首" : string.Empty;
-            context.Logger.LogInformation($"[{DisplayName}] ✅ 初始化完成，收藏 {_musicList.Count} 首{fmPart}，自定义歌单 {customSongCount} 首");
+            var dailyPart = IsDailyRecommendEnabled ? $"，每日推荐 {_dailyRecommendMusicList.Count} 首" : string.Empty;
+            context.Logger.LogInformation($"[{DisplayName}] ✅ 初始化完成，收藏 {_musicList.Count} 首{fmPart}{dailyPart}，导入歌单 {customSongCount} 首");
         }
 
         public void OnEnable()
@@ -520,7 +512,9 @@ namespace OmniMixPlayer.Module.Netease
         {
             // Config: DataDirectory="" (TODO: set via config file)
             // Config: AudioQuality=2 (TODO: set via config file)
-            // Config: SatonePlaylistKeywords="For Satone|献给聪音" (TODO: set via config file)
+            // Config: ImportUserPlaylists=false (TODO: set via config file)
+            // Config: EnableDailyRecommend=false (TODO: set via config file)
+            // Config: SatonePlaylistKeywords="" (TODO: set via config file)
             // Config: CustomPlaylistIds="" (TODO: set via config file)
             // Config: StreamReadyTimeoutMs=20000 (TODO: set via config file)
             // Config: StreamMaxRetries=3 (TODO: set via config file)
@@ -530,6 +524,8 @@ namespace OmniMixPlayer.Module.Netease
         }
 
         private bool IsPersonalFMEnabled => _context.ConfigManager.GetBool("EnablePersonalFM", false);
+        private bool IsDailyRecommendEnabled => _context.ConfigManager.GetBool("EnableDailyRecommend", false);
+        private bool IsUserPlaylistImportEnabled => _context.ConfigManager.GetBool("ImportUserPlaylists", false);
 
         private NeteaseSongRegistry EnsureSongRegistry()
         {
@@ -546,6 +542,11 @@ namespace OmniMixPlayer.Module.Netease
         private void RegisterFMTag()
         {
             EnsureSongRegistry().RegisterFMPlaylist(_fmMusicList.Count);
+        }
+
+        private void RegisterDailyRecommendTag()
+        {
+            EnsureSongRegistry().RegisterDailyRecommendPlaylist(_dailyRecommendMusicList.Count);
         }
 
         #region Login Song Methods
@@ -712,17 +713,7 @@ namespace OmniMixPlayer.Module.Netease
             // 扫描并注册收藏歌曲
             await ScanAndRegisterAsync();
 
-            if (IsPersonalFMEnabled)
-            {
-                // 初始化个人 FM 并注册初始歌曲
-                await InitializePersonalFMAsync();
-            }
-
-            // 搜索并注册自定义歌单（如"献给聪音"）
-            await SearchAndRegisterCustomPlaylistsAsync();
-
-            // 根据 ID 导入指定歌单
-            await ImportPlaylistsByIdAsync();
+            await InitializeRecommendationPlaylistsAsync();
 
             // 订阅收藏变化事件
             SubscribeToFavoriteEvents();
@@ -732,7 +723,8 @@ namespace OmniMixPlayer.Module.Netease
             // 统计自定义歌单歌曲数
             var customSongCount = _customPlaylistMusicLists.Values.Sum(list => list.Count);
             var fmPart = IsPersonalFMEnabled ? $"，FM {_fmMusicList.Count} 首" : string.Empty;
-            _context.Logger.LogInformation($"[{DisplayName}] ✅ 登录后初始化完成，收藏 {_musicList.Count} 首{fmPart}，自定义歌单 {customSongCount} 首");
+            var dailyPart = IsDailyRecommendEnabled ? $"，每日推荐 {_dailyRecommendMusicList.Count} 首" : string.Empty;
+            _context.Logger.LogInformation($"[{DisplayName}] ✅ 登录后初始化完成，收藏 {_musicList.Count} 首{fmPart}{dailyPart}，导入歌单 {customSongCount} 首");
 
             // 发布刷新事件
             _context.EventBus.Publish(new SDK.Events.PlaylistUpdatedEvent
@@ -844,6 +836,11 @@ namespace OmniMixPlayer.Module.Netease
 
         private async Task InitializePersonalFMAsync()
         {
+            if (_fmManager == null)
+            {
+                _fmManager = new PersonalFMManager(_bridge);
+            }
+
             // 使用异步版本初始化，避免阻塞主线程
             if (!await _fmManager.InitializeAsync())
             {
@@ -852,8 +849,9 @@ namespace OmniMixPlayer.Module.Netease
             }
 
             // 使用 SongRegistry 注册 FM 专辑和歌曲
-            _songRegistry.RegisterFMPlaylist(_fmManager.Count);
-            _fmMusicList = _songRegistry.RegisterFMSongs(_fmManager.Songs);
+            var registry = EnsureSongRegistry();
+            registry.RegisterFMPlaylist(_fmManager.Count);
+            _fmMusicList = registry.RegisterFMSongs(_fmManager.Songs);
 
             _context.Logger.LogInformation($"[{DisplayName}] 个人FM 已初始化，{_fmMusicList.Count} 首歌曲");
         }
@@ -880,12 +878,86 @@ namespace OmniMixPlayer.Module.Netease
             return loaded;
         }
 
+        private async Task InitializeRecommendationPlaylistsAsync()
+        {
+            if (IsPersonalFMEnabled)
+            {
+                _fmManager ??= new PersonalFMManager(_bridge);
+                await InitializePersonalFMAsync();
+            }
+
+            if (IsDailyRecommendEnabled)
+            {
+                await InitializeDailyRecommendAsync();
+            }
+
+            await RefreshImportedPlaylistSourcesAsync();
+        }
+
+        private async Task InitializeDailyRecommendAsync()
+        {
+            var songs = await Task.Run(() => _bridge.GetDailyRecommendSongs());
+            if (songs == null || songs.Count == 0)
+            {
+                _context.Logger.LogWarning($"[{DisplayName}] 每日推荐初始化失败或为空");
+                return;
+            }
+
+            var registry = EnsureSongRegistry();
+            registry.RegisterDailyRecommendPlaylist(songs.Count);
+            _dailyRecommendMusicList = registry.RegisterDailyRecommendSongs(songs);
+
+            _context.Logger.LogInformation($"[{DisplayName}] 每日推荐已初始化，{_dailyRecommendMusicList.Count} 首歌曲");
+        }
+
+        private async Task RefreshImportedPlaylistSourcesAsync()
+        {
+            if (IsUserPlaylistImportEnabled)
+            {
+                await ImportUserPlaylistsAsync();
+            }
+
+            await SearchAndRegisterCustomPlaylistsAsync();
+            await ImportPlaylistsByIdAsync();
+        }
+
+        private async Task ImportUserPlaylistsAsync()
+        {
+            var playlists = await Task.Run(() => _bridge.GetAllUserPlaylists());
+            if (playlists == null || playlists.Count == 0)
+            {
+                _context.Logger.LogInformation($"[{DisplayName}] 未获取到用户歌单");
+                return;
+            }
+
+            var userId = _bridge.GetUserInfo()?.UserId ?? 0;
+            var imported = 0;
+            foreach (var playlist in playlists.Where(p => p.Id > 0))
+            {
+                if (IsLikelyFavoritesPlaylist(playlist, userId))
+                    continue;
+
+                await RegisterCustomPlaylistAsync(playlist);
+                imported++;
+            }
+
+            _context.Logger.LogInformation($"[{DisplayName}] 我的歌单导入完成，处理 {imported} 个歌单");
+        }
+
+        private static bool IsLikelyFavoritesPlaylist(NeteaseBridge.PlaylistInfo playlist, long userId)
+        {
+            if (playlist == null || playlist.CreatorId != userId)
+                return false;
+
+            return (playlist.Name ?? "").Contains("喜欢的音乐", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// 搜索并注册自定义歌单（根据配置的关键词）
         /// </summary>
         private async Task SearchAndRegisterCustomPlaylistsAsync()
         {
-            var keywords = _context.ConfigManager.GetString("SatonePlaylistKeywords", "For Satone|献给聪音");
+            var keywords = _context.ConfigManager.GetString("SatonePlaylistKeywords", "");
             if (string.IsNullOrWhiteSpace(keywords))
             {
                 _context.Logger.LogInformation($"[{DisplayName}] 未配置自定义歌单关键词，跳过");
@@ -919,8 +991,14 @@ namespace OmniMixPlayer.Module.Netease
         {
             _context.Logger.LogInformation($"[{DisplayName}] 正在注册歌单: {playlist.Name} ({playlist.SongCount} 首)");
 
+            if (_customPlaylistMusicLists.ContainsKey(playlist.Id))
+            {
+                _context.Logger.LogInformation($"[{DisplayName}] 歌单 {playlist.Name} 已经注册，跳过");
+                return;
+            }
+
             // 注册 Tag
-            _songRegistry.RegisterPlaylist(playlist.Id, playlist.Name);
+            _songRegistry.RegisterPlaylist(playlist.Id, playlist.Name, playlist.CoverUrl);
 
             // 获取歌单中的歌曲
             var songs = await Task.Run(() => _bridge.GetPlaylistSongs(playlist.Id));
@@ -1015,7 +1093,11 @@ namespace OmniMixPlayer.Module.Netease
         private void UpdateMusicFavoriteState(string uuid, bool isFavorite)
         {
             var music = _musicList.FirstOrDefault(m => m.Uuid == uuid)
-                     ?? _fmMusicList.FirstOrDefault(m => m.Uuid == uuid);
+                     ?? _fmMusicList.FirstOrDefault(m => m.Uuid == uuid)
+                     ?? _dailyRecommendMusicList.FirstOrDefault(m => m.Uuid == uuid)
+                     ?? _customPlaylistMusicLists.Values
+                         .SelectMany(list => list)
+                         .FirstOrDefault(m => m.Uuid == uuid);
             if (music != null)
             {
                 music.IsFavorite = isFavorite;
@@ -1201,8 +1283,10 @@ namespace OmniMixPlayer.Module.Netease
                 var avatarUrl = userInfo?.AvatarUrl ?? "";
                 var audioQuality = _context?.ConfigManager?.GetInt("AudioQuality", 2) ?? 2;
                 var fmEnabled = _context?.ConfigManager?.GetBool("EnablePersonalFM", false) ?? false;
+                var dailyEnabled = _context?.ConfigManager?.GetBool("EnableDailyRecommend", false) ?? false;
+                var importUserPlaylists = _context?.ConfigManager?.GetBool("ImportUserPlaylists", false) ?? false;
                 var customPlaylistIds = _context?.ConfigManager?.GetString("CustomPlaylistIds", "") ?? "";
-                var satoneKeywords = _context?.ConfigManager?.GetString("SatonePlaylistKeywords", "For Satone|献给聪音") ?? "";
+                var satoneKeywords = _context?.ConfigManager?.GetString("SatonePlaylistKeywords", "") ?? "";
 
                 return SlintUi.Column(spacing: 16, padding: 20)
                     .AddChild(
@@ -1230,7 +1314,16 @@ namespace OmniMixPlayer.Module.Netease
                     .AddChild(
                         SlintUi.Switch("fm_toggle", "私人FM", fmEnabled)
                     )
+                    .AddChild(
+                        SlintUi.Switch("daily_recommend_toggle", "每日推荐", dailyEnabled)
+                    )
                     .AddChild(SlintUi.Text("歌单导入", fontSize: 16))
+                    .AddChild(
+                        SlintUi.Switch("import_user_playlists_toggle", "自动导入我的歌单", importUserPlaylists)
+                    )
+                    .AddChild(
+                        SlintUi.Button("import_user_playlists_now", "立即导入我的歌单")
+                    )
                     .AddChild(
                         SlintUi.Column(spacing: 4)
                             .AddChild(SlintUi.Text("自定义歌单 ID (逗号分隔)", fontSize: 12, color: "#94a3b8"))
@@ -1242,7 +1335,7 @@ namespace OmniMixPlayer.Module.Netease
                         SlintUi.Column(spacing: 4)
                             .AddChild(SlintUi.Text("歌单关键词搜索 (|分隔)", fontSize: 12, color: "#94a3b8"))
                             .AddChild(
-                                SlintUi.Input("satone_keywords", "例如: For Satone|献给聪音", satoneKeywords)
+                                SlintUi.Input("satone_keywords", "例如: 工作|开车|ACG", satoneKeywords)
                             )
                     )
                     .AddChild(
@@ -1292,10 +1385,37 @@ namespace OmniMixPlayer.Module.Netease
                     break;
 
                 case "fm_toggle":
-                    var enabled = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-                    _context?.ConfigManager?.SetValue("EnablePersonalFM", enabled);
+                    var fmEnabledValue = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                    _context?.ConfigManager?.SetValue("EnablePersonalFM", fmEnabledValue);
                     _context?.ConfigManager?.Save();
-                    _context?.Logger.LogInformation("[{DisplayName}] Personal FM toggled: {Enabled}", DisplayName, enabled);
+                    _context?.Logger.LogInformation("[{DisplayName}] Personal FM toggled: {Enabled}", DisplayName, fmEnabledValue);
+                    _ = RefreshRecommendationPlaylistsAsync();
+                    PushUI?.Invoke(BuildUI());
+                    break;
+
+                case "daily_recommend_toggle":
+                    var dailyEnabledValue = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                    _context?.ConfigManager?.SetValue("EnableDailyRecommend", dailyEnabledValue);
+                    _context?.ConfigManager?.Save();
+                    _context?.Logger.LogInformation("[{DisplayName}] Daily recommend toggled: {Enabled}", DisplayName, dailyEnabledValue);
+                    _ = RefreshRecommendationPlaylistsAsync();
+                    PushUI?.Invoke(BuildUI());
+                    break;
+
+                case "import_user_playlists_toggle":
+                    var importEnabledValue = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                    _context?.ConfigManager?.SetValue("ImportUserPlaylists", importEnabledValue);
+                    _context?.ConfigManager?.Save();
+                    _context?.Logger.LogInformation("[{DisplayName}] User playlist import toggled: {Enabled}", DisplayName, importEnabledValue);
+                    _ = RefreshCustomPlaylistsAsync();
+                    PushUI?.Invoke(BuildUI());
+                    break;
+
+                case "import_user_playlists_now":
+                    _context?.ConfigManager?.SetValue("ImportUserPlaylists", true);
+                    _context?.ConfigManager?.Save();
+                    _context?.Logger.LogInformation("[{DisplayName}] User playlist import requested", DisplayName);
+                    _ = RefreshCustomPlaylistsAsync();
                     PushUI?.Invoke(BuildUI());
                     break;
 
@@ -1321,6 +1441,44 @@ namespace OmniMixPlayer.Module.Netease
             }
         }
 
+        private async Task RefreshRecommendationPlaylistsAsync()
+        {
+            if (!_isLoggedIn) return;
+            try
+            {
+                if (IsPersonalFMEnabled)
+                {
+                    _fmManager ??= new PersonalFMManager(_bridge);
+                    await InitializePersonalFMAsync();
+                }
+                else
+                {
+                    _fmMusicList.Clear();
+                    RemoveRegisteredPlaylist(NeteaseSongRegistry.PLAYLIST_PERSONAL_FM);
+                }
+
+                if (IsDailyRecommendEnabled)
+                {
+                    await InitializeDailyRecommendAsync();
+                }
+                else
+                {
+                    _dailyRecommendMusicList.Clear();
+                    RemoveRegisteredPlaylist(NeteaseSongRegistry.PLAYLIST_DAILY_RECOMMEND);
+                }
+
+                _context?.EventBus?.Publish(new PlaylistUpdatedEvent
+                {
+                    SourceRefId = NeteaseSongRegistry.PLAYLIST_FAVORITES,
+                    UpdateType = PlaylistUpdateType.FullRefresh
+                });
+            }
+            catch (Exception ex)
+            {
+                _context?.Logger.LogError(ex, "[Netease] 刷新推荐歌单失败");
+            }
+        }
+
         private async Task RefreshCustomPlaylistsAsync()
         {
             // 重新搜索并导入自定义歌单
@@ -1334,8 +1492,7 @@ namespace OmniMixPlayer.Module.Netease
                     .ToHashSet();
 
                 _customPlaylistMusicLists.Clear();
-                await SearchAndRegisterCustomPlaylistsAsync();
-                await ImportPlaylistsByIdAsync();
+                await RefreshImportedPlaylistSourcesAsync();
                 CleanupRemovedCustomPlaylists(
                     previousPlaylistIds,
                     _customPlaylistMusicLists.Keys.Select(NeteaseSongRegistry.PlaylistId));
@@ -1350,6 +1507,21 @@ namespace OmniMixPlayer.Module.Netease
             {
                 _context?.Logger.LogError(ex, "[Netease] 刷新自定义歌单失败");
             }
+        }
+
+        private void RemoveRegisteredPlaylist(string playlistId)
+        {
+            try
+            {
+                _context.Library.ReplacePlaylistEntries(playlistId, Array.Empty<PlaylistEntrySpec>());
+            }
+            catch
+            {
+                // The playlist may not exist yet.
+            }
+
+            _context.Library.DeletePlaylist(playlistId);
+            _context.Library.DeleteTag(playlistId);
         }
 
         private void CleanupRemovedCustomPlaylists(HashSet<string> previousPlaylistIds, IEnumerable<string> currentPlaylistIds)
@@ -1437,6 +1609,7 @@ namespace OmniMixPlayer.Module.Netease
                 _fmManager = null;
                 _musicList.Clear();
                 _fmMusicList.Clear();
+                _dailyRecommendMusicList.Clear();
                 _songInfoMap.Clear();
                 _customPlaylistMusicLists.Clear();
 

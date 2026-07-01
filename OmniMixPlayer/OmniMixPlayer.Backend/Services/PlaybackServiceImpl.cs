@@ -309,6 +309,27 @@ namespace OmniMixPlayer.Backend.Services
             return Task.FromResult(status);
         }
 
+        public override Task<GetFailureNoticeResponse> GetFailureNotice(GetFailureNoticeRequest request, ServerCallContext context)
+        {
+            var notice = _sessions.GetFailureNotice(request.InstanceId, request.Consume);
+            if (notice == null)
+                return Task.FromResult(new GetFailureNoticeResponse { HasNotice = false });
+
+            return Task.FromResult(new GetFailureNoticeResponse
+            {
+                HasNotice = true,
+                Notice = new SDK.Protos.Services.PlaybackFailureNotice
+                {
+                    InstanceId = notice.InstanceId ?? "",
+                    ModuleId = notice.ModuleId ?? "",
+                    ModuleName = notice.ModuleName ?? "",
+                    Count = notice.Count,
+                    Message = notice.Message ?? "",
+                    CreatedAtUnixMs = notice.CreatedAtUnixMs
+                }
+            });
+        }
+
         public override Task<SDK.Protos.Models.EqualizerState> GetEqualizer(GetEqualizerRequest request, ServerCallContext context)
         {
             var caps = GetCapabilities(request.InstanceId);

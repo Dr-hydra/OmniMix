@@ -181,6 +181,19 @@ namespace OmniMixPlayer.Backend.Audio
             return doc != null ? ToProto(doc) : null;
         }
 
+        public InstanceProfile RenameArchive(string id, string label)
+        {
+            var archiveCol = _db.GetCollection<ProfileDoc>("archives");
+            var doc = archiveCol.FindById(id);
+            if (doc == null) return null;
+
+            var profile = ToProto(doc);
+            profile.DisplayName = label ?? "";
+            profile.UpdatedAt = new OmniTimestamp { Seconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
+            archiveCol.Upsert(ToDoc(profile));
+            return profile;
+        }
+
         public InstanceProfile InheritFromArchive(string newId, string archiveId)
         {
             var archiveCol = _db.GetCollection<ProfileDoc>("archives");

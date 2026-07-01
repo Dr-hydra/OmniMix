@@ -4,7 +4,6 @@ package omni_mix_player;
 
 import "omni_mix_player/models/common.proto";
 import "omni_mix_player/models/instance.proto";
-import "omni_mix_player/models/track.proto";
 
 option csharp_namespace = "OmniMixPlayer.SDK.Protos.Services";
 
@@ -51,6 +50,7 @@ service PlaybackService {
 
   // 状态
   rpc GetStatus(GetStatusRequest) returns (PlaybackStatus);
+  rpc GetFailureNotice(GetFailureNoticeRequest) returns (GetFailureNoticeResponse);
 
   // 均衡器
   rpc GetEqualizer(GetEqualizerRequest) returns (EqualizerState);
@@ -292,6 +292,25 @@ message SetPlaylistSourcesResponse {}
 
 message GetStatusRequest {
   string instance_id = 1;
+}
+
+message GetFailureNoticeRequest {
+  string instance_id = 1;
+  bool consume = 2;
+}
+
+message PlaybackFailureNotice {
+  string instance_id = 1;
+  string module_id = 2;
+  string module_name = 3;
+  int32 count = 4;
+  string message = 5;
+  int64 created_at_unix_ms = 6;
+}
+
+message GetFailureNoticeResponse {
+  bool has_notice = 1;
+  PlaybackFailureNotice notice = 2;
 }
 
 // ── 均衡器 ──

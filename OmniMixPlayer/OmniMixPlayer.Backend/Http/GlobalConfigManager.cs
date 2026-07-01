@@ -104,6 +104,21 @@ namespace OmniMixPlayer.Backend.Http
             _config[key] = doc.RootElement.Clone();
         }
 
+        public string GetRawJson()
+        {
+            return JsonSerializer.Serialize(_config);
+        }
+
+        public void UpdateFromJson(string json)
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("Config update must be a JSON object.");
+
+            foreach (var prop in doc.RootElement.EnumerateObject())
+                _config[prop.Name] = prop.Value.Clone();
+        }
+
         public bool HasKey(string key) => _config.ContainsKey(key);
 
         public Dictionary<string, object> GetAll()

@@ -46,6 +46,33 @@ type SongInfo struct {
 	CoverUrl string   `json:"coverUrl"` // 封面 URL
 }
 
+func convertStructSongs(songs []structs.Song, withCoverSize bool) []SongInfo {
+	result := make([]SongInfo, len(songs))
+	for i, song := range songs {
+		artists := make([]string, len(song.Artists))
+		for j, artist := range song.Artists {
+			artists[j] = artist.Name
+		}
+
+		coverUrl := song.Album.PicUrl
+		if withCoverSize && coverUrl != "" {
+			coverUrl = coverUrl + "?param=300y300"
+		}
+
+		result[i] = SongInfo{
+			ID:       song.Id,
+			Name:     song.Name,
+			Duration: song.Duration.Seconds(),
+			Artists:  artists,
+			Album:    song.Album.Name,
+			AlbumID:  song.Album.Id,
+			CoverUrl: coverUrl,
+		}
+	}
+
+	return result
+}
+
 // UserInfo 用户信息
 type UserInfo struct {
 	UserID    int64  `json:"userId"`
@@ -210,34 +237,35 @@ func NeteaseGetLikeSongs(getAll C.int) *C.char {
 		return nil
 	}
 
-	// 转换为导出格式
-	result := make([]SongInfo, len(songs))
-	for i, song := range songs {
-		artists := make([]string, len(song.Artists))
-		for j, artist := range song.Artists {
-			artists[j] = artist.Name
-		}
-		
-		// 获取封面 URL（带尺寸参数）
-		coverUrl := song.Album.PicUrl
-		if coverUrl != "" {
-			coverUrl = coverUrl + "?param=300y300" // 300x300 封面
-		}
-		
-		result[i] = SongInfo{
-			ID:       song.Id,
-			Name:     song.Name,
-			Duration: song.Duration.Seconds(),
-			Artists:  artists,
-			Album:    song.Album.Name,
-			AlbumID:  song.Album.Id,
-			CoverUrl: coverUrl,
-		}
-	}
-
+	result := convertStructSongs(songs, true)
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		lastError = "Failed to marshal songs: " + err.Error()
+		return nil
+	}
+
+	return C.CString(string(jsonBytes))
+}
+
+//export NeteaseGetDailyRecommendSongs
+// NeteaseGetDailyRecommendSongs 获取每日推荐歌曲
+// 返回: JSON 数组字符串，包含推荐歌曲信息
+func NeteaseGetDailyRecommendSongs() *C.char {
+	if currentUser == nil || currentUser.UserId == 0 {
+		lastError = "Not logged in"
+		return nil
+	}
+
+	songs, err := netease.FetchDailySongs()
+	if err != nil {
+		lastError = "Failed to fetch daily recommend songs: " + err.Error()
+		return nil
+	}
+
+	result := convertStructSongs(songs, true)
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		lastError = "Failed to marshal daily recommend songs: " + err.Error()
 		return nil
 	}
 
@@ -650,14 +678,33 @@ func NeteaseGetSongLyric(songId C.longlong) *C.char {
 		return nil
 	}
 
-	// 解析 lrc.lyric 字段
-	lyric, err := jsonparser.GetString(resp, "lrc", "lyric")
-	if err != nil || lyric == "" {
+	// 组合成 JSON 字符串返回原文、翻译和罗马音歌词
+	type LyricData struct {
+		Lrc     string `json:"lrc"`
+		Tlyric  string `json:"tlyric"`
+		Romalrc string `json:"rlyric"`
+	}
+
+	lrc, _ := jsonparser.GetString(resp, "lrc", "lyric")
+	tlyric, _ := jsonparser.GetString(resp, "tlyric", "lyric")
+	romalrc, _ := jsonparser.GetString(resp, "romalrc", "lyric")
+
+	if lrc == "" {
 		lastError = "No lyric found in response"
 		return nil
 	}
 
-	return C.CString(lyric)
+	data := LyricData{
+		Lrc:     lrc,
+		Tlyric:  tlyric,
+		Romalrc: romalrc,
+	}
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return C.CString(lrc) // 降级返回普通歌词
+	}
+	return C.CString(string(jsonBytes))
 }
 
 // fixStrategyCookies 修复上游库注入的假 cookie
@@ -1034,30 +1081,7 @@ func NeteaseGetPlaylistSongs(playlistId C.longlong, getAll C.int) *C.char {
 		return nil
 	}
 
-	// 转换为 SongInfo 格式
-	result := make([]SongInfo, len(songs))
-	for i, s := range songs {
-		artists := make([]string, len(s.Artists))
-		for j, a := range s.Artists {
-			artists[j] = a.Name
-		}
-		
-		coverUrl := ""
-		if s.Album.PicUrl != "" {
-			coverUrl = s.Album.PicUrl
-		}
-
-		result[i] = SongInfo{
-			ID:       s.Id,
-			Name:     s.Name,
-			Duration: s.Duration.Seconds(), // time.Duration 转秒
-			Artists:  artists,
-			Album:    s.Album.Name,
-			AlbumID:  s.Album.Id,
-			CoverUrl: coverUrl,
-		}
-	}
-
+	result := convertStructSongs(songs, false)
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		lastError = "Failed to marshal playlist songs: " + err.Error()

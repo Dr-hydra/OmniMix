@@ -103,6 +103,14 @@ namespace OmniMixPlayer.Backend.Services
             return Task.FromResult(profile);
         }
 
+        public override Task<RenameArchiveResponse> RenameArchive(RenameArchiveRequest request, ServerCallContext context)
+        {
+            var profile = _registry.RenameArchive(request.ArchiveId, request.Label);
+            if (profile == null)
+                throw new RpcException(new Status(StatusCode.NotFound, "Archive not found"));
+            return Task.FromResult(new RenameArchiveResponse { Renamed = true, Archive = profile });
+        }
+
         public override Task<DeleteArchiveResponse> DeleteArchive(DeleteArchiveRequest request, ServerCallContext context)
         {
             var deleted = _registry.DeleteArchive(request.ArchiveId);

@@ -10,11 +10,12 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <thread>
 
 // Bridge version — parsed by build_all.py for version_info.json
-#define FH6_BRIDGE_VERSION "2.0.0"
+#define FH6_BRIDGE_VERSION "3.0.0"
 
 namespace fh6 {
 
@@ -72,7 +73,18 @@ void run_bridge(HMODULE self) noexcept {
 
     PlaybackConfig playback;
     playback.force_stereo_audio  = true;
-    playback.race_start_playback = "next";
+    std::string race_behavior = "ignore"; // 默认更改为继续播放 (ignore)
+    const auto config_file_path = data_dir / "race_start_playback.txt";
+    if (std::filesystem::exists(config_file_path)) {
+        std::ifstream config_file(config_file_path);
+        std::string val;
+        if (config_file >> val) {
+            if (val == "next" || val == "restart" || val == "ignore") {
+                race_behavior = val;
+            }
+        }
+    }
+    playback.race_start_playback = race_behavior;
     playback.quick_station_skip  = true;
 
     std::unique_ptr<fmod_bridge::ControlLoop> ctrl;

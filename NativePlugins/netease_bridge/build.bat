@@ -138,6 +138,11 @@ copy /Y "netease_bridge\ChillNetease.h" "%OUTPUT_DIR%\" 2>nul
 copy /Y "netease_bridge\ChillNetease.dll" "%SCRIPT_DIR%\"
 copy /Y "netease_bridge\ChillNetease.h" "%SCRIPT_DIR%\" 2>nul
 
+:: 同时复制到网易云音乐模块目录（方便打包和就地测试）
+if exist "%PROJECT_ROOT%\OmniMixPlayer\modules\Netease\native\x64" (
+    copy /Y "netease_bridge\ChillNetease.dll" "%PROJECT_ROOT%\OmniMixPlayer\modules\Netease\native\x64\"
+)
+
 echo.
 echo Output files:
 echo   - %OUTPUT_DIR%\ChillNetease.dll

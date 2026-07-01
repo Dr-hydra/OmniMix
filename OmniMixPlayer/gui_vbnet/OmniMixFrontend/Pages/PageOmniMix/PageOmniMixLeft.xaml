@@ -196,6 +196,14 @@
                                       VerticalAlignment="Top"
                                       Title="个性化"
                                       IsScaleAnimationEnabled="False" />
+                    <local:MyListItem x:Name="ItemSettingsFloating"
+                                      Type="RadioBox"
+                                      Tag="floating"
+                                      MinPaddingRight="35"
+                                      Height="36"
+                                      VerticalAlignment="Top"
+                                      Title="悬浮窗"
+                                      IsScaleAnimationEnabled="False" />
                     <local:MyListItem x:Name="ItemSettingsMaintenance"
                                       Type="RadioBox"
                                       Tag="maintenance"

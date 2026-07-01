@@ -157,7 +157,7 @@ namespace OmniMixPlayer.Module.QQMusic
                 track.SourceType = SourceType.Stream;
                 track.SourcePath = song.Mid;
                 track.ModuleId = _moduleId;
-                track.IsFavorite = false;
+                track.IsFavorite = existing?.IsFavorite ?? false;
                 track.CoverUri = NormalizeCoverUrl(song.CoverUrl);
 
                 _context.Library.UpsertTrack(track);

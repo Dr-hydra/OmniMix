@@ -111,6 +111,9 @@ def _publish_vbnet_frontend() -> bool:
         print(f"Missing project: {VB_FRONTEND_PROJ}")
         return False
 
+    if VB_FRONTEND_PUBLISH.exists():
+        shutil.rmtree(VB_FRONTEND_PUBLISH)
+
     code = subprocess.run(
         [
             "dotnet",
@@ -118,8 +121,18 @@ def _publish_vbnet_frontend() -> bool:
             str(VB_FRONTEND_PROJ),
             "-c",
             "Release",
+            "-r",
+            "win-x64",
+            "--self-contained",
+            "false",
             "-o",
             str(VB_FRONTEND_PUBLISH),
+            "-p:PublishSingleFile=true",
+            "-p:SelfContained=false",
+            "-p:IncludeNativeLibrariesForSelfExtract=true",
+            "-p:IncludeAllContentForSelfExtract=true",
+            "-p:EnableCompressionInSingleFile=false",
+            "-p:PublishTrimmed=false",
             "-v",
             "minimal",
         ],
