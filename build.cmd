@@ -9,7 +9,6 @@ REM   all        构建全部
 REM
 REM 选项:
 REM   --full     完整构建 (clean + restore + 原生插件)
-REM   --skip-flutter  跳过快闪 GUI
 
 python "%~dp0scripts\build_all.py" %*
 if %errorlevel% neq 0 (

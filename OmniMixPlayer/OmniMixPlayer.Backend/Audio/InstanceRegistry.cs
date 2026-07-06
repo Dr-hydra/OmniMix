@@ -181,7 +181,7 @@ namespace OmniMixPlayer.Backend.Audio
         /// Merge capabilities: use the request's booleans, but preserve existing limit
         /// values (max_imported_playlists, etc.) when the request doesn't specify them.
         /// This is needed because the native C SDK only carries boolean flags and
-        /// cannot express limits — limits are declared by the Flutter mod catalog.
+        /// cannot express limits — limits are declared by the desktop mod catalog.
         /// </summary>
         private static InstanceCapabilities MergeCapabilities(InstanceCapabilities req, InstanceCapabilities existing)
         {

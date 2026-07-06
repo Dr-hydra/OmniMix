@@ -53,7 +53,7 @@ void run_bridge(HMODULE self) noexcept {
     }
 
     // ── Create OmniMixPlayer audio source ─────────────────────────
-    // The source declares Flutter-built-in-player capabilities
+    // The source declares OmniMix desktop-player capabilities
     // (SERVER_CONTROLLED_PLAYBACK + AUDIO_PLAYBACK + full library mgmt)
     // and uses the OmniPcmShared SDK for all backend communication.
     constexpr std::size_t ring_bytes = 8u << 20;

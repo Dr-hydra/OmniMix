@@ -86,10 +86,15 @@ dotnet build "OmniMixPlayer/gui_vbnet/OmniMixFrontend.sln" -c Debug -v minimal
 构建完整包：
 
 ```powershell
-python scripts/build_all.py player --skip-flutter
+python scripts/build_all.py player
 ```
 
-`--skip-flutter` 只跳过 Flutter 桌面 GUI 复制步骤，不会移除后端 Web 资源。
+当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：
+
+```powershell
+npm install
+npm run dev
+```
 
 ## 分支说明
 

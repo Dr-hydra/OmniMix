@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 FH6 桥接构建任务
-- fh6-asset: 打包为 Flutter 资源 zip
+- fh6-asset: 打包为播放器资源 zip
 - fh6-mod: 构建原生 mod 到 release/FH6OmniBridge
 """
 import shutil
 
 from build_config import (
-    FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP, FH6_FLUTTER_ASSETS,
+    FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP, FH6_PLAYER_ASSET,
     OMNI_PCM_DLL, NATIVE_PLUGINS_DIR,
 )
 from .base import TaskNode
@@ -16,7 +16,7 @@ from .common import copy_file, info, run_cmd, clean_cmake_cache, package_zip
 
 def create_fh6_asset_tasks(full: bool = False) -> TaskNode:
     """创建 FH6 资源打包任务树 (cmd: fh6-asset)。"""
-    root = TaskNode("FH6 Bridge Asset", "FH6 桥接资源打包 → Flutter assets/")
+    root = TaskNode("FH6 Bridge Asset", "FH6 桥接资源打包 → player assets/")
 
     if full:
         root.create_leaf("Build OmniPcmShared", "编译 OmniPcmShared",
@@ -27,7 +27,7 @@ def create_fh6_asset_tasks(full: bool = False) -> TaskNode:
         root.create_leaf("Native builds", "跳过 (使用 --full 重新编译)",
                          run_fn=lambda: 0)
 
-    root.create_leaf("Package ZIP", "打包 FH6OmniBridge.zip → Flutter assets",
+    root.create_leaf("Package ZIP", "打包 FH6OmniBridge.zip → player assets",
                      run_fn=_package)
     return root
 
@@ -80,7 +80,7 @@ def _package() -> bool:
     if readme.exists():
         copy_file(readme, FH6_STAGE)
 
-    return package_zip(FH6_STAGE, FH6_ZIP, FH6_FLUTTER_ASSETS)
+    return package_zip(FH6_STAGE, FH6_ZIP, FH6_PLAYER_ASSET)
 
 
 def _clean_mod() -> bool:

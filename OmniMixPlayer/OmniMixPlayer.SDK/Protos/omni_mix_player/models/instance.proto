@@ -22,7 +22,7 @@ message InstanceCapabilities {
   bool volume_control = 12;
   bool equalizer = 13;
   bool audio_playback = 14;
-  bool custom_system_media_service = 15;  // true=实例自己处理SMTC, Flutter不要同步
+  bool custom_system_media_service = 15;  // true=实例自己处理SMTC, 桌面前端不要同步
 
   // 限制（null 表示无限制，proto3 用 0 表示未设置 / wrapper types）
   optional int32 max_imported_playlists = 20;

@@ -111,7 +111,7 @@ Public Class PageOmniMixRight
             Case "Settings"
                 LabTitle.Text = "设置"
                 LabSubtitle.Text = "后端配置、播放实例档案和 GUI 本地偏好。"
-                LabStatus.Text = "下一步按 Flutter 设置页继续移植具体配置项。"
+                LabStatus.Text = "下一步继续补齐 VB.NET 设置页的具体配置项。"
             Case "About"
                 LabTitle.Text = "关于"
                 LabSubtitle.Text = "了解 OmniMix Player 的桌面端功能、模块能力和运行方式。"

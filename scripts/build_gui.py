@@ -137,10 +137,6 @@ class BuildGUI:
         self._full_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(top, text="完整构建 (--full)", variable=self._full_var,
                         command=self._rebuild_tree).pack(side=tk.LEFT, padx=3)
-        self._skip_flutter_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(top, text="跳过 Flutter", variable=self._skip_flutter_var,
-                        command=self._rebuild_tree).pack(side=tk.LEFT, padx=3)
-
         ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8)
         ttk.Button(top, text="▶ 构建", command=self._start_build).pack(side=tk.LEFT, padx=3)
         ttk.Button(top, text="■ 停止", command=self._stop_build).pack(side=tk.LEFT, padx=3)
@@ -267,8 +263,7 @@ class BuildGUI:
 
         mode = self._mode_var.get()
         full = self._full_var.get()
-        skip = self._skip_flutter_var.get()
-        self._roots = build_tree(mode, full, skip)
+        self._roots = build_tree(mode, full)
 
         virtual = TaskNode("__ROOT__")
         for r in self._roots:

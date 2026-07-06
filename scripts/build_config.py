@@ -17,7 +17,6 @@ MINGW_DIR = Path("D:/mingw64")
 CMAKE_DIR = Path("")
 GO_DIR = Path("")
 NODE_DIR = Path("")
-FLUTTER_DIR = Path(r"G:\flutter_SDK\flutter")
 
 
 def setup_toolchain():
@@ -61,12 +60,6 @@ def setup_toolchain():
         if p.joinpath("node.exe").exists():
             _add(p); break
 
-    # Flutter
-    for p in [FLUTTER_DIR / "bin", Path("C:/src/flutter/bin"),
-              Path("C:/flutter/bin")]:
-        if p.joinpath("flutter.bat").exists() or p.joinpath("flutter.exe").exists():
-            _add(p); break
-
     if paths_to_add:
         os.environ["PATH"] = ";".join(paths_to_add) + ";" + os.environ.get("PATH", "")
 
@@ -88,9 +81,9 @@ PLAYER_SDK_PROJ = PLAYER_DIR / "OmniMixPlayer.SDK" / "OmniMixPlayer.SDK.csproj"
 PLAYER_BACKEND_PROJ = PLAYER_DIR / "OmniMixPlayer.Backend" / "OmniMixPlayer.Backend.csproj"
 PLAYER_BACKEND_PUBLISH = PLAYER_DIR / "bin" / "BackendPublish"
 PLAYER_MODULES_BUILD = PLAYER_DIR / "bin" / "Modules"
-PLAYER_FLUTTER_DIR = PLAYER_DIR / "gui_flutter"
-PLAYER_FLUTTER_BUILD = PLAYER_FLUTTER_DIR / "build" / "windows" / "x64" / "runner" / "Release"
-PLAYER_FLUTTER_WEB_BUILD = PLAYER_FLUTTER_DIR / "build" / "web"
+PLAYER_ASSETS_DIR = PLAYER_DIR / "assets"
+PLAYER_WEB_DIR = PLAYER_DIR / "gui_web"
+PLAYER_WEB_BUILD = PLAYER_WEB_DIR / "dist"
 PLAYER_WWWROOT = PLAYER_DIR / "OmniMixPlayer.Backend" / "wwwroot"
 
 MEDIA_GEN_PROJ = ROOT / "ChillPatcher.MediaGenerator" / "ChillPatcher.MediaGenerator.csproj"
@@ -118,9 +111,9 @@ FH6_DIR = ROOT / "mods" / "ForzaHorizon6OmniBridge"
 FH6_BIN = FH6_DIR / "bin" / "version.dll"
 FH6_STAGE = ROOT / "release" / "FH6OmniBridge"
 FH6_ZIP = ROOT / "release" / "FH6OmniBridge.zip"
-FH6_FLUTTER_ASSETS = PLAYER_FLUTTER_DIR / "assets" / "FH6OmniBridge.zip"
+FH6_PLAYER_ASSET = PLAYER_ASSETS_DIR / "FH6OmniBridge.zip"
 
 MOD_RELEASE_ZIP = ROOT / "release" / "ChillPatcher.zip"
-MOD_FLUTTER_ASSET = PLAYER_FLUTTER_DIR / "assets" / "ChillPatcher.zip"
+MOD_PLAYER_ASSET = PLAYER_ASSETS_DIR / "ChillPatcher.zip"
 
 OMNI_PCM_DLL = ROOT / "bin" / "native" / "x64" / "OmniPcmShared.dll"

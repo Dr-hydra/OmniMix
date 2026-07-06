@@ -17,7 +17,7 @@ namespace fh6::sources {
 
 /// OmniMixPlayer audio source for Forza Horizon 6.
 ///
-/// Declares the same capabilities as the Flutter built-in player
+/// Declares the same capabilities as the OmniMix desktop player
 /// (SERVER_CONTROLLED_PLAYBACK + AUDIO_PLAYBACK + full library mgmt),
 /// but bridges audio through FMOD instead of a system audio device.
 ///

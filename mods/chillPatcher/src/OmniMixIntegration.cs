@@ -184,7 +184,7 @@ namespace ChillPatcher
                 Path.GetTempPath(),
             };
 
-            // Also check the game root directory (where Flutter writes the port file)
+            // Also check the game root directory (where OmniMix writes the port file)
             try
             {
                 var dataPath = Application.dataPath;

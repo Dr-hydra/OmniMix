@@ -241,7 +241,7 @@ namespace OmniMixPlayer.Backend
                 timelineStore);
 
             // 10. Create ApiServer (WS only)
-            var apiServer = new ApiServer(instanceRegistry, sessionManager, libraryRegistry, loggerFactory.CreateLogger("ApiServer"));
+            var apiServer = new ApiServer(instanceRegistry, sessionManager, libraryRegistry, timelineStore, loggerFactory.CreateLogger("ApiServer"));
 
             var moduleUIHandler = new ModuleUIHandler(ModuleLoader.Instance, apiServer,
                 loggerFactory.CreateLogger("ModuleUIHandler"));

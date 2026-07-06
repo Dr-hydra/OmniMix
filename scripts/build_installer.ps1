@@ -27,7 +27,7 @@ if (-not $Version) {
     $VersionInfoFile = "$PlayerBuildDir\version_info.json"
     if (Test-Path $VersionInfoFile) {
         $VersionInfo = Get-Content $VersionInfoFile -Raw | ConvertFrom-Json
-        $Version = $VersionInfo.flutter_version -replace '\+.*$', ''
+        $Version = $VersionInfo.player_version -replace '\+.*$', ''
     }
     if (-not $Version) {
         $Version = "4.2.1"

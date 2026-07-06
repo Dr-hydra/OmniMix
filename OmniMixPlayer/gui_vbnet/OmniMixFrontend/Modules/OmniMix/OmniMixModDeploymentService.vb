@@ -509,17 +509,16 @@ Public Module OmniMixModDeploymentService
         Dim Candidates As New List(Of String) From {
             Path.Combine(BaseDir, "OmniMixAssets", ArchiveName),
             Path.Combine(BaseDir, "assets", ArchiveName),
-            Path.Combine(BaseDir, "data", "flutter_assets", "assets", ArchiveName),
             Path.Combine(BaseDir, "wwwroot", "assets", "assets", ArchiveName),
             Path.Combine(BaseDir, "wwwroot", "assets", ArchiveName),
             Path.Combine(BaseDir, ArchiveName)
         }
 
         Try
-            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "data", "flutter_assets", "assets", ArchiveName)))
+            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "OmniMixAssets", ArchiveName)))
             Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "wwwroot", "assets", "assets", ArchiveName)))
-            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "..", "..", "..", "..", "gui_flutter", "assets", ArchiveName)))
-            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "..", "..", "..", "..", "..", "gui_flutter", "assets", ArchiveName)))
+            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "..", "..", "..", "..", "assets", ArchiveName)))
+            Candidates.Add(Path.GetFullPath(Path.Combine(BaseDir, "..", "..", "..", "..", "..", "..", "assets", ArchiveName)))
         Catch
         End Try
 

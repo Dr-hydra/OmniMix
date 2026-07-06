@@ -7,10 +7,10 @@ import shutil
 from build_config import (
     PLAYER_DIR, PLAYER_BUILD, PLAYER_SDK_PROJ, PLAYER_BACKEND_PROJ,
     PLAYER_BACKEND_PUBLISH, PLAYER_MODULES_BUILD, PLAYER_MODULE_MAP,
-    PLAYER_FLUTTER_DIR, PLAYER_FLUTTER_BUILD, PLAYER_FLUTTER_WEB_BUILD,
-    PLAYER_WWWROOT, MEDIA_GEN_PROJ, MEDIA_GEN_PUBLISH,
+    PLAYER_ASSETS_DIR,
+    PLAYER_WEB_DIR, PLAYER_WEB_BUILD, PLAYER_WWWROOT, MEDIA_GEN_PROJ, MEDIA_GEN_PUBLISH,
     OMNI_PCM_DLL, ROOT, FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP,
-    FH6_FLUTTER_ASSETS, MOD_DIR, MOD_FLUTTER_ASSET, NATIVE_PLUGINS_DIR,
+    FH6_PLAYER_ASSET, MOD_DIR, MOD_PLAYER_ASSET, NATIVE_PLUGINS_DIR,
 )
 from .base import TaskNode, TaskStatus
 from .common import (
@@ -20,7 +20,7 @@ from .common import (
 )
 
 
-def create_player_tasks(full: bool = False, skip_flutter: bool = False) -> TaskNode:
+def create_player_tasks(full: bool = False) -> TaskNode:
     """创建 OmniMixPlayer 完整构建任务树。"""
     root = TaskNode("OmniMixPlayer", "播放器 - 输出到 playerbuild/")
 
@@ -36,17 +36,10 @@ def create_player_tasks(full: bool = False, skip_flutter: bool = False) -> TaskN
     ])
     create_stage_omni_pcm(root)
 
-    # ── Flutter Web (WASM) ──
-    if skip_flutter:
-        root.create_leaf("Flutter Web (WASM)", "已跳过", run_fn=lambda: TaskStatus.DISABLED)
-    else:
-        fw = root.create_group("Flutter Web (WASM)", "构建 Flutter Web → wwwroot/")
-        fw.create_leaf("pub get", "Flutter 依赖恢复",
-                       run_fn=lambda: run_cmd(["flutter", "pub", "get"], cwd=PLAYER_FLUTTER_DIR))
-        fw.create_leaf("gen-l10n", "生成本地化",
-                       run_fn=lambda: run_cmd(["flutter", "gen-l10n"], cwd=PLAYER_FLUTTER_DIR))
-        fw.create_leaf("build web --wasm", "编译 WASM",
-                       run_fn=_build_flutter_web)
+    # ── WebUI ──
+    fw = root.create_group("WebUI", "构建 TypeScript WebUI → wwwroot/")
+    fw.create_leaf("npm install", "WebUI 依赖恢复", run_fn=_install_web_ui_dependencies)
+    fw.create_leaf("npm run build", "编译并复制到 wwwroot/", run_fn=_build_web_ui)
 
     # ── C# SDK ──
     if full:
@@ -90,17 +83,6 @@ def create_player_tasks(full: bool = False, skip_flutter: bool = False) -> TaskN
     fh6_g.create_leaf("Package FH6 ZIP", "",
                       run_fn=_package_fh6_asset)
 
-    # ── Flutter GUI ──
-    if skip_flutter:
-        root.create_leaf("Flutter GUI", "已跳过", run_fn=lambda: TaskStatus.DISABLED)
-    else:
-        fg = root.create_group("Flutter GUI", "Flutter Windows 桌面 GUI")
-        fg.create_leaf("gen-l10n", "",
-                       run_fn=lambda: run_cmd(["flutter", "gen-l10n"],
-                                              cwd=PLAYER_FLUTTER_DIR))
-        fg.create_leaf("build windows --release", "编译 Flutter Windows",
-                       run_fn=_build_flutter_gui)
-
     # ── Version Info ──
     root.create_leaf("Version Info", "写入 version_info.json",
                      run_fn=_write_version)
@@ -118,17 +100,27 @@ def _clean() -> bool:
     return True
 
 
-def _build_flutter_web() -> int:
-    code = run_cmd(["flutter", "build", "web", "--wasm", "-t", "lib/main_web.dart"],
-                   cwd=PLAYER_FLUTTER_DIR)
+def _install_web_ui_dependencies() -> int:
+    if not PLAYER_WEB_DIR.exists():
+        info("  WARNING: gui_web not found")
+        return 1
+    if run_cmd(["where", "npm"]) != 0:
+        info("npm not found!")
+        return 1
+    if (PLAYER_WEB_DIR / "package-lock.json").exists() and not (PLAYER_WEB_DIR / "node_modules").exists():
+        return run_cmd(["npm", "ci"], cwd=PLAYER_WEB_DIR)
+    return run_cmd(["npm", "install", "--no-audit"], cwd=PLAYER_WEB_DIR)
+
+
+def _build_web_ui() -> int:
+    code = run_cmd(["npm", "run", "build"], cwd=PLAYER_WEB_DIR)
     if code != 0:
-        info("  WARNING: Flutter Web build failed")
+        info("  WARNING: WebUI build failed")
         return code
-    # 复制到 wwwroot
     _rmtree_ignore_locked(PLAYER_WWWROOT)
     PLAYER_WWWROOT.mkdir(parents=True, exist_ok=True)
-    copy_dir_contents(PLAYER_FLUTTER_WEB_BUILD, PLAYER_WWWROOT)
-    info("  Flutter Web (WASM) copied to wwwroot/")
+    copy_dir_contents(PLAYER_WEB_BUILD, PLAYER_WWWROOT)
+    info("  WebUI copied to wwwroot/")
     return 0
 
 
@@ -231,37 +223,24 @@ def _assemble() -> bool:
                 pass
     info("  Unnecessary files cleaned")
 
-    # Copy Flutter GUI if built
-    if PLAYER_FLUTTER_BUILD.exists():
-        _copy_flutter_to_playerbuild()
+    _copy_player_assets_to_build()
 
     info("Player files assembled")
     return True
 
 
-def _copy_flutter_to_playerbuild():
-    """复制 Flutter 构建输出到 playerbuild。"""
-    # Copy OmniPcmShared.dll next to exe for Dart FFI
-    if OMNI_PCM_DLL.exists():
-        copy_file(OMNI_PCM_DLL, PLAYER_FLUTTER_BUILD)
-
-    for item in PLAYER_FLUTTER_BUILD.iterdir():
-        dst = PLAYER_BUILD / item.name
-        if item.is_dir():
-            shutil.copytree(item, dst, dirs_exist_ok=True)
-        else:
-            copy_file(item, PLAYER_BUILD)
-    if OMNI_PCM_DLL.exists():
-        copy_file(OMNI_PCM_DLL, PLAYER_BUILD)
-    info("  Flutter GUI copied")
-
-
-def _build_flutter_gui() -> int:
-    code = run_cmd(["flutter", "build", "windows", "--release"],
-                   cwd=PLAYER_FLUTTER_DIR)
-    if code != 0:
-        info("  WARNING: Flutter build failed")
-    return code
+def _copy_player_assets_to_build():
+    """复制播放器安装/集成所需资产到 playerbuild。"""
+    if not PLAYER_ASSETS_DIR.exists():
+        info("  WARNING: Player assets directory not found")
+        return
+    dst = PLAYER_BUILD / "OmniMixAssets"
+    dst.mkdir(parents=True, exist_ok=True)
+    for name in ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip", "version_info.json"]:
+        src = PLAYER_ASSETS_DIR / name
+        if src.exists():
+            copy_file(src, dst)
+    info("  Player assets copied")
 
 
 def _package_fh6_asset() -> bool:
@@ -276,16 +255,16 @@ def _package_fh6_asset() -> bool:
     if OMNI_PCM_DLL.exists():
         copy_file(OMNI_PCM_DLL, FH6_STAGE)
 
-    return package_zip(FH6_STAGE, FH6_ZIP, FH6_FLUTTER_ASSETS)
+    return package_zip(FH6_STAGE, FH6_ZIP, FH6_PLAYER_ASSET)
 
 
 def _write_version() -> bool:
     fh6_file = FH6_DIR / "src" / "bridge.cpp"
-    data = read_version_info(MOD_DIR, PLAYER_FLUTTER_DIR, FH6_DIR, fh6_file)
+    data = read_version_info(MOD_DIR, PLAYER_WEB_DIR, PLAYER_DIR / "modules", fh6_file)
 
     # 写入 playerbuild/
     dst1 = PLAYER_BUILD / "version_info.json"
-    # 写入 Flutter assets/
-    dst2 = PLAYER_FLUTTER_DIR / "assets" / "version_info.json"
+    # 写入播放器资产目录
+    dst2 = PLAYER_ASSETS_DIR / "version_info.json"
     write_version_json(data, dst1, dst2)
     return True

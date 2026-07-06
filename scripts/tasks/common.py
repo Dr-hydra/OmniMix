@@ -234,15 +234,16 @@ def clean_cmake_cache(src: Path):
 #  版本信息
 # ════════════════════════════════════════════
 
-def read_version_info(mod_dir: Path, flutter_dir: Path,
-                      fh6_dir: Path, fh6_file: Path) -> dict:
+def read_version_info(mod_dir: Path, player_web_dir: Path,
+                      modules_root: Path, fh6_file: Path) -> dict:
     """读取所有版本信息。"""
-    flutter_ver = "0.0.0"
-    pubspec = flutter_dir / "pubspec.yaml"
-    if pubspec.exists():
-        m = re.search(r'^version:\s*(\S+)', pubspec.read_text(encoding="utf-8"), re.M)
-        if m:
-            flutter_ver = m.group(1)
+    player_ver = "0.0.0"
+    package_json = player_web_dir / "package.json"
+    if package_json.exists():
+        try:
+            player_ver = json.loads(package_json.read_text(encoding="utf-8")).get("version", player_ver)
+        except Exception:
+            pass
 
     cs_ver = "0.0.0"
     cs_file = mod_dir / "MyPluginInfo.cs"
@@ -260,7 +261,6 @@ def read_version_info(mod_dir: Path, flutter_dir: Path,
             fh6_ver = m.group(1)
 
     music_versions = {}
-    modules_root = flutter_dir.parent / "modules"
     for module_dir, key in [
         ("Netease", "netease"),
         ("QQMusic", "qqmusic"),
@@ -276,7 +276,8 @@ def read_version_info(mod_dir: Path, flutter_dir: Path,
             music_versions[key] = m.group(1)
 
     return {
-        "flutter_version": flutter_ver,
+        "player_version": player_ver,
+        "webui_version": player_ver,
         "mod_version": cs_ver,
         "fh6_bridge_version": fh6_ver,
         "mod_versions": {
@@ -298,8 +299,8 @@ def write_version_json(data: dict, *paths: Path):
 
 
 def package_zip(src_dir: Path, zip_path: Path,
-                flutter_asset: Path | None = None) -> bool:
-    """将目录打包为 zip，可选复制到 Flutter assets。"""
+                player_asset: Path | None = None) -> bool:
+    """将目录打包为 zip，可选复制到播放器资产目录。"""
     if not src_dir.exists():
         info(f"  WARNING: {src_dir} not found, skipping zip")
         return False
@@ -310,8 +311,8 @@ def package_zip(src_dir: Path, zip_path: Path,
         "zip",
         src_dir,
     )
-    if flutter_asset:
-        flutter_asset.parent.mkdir(parents=True, exist_ok=True)
-        copy_file(zip_path, flutter_asset.parent)
-        info(f"  {zip_path.name} -> {flutter_asset}")
+    if player_asset:
+        player_asset.parent.mkdir(parents=True, exist_ok=True)
+        copy_file(zip_path, player_asset.parent)
+        info(f"  {zip_path.name} -> {player_asset}")
     return True

@@ -6,8 +6,8 @@ import shutil
 
 from build_config import (
     MOD_DIR, MOD_RELEASE, MOD_SDK_PROJ, MOD_MAIN_PROJ, MOD_ONEJS_PROJ,
-    MOD_UI_DIRS, MOD_RELEASE_ZIP, MOD_FLUTTER_ASSET,
-    NATIVE_PLUGINS_DIR, OMNI_PCM_DLL, ROOT,
+    MOD_UI_DIRS, MOD_RELEASE_ZIP, MOD_PLAYER_ASSET,
+    NATIVE_PLUGINS_DIR, OMNI_PCM_DLL, ROOT, PLAYER_WEB_DIR, PLAYER_DIR,
 )
 from .base import TaskNode, TaskStatus
 from .common import (
@@ -59,7 +59,7 @@ def create_mod_tasks(full: bool = False) -> TaskNode:
     root.create_leaf("Assemble", "组装发布目录", run_fn=_assemble)
 
     # ── Package ZIP ──
-    root.create_leaf("Package ZIP", "打包 ChillPatcher.zip → Flutter assets",
+    root.create_leaf("Package ZIP", "打包 ChillPatcher.zip → player assets",
                      run_fn=_package)
 
     # ── Version Info ──
@@ -233,15 +233,14 @@ def _copy_rime_files(src_dir, dst_dir, files):
 
 
 def _package() -> bool:
-    return package_zip(MOD_RELEASE, MOD_RELEASE_ZIP, MOD_FLUTTER_ASSET)
+    return package_zip(MOD_RELEASE, MOD_RELEASE_ZIP, MOD_PLAYER_ASSET)
 
 
 def _write_version() -> bool:
-    from build_config import PLAYER_FLUTTER_DIR
     data = read_version_info(
-        MOD_DIR, PLAYER_FLUTTER_DIR, MOD_DIR,
+        MOD_DIR, PLAYER_WEB_DIR, PLAYER_DIR / "modules",
         MOD_DIR / "MyPluginInfo.cs",
     )
-    asset_ver = MOD_FLUTTER_ASSET.parent / "version_info.json"
+    asset_ver = MOD_PLAYER_ASSET.parent / "version_info.json"
     write_version_json(data, asset_ver)
     return True

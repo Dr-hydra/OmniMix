@@ -38,14 +38,11 @@ def main() -> int:
         help="Build target.",
     )
     parser.add_argument("--full", action="store_true", help="Run restore/native full build steps.")
-    parser.add_argument("--skip-flutter", action="store_true", help="Skip Flutter web/desktop builds.")
     parser.add_argument("--dry-run", action="store_true", help="Print the task tree without running it.")
     args = parser.parse_args()
 
     setup_toolchain()
-    roots = build_tree(args.command, args.full, args.skip_flutter)
-    if args.skip_flutter:
-        _disable_flutter_desktop_assembly(roots)
+    roots = build_tree(args.command, args.full)
     if args.dry_run:
         for root in roots:
             _print_tree(root)
@@ -74,14 +71,6 @@ def _print_tree(node: TaskNode, depth: int = 0) -> None:
     print("  " * depth + f"- {node.name}")
     for child in node.children:
         _print_tree(child, depth + 1)
-
-
-def _disable_flutter_desktop_assembly(nodes: list[TaskNode]) -> None:
-    for node in nodes:
-        path = node.full_path
-        if "Flutter GUI" in path and "playerbuild" in path:
-            node.enabled = False
-        _disable_flutter_desktop_assembly(node.children)
 
 
 def _run_node(node: TaskNode) -> bool:
@@ -172,12 +161,12 @@ def _copy_omnimix_assets() -> None:
     dst_dir = PLAYER_BUILD / "OmniMixAssets"
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    flutter_assets_dir = ROOT / "OmniMixPlayer" / "gui_flutter" / "assets"
+    player_assets_dir = ROOT / "OmniMixPlayer" / "assets"
     release_assets_dir = ROOT / "release" / "OmniMixAssets"
 
     zip_files = ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip"]
     for name in zip_files:
-        src = flutter_assets_dir / name
+        src = player_assets_dir / name
         if not src.exists():
             src = release_assets_dir / name
 
@@ -192,7 +181,6 @@ def _remove_upstream_desktop_gui() -> None:
     for name in [
         "omnimix_gui.exe",
         "omni_mix_player.exe",
-        "flutter_windows.dll",
         "OmniPcmShared.dll",
     ]:
         path = PLAYER_BUILD / name

@@ -116,10 +116,15 @@ OmniMixPlayer/bin/GuiVbnetSingle/OmniMixPlayer.Gui.Vbnet.exe
 Build the full package:
 
 ```powershell
-python scripts/build_all.py player --skip-flutter
+python scripts/build_all.py player
 ```
 
-`--skip-flutter` skips only the Flutter desktop GUI copy step. It does not remove backend Web assets.
+The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:
+
+```powershell
+npm install
+npm run dev
+```
 
 ## Branches
 

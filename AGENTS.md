@@ -75,6 +75,13 @@
 - 播放、曲库、实例、时间线核心：`OmniMixPlayer/OmniMixPlayer.Backend/Audio/`
 - 模块系统：`OmniMixPlayer/OmniMixPlayer.Backend/ModuleSystem/`
 
+### WebUI
+
+- 当前 WebUI：`OmniMixPlayer/gui_web/`
+- 技术栈：Vite + Svelte + TypeScript，构建产物复制到 `OmniMixPlayer/OmniMixPlayer.Backend/wwwroot/`。
+- WebUI 定位为后端内嵌远程控制台，优先覆盖后端状态、模块管理、模块 RawNode UI、配置摘要、事件推送等能力。
+- 播放器安装/游戏集成资产统一放在 `OmniMixPlayer/assets/`，构建时复制到 `playerbuild/OmniMixAssets/`。
+
 ### 模块与原生组件
 
 - 内置音乐模块：`OmniMixPlayer/modules/`
@@ -99,6 +106,7 @@
 - 全量构建兼容入口：`scripts/build_all.py`
 - 当前构建编排：`scripts/build_tree.py`
 - GUI 构建：`scripts/build_gui.py`
+- WebUI 构建：`OmniMixPlayer/gui_web/` 中执行 `npm install` / `npm run build`
 - 安装器脚本：`scripts/build_installer.ps1`、`scripts/installer/`
 - 任务拆分：`scripts/tasks/`
 
@@ -127,10 +135,10 @@
 - 完整包构建仍可使用兼容包装脚本：
 
 ```powershell
-python scripts/build_all.py player --skip-flutter
+python scripts/build_all.py player
 ```
 
-- `--skip-flutter` 只跳过 Flutter 桌面 GUI 复制步骤，不应删除后端 `wwwroot/` Web 资源。
+- TypeScript WebUI 会构建并刷新后端 `wwwroot/` Web 资源。
 - 发布前检查当前 Release 资产、构建产物和必要来源说明。
 
 ## 终端

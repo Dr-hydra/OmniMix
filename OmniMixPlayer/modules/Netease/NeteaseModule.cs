@@ -54,7 +54,7 @@ namespace OmniMixPlayer.Module.Netease
         private IDisposable _playStartedSubscription;
         private IDisposable _favoriteChangedSubscription;
 
-        // QR 码版本号：每次刷新变化，用于 Flutter 端破坏图片缓存
+        // QR 码版本号：每次刷新变化，用于前端破坏图片缓存
         private long _qrVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
 
@@ -773,7 +773,7 @@ namespace OmniMixPlayer.Module.Netease
         /// </summary>
         private void OnQRCodeUpdated(byte[] newQRCode)
         {
-            // 变更版本号，使 Flutter 端请求新图片而非使用缓存
+            // 变更版本号，使前端请求新图片而非使用缓存
             _qrVersion = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             // 清除登录歌曲的封面缓存，以便显示新的二维码
@@ -789,7 +789,7 @@ namespace OmniMixPlayer.Module.Netease
                 });
             }
 
-            // 推送更新后的 UI（URL 中版本号已变，Flutter 会重新加载图片）
+            // 推送更新后的 UI（URL 中版本号已变，前端会重新加载图片）
             PushUI?.Invoke(BuildUI());
         }
 

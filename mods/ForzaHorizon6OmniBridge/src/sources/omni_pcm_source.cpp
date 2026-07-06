@@ -12,17 +12,16 @@ namespace {
 constexpr int kFmodRate                 = 48000;
 constexpr int kOutChannels              = 2;
 constexpr int kPumpFrames               = 2048;
-constexpr int kLocalBufferTargetDivisor = 10;    // matches Flutter: rate/10 = 100ms
-constexpr int kLocalBufferMinFrames     = 3072;  // matches Flutter: 1024*3
+constexpr int kLocalBufferTargetDivisor = 10;    // rate/10 = 100ms
+constexpr int kLocalBufferMinFrames     = 3072;  // 1024*3 safety floor
 constexpr float kMinTargetLatency       = 0.1f;  // floor for target_latency to avoid 0
 
-// ── Flutter built-in player capability flags ─────────────────────
+// ── OmniMix desktop player capability flags ─────────────────────
 //
-// These match exactly what the Flutter GUI player (OmniMixPlayer
-// Backend's PlaybackController) declares when connecting as a GUI
-// instance. The only difference is this mod uses FMOD for output
-// instead of a system audio device.
-constexpr uint32_t kFlutterPlayerCapabilities =
+// These match what the desktop player declares when connecting as a GUI
+// instance. The only difference is this mod uses FMOD for output instead
+// of a system audio device.
+constexpr uint32_t kDesktopPlayerCapabilities =
     OMNI_PCM_CAP_SERVER_CONTROLLED_PLAYBACK |
     OMNI_PCM_CAP_QUEUE_MANAGEMENT           |
     OMNI_PCM_CAP_PLAYLIST_MANAGEMENT        |
@@ -275,9 +274,8 @@ void OmniPcmSource::pump(RingBuffer& ring) {
     update_audible_from_ring(ring);
 
     // 8. Pull PCM from shared memory → resample → push to ring buffer.
-    //    Throttle local pre-buffering to ~100ms (matching Flutter's
-    //    LOCAL_BUFFER_TARGET_DIVISOR=10) so the ring buffer does not
-    //    bypass the server's target_latency control.
+    //    Throttle local pre-buffering to ~100ms so the ring buffer does
+    //    not bypass the server's target_latency control.
     constexpr std::size_t kFrameBytes = kOutChannels * sizeof(float);
     const int target_frames = std::max(kFmodRate / kLocalBufferTargetDivisor,
                                        kLocalBufferMinFrames);
@@ -444,7 +442,7 @@ bool OmniPcmSource::connect_backend() {
     options.game_name        = "Forza Horizon 6";
     options.display_name     = "Forza Horizon 6";
     options.kind             = OMNI_PCM_INSTANCE_KIND_GAME_MOD;
-    options.capability_flags = kFlutterPlayerCapabilities;
+    options.capability_flags = kDesktopPlayerCapabilities;
 
     OmniPcmConnectionInfo info{};
     int result = api_.client_connect(client_, &options, &info);
@@ -459,7 +457,7 @@ bool OmniPcmSource::connect_backend() {
               instance_id_, shared_memory_name_);
 
     // Ensure target_latency is never stuck at 0 (proto3 default).
-    // Flutter sets a sane floor; apply the same guard on first connect.
+    // Apply a sane floor on first connect.
     float current_latency = 0.0f;
     if (api_.client_get_target_latency &&
         api_.client_get_target_latency(client_, instance_id_.c_str(), &current_latency) == OMNI_PCM_OK) {
