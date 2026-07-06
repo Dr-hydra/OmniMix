@@ -40,6 +40,8 @@ namespace ChillPatcher.Integration
                 return false;
             }
 
+            var timerCore = ResolveTimerCoreService();
+
             try
             {
                 pomodoro.OnStartPomodoro.Subscribe(_ => Emit("pomodoroStart", getPomodoroStateObject())).AddTo(_subscriptions);
@@ -70,11 +72,15 @@ namespace ChillPatcher.Integration
                     ["type"] = type.ToString(),
                     ["state"] = getPomodoroStateObject()
                 })).AddTo(_subscriptions);
-                pomodoro.OnUpdateWorkHour.Subscribe(_ => Emit("pomodoroWorkHourUpdated", getPlayerProgressObject())).AddTo(_subscriptions);
-                pomodoro.OnPreAddExpAndPointFromCompletePomodoro.Subscribe(exp => Emit("pomodoroPreReward", new Dictionary<string, object>
+
+                if (timerCore != null)
                 {
-                    ["exp"] = exp
-                })).AddTo(_subscriptions);
+                    timerCore.OnUpdateWorkHour.Subscribe(_ => Emit("pomodoroWorkHourUpdated", getPlayerProgressObject())).AddTo(_subscriptions);
+                    timerCore.OnPreAddExpAndPointFromCompletePomodoro.Subscribe(exp => Emit("pomodoroPreReward", new Dictionary<string, object>
+                    {
+                        ["exp"] = exp
+                    })).AddTo(_subscriptions);
+                }
 
                 var levelService = ResolvePlayerLevelService();
                 if (levelService != null)
@@ -200,6 +206,7 @@ namespace ChillPatcher.Integration
             }
 
             var svc = ResolvePomodoroService();
+            var timerCore = ResolveTimerCoreService();
             var loopCurrent = svc?.CurrentLoopCount?.CurrentValue ?? 0;
             var isPaused = IsPomodoroPaused(svc);
             var isTimerActive = svc?.IsTimerRunning() ?? false;
@@ -219,9 +226,9 @@ namespace ChillPatcher.Integration
                 ["breakMinutes"] = save.PomodoroData?.BreakMinutes?.Value ?? 0,
                 ["currentWorkSeconds"] = save.PlayerData?.CurrentWorkSeconds ?? 0d,
                 ["totalWorkSeconds"] = save.PlayerData?.PomodoroTotalWorkSeconds ?? 0d,
-                ["lastWorkStartTimeSeconds"] = svc?.LastWorkStartTimeSeconds ?? float.MinValue,
-                ["lastWorkEndTimeSeconds"] = svc?.LastWorkEndTimeSeconds ?? float.MinValue,
-                ["lastPomodoroTotalWorkHours"] = svc?.LastPomodoroTotalWorkHours ?? 0f,
+                ["lastWorkStartTimeSeconds"] = timerCore?.LastWorkStartTimeSeconds ?? svc?.LastWorkStartTimeSeconds ?? float.MinValue,
+                ["lastWorkEndTimeSeconds"] = timerCore?.LastWorkEndTimeSeconds ?? svc?.LastWorkEndTimeSeconds ?? float.MinValue,
+                ["lastPomodoroTotalWorkHours"] = timerCore?.LastTimerTotalWorkHours ?? 0f,
                 ["isLastFinishedMidway"] = svc?.IsLastPomodoroFinishedMidway ?? false
             };
         }
@@ -425,6 +432,18 @@ namespace ChillPatcher.Integration
             try
             {
                 return RoomLifetimeScope.Resolve<PomodoroService>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static TimerCoreService ResolveTimerCoreService()
+        {
+            try
+            {
+                return RoomLifetimeScope.Resolve<TimerCoreService>();
             }
             catch
             {
