@@ -98,18 +98,26 @@ static class SwatchBinBuilder
 
         int tw = targetInfo.Width;
         int th = targetInfo.Height;
+        int topMipSize = GetMipDataSize(tw, th, targetInfo.Format);
+        bool generateMipMaps = targetInfo.DataSize > topMipSize;
 
-        Console.WriteLine($"[swb] PNG loaded: {skBitmap.Width}x{skBitmap.Height} → resizing to {tw}x{th}");
+        Console.WriteLine($"[swb] PNG loaded: {skBitmap.Width}x{skBitmap.Height} -> resizing to {tw}x{th}");
+        Console.WriteLine($"[swb] Target data: {targetInfo.DataSize:N0} bytes, top mip: {topMipSize:N0} bytes, mipmaps={generateMipMaps}");
+
+        using var normalized = new SKBitmap(new SKImageInfo(skBitmap.Width, skBitmap.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using (var canvas = new SKCanvas(normalized))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(skBitmap, 0, 0);
+        }
 
         // Resize with SkiaSharp 3.x API (SKSamplingOptions instead of deprecated SKFilterQuality)
-        using var resized = skBitmap.Resize(new SKSizeI(tw, th), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        using var resized = normalized.Resize(new SKSizeI(tw, th), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
         if (resized == null)
             throw new InvalidOperationException("Resize failed");
 
         // Extract RGBA bytes
-        var rgba = new byte[tw * th * 4];
-        var ptr = resized.GetPixels();
-        System.Runtime.InteropServices.Marshal.Copy(ptr, rgba, 0, rgba.Length);
+        var rgba = CopyRgbaPixels(resized, tw, th);
 
         Console.WriteLine($"[swb] Extracted {rgba.Length:N0} RGBA bytes, compressing to {targetInfo.Format}...");
 
@@ -118,9 +126,9 @@ static class SwatchBinBuilder
         {
             OutputOptions =
             {
-                Quality = CompressionQuality.Fast,
+                Quality = CompressionQuality.BestQuality,
                 Format = targetInfo.Format,
-                GenerateMipMaps = true
+                GenerateMipMaps = generateMipMaps
             }
         };
 
@@ -139,7 +147,12 @@ static class SwatchBinBuilder
             offset += mip.Length;
         }
 
-        Console.WriteLine($"[swb] BC7: {allMips.Length} mip levels, {totalLen:N0} bytes total");
+        Console.WriteLine($"[swb] {targetInfo.Format}: {allMips.Length} mip level(s), {totalLen:N0} bytes total");
+        if (compressed.Length != targetInfo.DataSize)
+        {
+            throw new InvalidDataException(
+                $"Compressed data size mismatch: generated {compressed.Length:N0} bytes, target expects {targetInfo.DataSize:N0} bytes.");
+        }
 
         // Build swatchbin: header + compressed data
         int newTotalSize = targetInfo.HeaderSize + compressed.Length;
@@ -179,6 +192,39 @@ static class SwatchBinBuilder
                 return;
             }
         }
+    }
+
+    static int GetMipDataSize(int width, int height, CompressionFormat format)
+    {
+        int blockBytes = format == CompressionFormat.Bc1 ? 8 : 16;
+        int blocksWide = Math.Max(1, (width + 3) / 4);
+        int blocksHigh = Math.Max(1, (height + 3) / 4);
+        return blocksWide * blocksHigh * blockBytes;
+    }
+
+    static byte[] CopyRgbaPixels(SKBitmap bitmap, int width, int height)
+    {
+        int pixelBytes = width * 4;
+        int expectedBytes = pixelBytes * height;
+        var rgba = new byte[expectedBytes];
+        var ptr = bitmap.GetPixels();
+        if (ptr == IntPtr.Zero)
+            throw new InvalidOperationException("Failed to access resized pixels");
+
+        int rowBytes = bitmap.RowBytes;
+        if (rowBytes == pixelBytes)
+        {
+            System.Runtime.InteropServices.Marshal.Copy(ptr, rgba, 0, expectedBytes);
+            return rgba;
+        }
+
+        var source = new byte[rowBytes * height];
+        System.Runtime.InteropServices.Marshal.Copy(ptr, source, 0, source.Length);
+        for (int row = 0; row < height; row++)
+        {
+            Buffer.BlockCopy(source, row * rowBytes, rgba, row * pixelBytes, pixelBytes);
+        }
+        return rgba;
     }
 
     static void WriteU32(byte[] buf, int off, uint val) => BitConverter.GetBytes(val).CopyTo(buf, off);

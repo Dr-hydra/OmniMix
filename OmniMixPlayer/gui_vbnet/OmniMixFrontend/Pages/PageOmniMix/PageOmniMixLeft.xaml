@@ -256,6 +256,14 @@
                                        VerticalAlignment="Top"
                                        Title="使用说明"
                                        IsScaleAnimationEnabled="False" />
+                    <local:MyListItem x:Name="ItemAboutFeedback"
+                                       Type="RadioBox"
+                                       Tag="feedback"
+                                       MinPaddingRight="35"
+                                       Height="36"
+                                       VerticalAlignment="Top"
+                                       Title="问题反馈"
+                                       IsScaleAnimationEnabled="False" />
                 </StackPanel>
             </StackPanel>
         </local:MyScrollViewer>

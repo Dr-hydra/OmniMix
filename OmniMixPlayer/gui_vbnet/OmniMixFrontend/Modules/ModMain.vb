@@ -550,7 +550,7 @@ EndHint:
                                                            "你也可以加入 QQ 群 851586605 进行反馈。", "反馈提交提醒", "打开文件夹", "不需要") = 1) Then
             OpenExplorer(PathExeFolder & "OmniMixPlayer\Log1.txt")
         End If
-        OpenWebsite("https://github.com/Dr-hydra/OmniMix-VBNet-Frontend/issues/")
+        OpenWebsite("https://github.com/Dr-hydra/OmniMix/issues/")
     End Sub
     ''' <summary>
     ''' 在日志中输出系统诊断信息。

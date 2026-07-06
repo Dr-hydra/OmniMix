@@ -121,8 +121,11 @@
   <PropertyGroup>
     <SteamLibraryRoot Condition="'$(SteamLibraryRoot)' == ''">$(CHILL_STEAM_LIBRARY)</SteamLibraryRoot>
     <SteamLibraryRoot Condition="'$(SteamLibraryRoot)' == ''">F:\SteamLibrary</SteamLibraryRoot>
+    <RepositoryBepInExCorePath>$(MSBuildThisFileDirectory)lib\BepInEx\core</RepositoryBepInExCorePath>
     <GamePath>$(SteamLibraryRoot)\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed</GamePath>
-    <BepInExCorePath>$(SteamLibraryRoot)\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\BepInEx\core</BepInExCorePath>
+    <BepInExCorePath Condition="'$(BepInExCorePath)' == '' And '$(CHILL_BEPINEX_CORE)' != ''">$(CHILL_BEPINEX_CORE)</BepInExCorePath>
+    <BepInExCorePath Condition="'$(BepInExCorePath)' == '' And Exists('$(RepositoryBepInExCorePath)\0Harmony.dll') And Exists('$(RepositoryBepInExCorePath)\BepInEx.dll')">$(RepositoryBepInExCorePath)</BepInExCorePath>
+    <BepInExCorePath Condition="'$(BepInExCorePath)' == ''">$(SteamLibraryRoot)\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\BepInEx\core</BepInExCorePath>
   </PropertyGroup>
 
   <ItemGroup>

@@ -46,11 +46,17 @@ namespace OmniMixPlayer.Backend
         public static async Task Main(string[] args)
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
-            var builder = WebApplication.CreateBuilder(args);
+            var applicationDirectory = RuntimePaths.ApplicationDirectory;
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                ContentRootPath = applicationDirectory,
+                WebRootPath = Path.Combine(applicationDirectory, "wwwroot")
+            });
 
             var logOptions = new OmniMixFileLoggerOptions
             {
-                LogRoot = Path.Combine(AppContext.BaseDirectory, "logs"),
+                LogRoot = RuntimePaths.LogsDirectory,
                 BackendMinimumLevel = LogLevel.Information,
                 ModuleMinimumLevel = LogLevel.Warning,
                 MaxFileBytes = 10L * 1024 * 1024,
@@ -69,7 +75,7 @@ namespace OmniMixPlayer.Backend
             builder.Host.UseWindowsService();
             builder.Host.UseSystemd();
 
-            var pluginPath = AppContext.BaseDirectory;
+            var pluginPath = applicationDirectory;
             var modulesPath = Path.Combine(pluginPath, "modules");
             var configDir = Path.Combine(pluginPath, "config");
 

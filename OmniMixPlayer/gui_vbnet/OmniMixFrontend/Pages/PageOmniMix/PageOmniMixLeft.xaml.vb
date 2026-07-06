@@ -704,7 +704,7 @@ Public Class PageOmniMixLeft
         CurrentRight.SetSettingsPane(sender.Tag.ToString())
     End Sub
 
-    Private Sub AboutNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemAboutOverview.Check, ItemAboutUsage.Check
+    Private Sub AboutNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemAboutOverview.Check, ItemAboutUsage.Check, ItemAboutFeedback.Check
         If CurrentRight Is Nothing OrElse sender.Tag Is Nothing Then Return
         CurrentRight.SetAboutPane(sender.Tag.ToString())
     End Sub

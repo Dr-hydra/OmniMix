@@ -215,8 +215,15 @@ Public Module OmniMixModDeploymentService
         Public Property SelectedRoot As String = ""
         Public Property RuntimeDir As String = ""
         Public Property MediaRoot As String = ""
+        Public Property MediaDir As String = ""
         Public Property ConfigDir As String = ""
         Public Property MarkerDir As String = ""
+    End Class
+
+    Private Class OmniMixMediaDirCandidate
+        Public Property RootDir As String = ""
+        Public Property MediaDir As String = ""
+        Public Property Score As Integer
     End Class
 
     Private Function ResolveGameInstallLayout(GamePath As String, Game As OmniMixGameDeclaration) As OmniMixGameInstallLayout
@@ -224,6 +231,7 @@ Public Module OmniMixModDeploymentService
             .SelectedRoot = If(GamePath, ""),
             .RuntimeDir = If(GamePath, ""),
             .MediaRoot = If(GamePath, ""),
+            .MediaDir = "",
             .ConfigDir = If(GamePath, ""),
             .MarkerDir = If(GamePath, "")
         }
@@ -235,14 +243,16 @@ Public Module OmniMixModDeploymentService
                 Dim RootExePath = Path.Combine(GamePath, Game.ExeName)
                 Dim ContentDir = Path.Combine(GamePath, "Content")
                 Dim ContentExePath = Path.Combine(ContentDir, Game.ExeName)
-                Dim RootMediaDir = ResolveExistingMediaDir(GamePath)
+                Dim RootMedia = ResolveBestMediaDir(GamePath)
+                Dim ContentMedia = ResolveBestMediaDir(ContentDir)
                 Dim ParentDir = Directory.GetParent(GamePath)?.FullName
-                Dim ParentMediaDir = ResolveExistingMediaDir(ParentDir)
+                Dim ParentMedia = ResolveBestMediaDir(ParentDir)
 
-                If File.Exists(ContentExePath) AndAlso Not String.IsNullOrWhiteSpace(RootMediaDir) Then
+                If File.Exists(ContentExePath) Then
+                    Dim Media = PickBestMediaDir(RootMedia, ContentMedia)
                     Layout.Kind = "xbox"
                     Layout.RuntimeDir = ContentDir
-                    Layout.MediaRoot = GamePath
+                    ApplyMediaLayout(Layout, Media, If(Media Is Nothing, GamePath, Media.RootDir))
                     Layout.ConfigDir = If(File.Exists(Path.Combine(ContentDir, "MicrosoftGame.Config")), ContentDir, GamePath)
                     Layout.MarkerDir = ContentDir
                     Layout.IsValid = True
@@ -251,22 +261,22 @@ Public Module OmniMixModDeploymentService
 
                 If File.Exists(RootExePath) AndAlso
                    String.Equals(Path.GetFileName(GamePath.TrimEnd("\"c, "/"c)), "Content", StringComparison.OrdinalIgnoreCase) AndAlso
-                   Not String.IsNullOrWhiteSpace(ParentDir) AndAlso
-                   Not String.IsNullOrWhiteSpace(ParentMediaDir) Then
+                   Not String.IsNullOrWhiteSpace(ParentDir) Then
+                    Dim Media = PickBestMediaDir(ResolveBestMediaDir(GamePath), ParentMedia)
                     Layout.Kind = "xbox"
                     Layout.SelectedRoot = ParentDir
                     Layout.RuntimeDir = GamePath
-                    Layout.MediaRoot = ParentDir
+                    ApplyMediaLayout(Layout, Media, If(Media Is Nothing, ParentDir, Media.RootDir))
                     Layout.ConfigDir = If(File.Exists(Path.Combine(GamePath, "MicrosoftGame.Config")), GamePath, ParentDir)
                     Layout.MarkerDir = GamePath
                     Layout.IsValid = True
                     Return Layout
                 End If
 
-                If File.Exists(RootExePath) AndAlso Not String.IsNullOrWhiteSpace(RootMediaDir) Then
+                If File.Exists(RootExePath) AndAlso RootMedia IsNot Nothing Then
                     Layout.Kind = "steam"
                     Layout.RuntimeDir = GamePath
-                    Layout.MediaRoot = GamePath
+                    ApplyMediaLayout(Layout, RootMedia, GamePath)
                     Layout.ConfigDir = GamePath
                     Layout.MarkerDir = GamePath
                     Layout.IsValid = True
@@ -277,6 +287,7 @@ Public Module OmniMixModDeploymentService
                     Layout.Kind = "steam"
                     Layout.RuntimeDir = GamePath
                     Layout.MediaRoot = GamePath
+                    Layout.MediaDir = ""
                     Layout.ConfigDir = GamePath
                     Layout.MarkerDir = GamePath
                     Layout.IsValid = True
@@ -294,6 +305,55 @@ Public Module OmniMixModDeploymentService
         Catch
         End Try
         Return Layout
+    End Function
+
+    Private Sub ApplyMediaLayout(Layout As OmniMixGameInstallLayout, Media As OmniMixMediaDirCandidate, FallbackRoot As String)
+        If Media IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(Media.MediaDir) Then
+            Layout.MediaRoot = Media.RootDir
+            Layout.MediaDir = Media.MediaDir
+        Else
+            Layout.MediaRoot = If(FallbackRoot, "")
+            Layout.MediaDir = ""
+        End If
+    End Sub
+
+    Private Function PickBestMediaDir(ParamArray Candidates() As OmniMixMediaDirCandidate) As OmniMixMediaDirCandidate
+        Return Candidates.
+            Where(Function(Item) Item IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(Item.MediaDir)).
+            OrderByDescending(Function(Item) Item.Score).
+            FirstOrDefault()
+    End Function
+
+    Private Function ResolveBestMediaDir(BaseDir As String) As OmniMixMediaDirCandidate
+        If String.IsNullOrWhiteSpace(BaseDir) OrElse Not Directory.Exists(BaseDir) Then Return Nothing
+        Dim Candidates = New List(Of String) From {
+            Path.Combine(BaseDir, "media"),
+            Path.Combine(BaseDir, "Media")
+        }
+        Return Candidates.
+            Where(Function(Dir) Directory.Exists(Dir)).
+            Select(Function(Dir) New OmniMixMediaDirCandidate With {
+                .RootDir = BaseDir,
+                .MediaDir = Dir,
+                .Score = GetMediaDirScore(Dir)
+            }).
+            OrderByDescending(Function(Item) Item.Score).
+            FirstOrDefault()
+    End Function
+
+    Private Function GetMediaDirScore(MediaDir As String) As Integer
+        If String.IsNullOrWhiteSpace(MediaDir) OrElse Not Directory.Exists(MediaDir) Then Return 0
+        Dim Score = 10
+        Dim TypicalFiles = {
+            Path.Combine("UI", "Textures", "Anthem.zip"),
+            Path.Combine("UI", "Textures", "HiRes", "Anthem.zip"),
+            Path.Combine("Audio", "RadioInfo_EN.xml"),
+            Path.Combine("Audio", "RadioInfo_CN.xml")
+        }
+        For Each Relative In TypicalFiles
+            If File.Exists(Path.Combine(MediaDir, Relative)) Then Score += 20
+        Next
+        Return Score
     End Function
 
     Private Function ResolveExistingMediaDir(BaseDir As String) As String
@@ -334,12 +394,43 @@ Public Module OmniMixModDeploymentService
         Return GamePath
     End Function
 
+    Private Function ResolveMediaDir(GamePath As String) As String
+        Dim Game = GetGame("forza_horizon_6")
+        Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+        If Layout.IsValid Then Return Layout.MediaDir
+        Return ResolveExistingMediaDir(GamePath)
+    End Function
+
+    Private Function FormatLayoutPath(Layout As OmniMixGameInstallLayout, PathValue As String) As String
+        If Layout Is Nothing OrElse String.IsNullOrWhiteSpace(PathValue) Then Return "未找到"
+        Try
+            Dim BasePath = If(Not String.IsNullOrWhiteSpace(Layout.SelectedRoot), Layout.SelectedRoot, Layout.RuntimeDir)
+            If Not String.IsNullOrWhiteSpace(BasePath) Then
+                Dim Relative = Path.GetRelativePath(BasePath, PathValue)
+                If Not String.IsNullOrWhiteSpace(Relative) AndAlso Not Relative.StartsWith(".." & Path.DirectorySeparatorChar, StringComparison.Ordinal) AndAlso
+                   Not String.Equals(Relative, "..", StringComparison.Ordinal) Then
+                    If String.Equals(Relative, ".", StringComparison.Ordinal) Then Return "."
+                    Return Relative
+                End If
+            End If
+        Catch
+        End Try
+        Return PathValue
+    End Function
+
     Public Function GetGameInstallLayoutDescription(GamePath As String, Game As OmniMixGameDeclaration) As String
         Dim Layout = ResolveGameInstallLayout(GamePath, Game)
         If Not Layout.IsValid Then Return ""
-        If String.Equals(Layout.Kind, "xbox", StringComparison.OrdinalIgnoreCase) Then Return "Xbox 版结构"
-        If String.Equals(Layout.Kind, "steam", StringComparison.OrdinalIgnoreCase) Then Return "Steam 版结构"
-        Return "标准结构"
+        Dim KindName = "标准结构"
+        If String.Equals(Layout.Kind, "xbox", StringComparison.OrdinalIgnoreCase) Then
+            KindName = "Xbox 版结构"
+        ElseIf String.Equals(Layout.Kind, "steam", StringComparison.OrdinalIgnoreCase) Then
+            KindName = "Steam 版结构"
+        End If
+        If String.Equals(Game?.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
+            Return $"{KindName}（运行目录 {FormatLayoutPath(Layout, Layout.RuntimeDir)}；媒体目录 {FormatLayoutPath(Layout, Layout.MediaDir)}）"
+        End If
+        Return KindName
     End Function
 
     Public Function VerifyGameDirectory(GamePath As String, Game As OmniMixGameDeclaration) As Boolean
@@ -1042,7 +1133,9 @@ Public Module OmniMixModDeploymentService
     Public Function CheckMediaUiReplaced(GamePath As String) As Boolean
         If String.IsNullOrWhiteSpace(GamePath) Then Return False
         Try
-            Dim MarkerPath = Path.Combine(ResolveMediaRoot(GamePath), ".omnimix_mods", "media_ui_replaced.managed")
+            Dim MediaRoot = ResolveMediaRoot(GamePath)
+            If String.IsNullOrWhiteSpace(MediaRoot) OrElse Not Directory.Exists(MediaRoot) Then Return False
+            Dim MarkerPath = Path.Combine(MediaRoot, ".omnimix_mods", "media_ui_replaced.managed")
             Return File.Exists(MarkerPath)
         Catch
             Return False
@@ -1057,11 +1150,15 @@ Public Module OmniMixModDeploymentService
                 Return False
             End If
             Dim MediaRoot = ResolveMediaRoot(GamePath)
-            Dim MediaDirName = GetMediaDirectoryName(MediaRoot)
-            If String.IsNullOrWhiteSpace(MediaRoot) OrElse Not Directory.Exists(MediaRoot) Then
-                AddLog(Logs, "错误：无法识别游戏媒体目录。")
+            Dim MediaDir = ResolveMediaDir(GamePath)
+            If String.IsNullOrWhiteSpace(MediaRoot) OrElse Not Directory.Exists(MediaRoot) OrElse
+               String.IsNullOrWhiteSpace(MediaDir) OrElse Not Directory.Exists(MediaDir) Then
+                AddLog(Logs, "错误：无法识别游戏媒体目录，请确认游戏目录中存在 media 文件夹。")
                 Return False
             End If
+            Dim MediaDirName = Path.GetFileName(MediaDir.TrimEnd("\"c, "/"c))
+            AddLog(Logs, "已识别媒体根目录：" & MediaRoot)
+            AddLog(Logs, "已识别媒体目录：" & MediaDir)
 
             Dim MediaGenPath = ResolveMediaGenPath()
             If String.IsNullOrWhiteSpace(MediaGenPath) Then
@@ -1180,6 +1277,10 @@ Public Module OmniMixModDeploymentService
                 Return False
             End If
             Dim MediaRoot = ResolveMediaRoot(GamePath)
+            If String.IsNullOrWhiteSpace(MediaRoot) OrElse Not Directory.Exists(MediaRoot) Then
+                AddLog(Logs, "错误：无法识别游戏媒体目录。")
+                Return False
+            End If
 
             Dim BackupDir = Path.Combine(MediaRoot, ".omnimix_backup", "media_original")
             If Not Directory.Exists(BackupDir) Then
@@ -1211,12 +1312,26 @@ Public Module OmniMixModDeploymentService
         End Try
     End Function
 
+    Public Function GetFh6RaceStartPlaybackConfigPath(GamePath As String) As String
+        If String.IsNullOrWhiteSpace(GamePath) Then Return ""
+        Try
+            Dim Game = GetGame("forza_horizon_6")
+            Dim Layout = ResolveGameInstallLayout(GamePath, Game)
+            Dim RuntimeDir = If(Layout.IsValid AndAlso Not String.IsNullOrWhiteSpace(Layout.RuntimeDir), Layout.RuntimeDir, GamePath)
+            Return Path.Combine(RuntimeDir, "fh6-omnimix", "race_start_playback.txt")
+        Catch
+            Return Path.Combine(GamePath, "fh6-omnimix", "race_start_playback.txt")
+        End Try
+    End Function
+
     Public Sub WriteFh6RaceStartPlaybackConfig(GamePath As String, ConfigValue As String)
         If String.IsNullOrWhiteSpace(GamePath) OrElse Not Directory.Exists(GamePath) Then Return
         Try
-            Dim ConfigDir = Path.Combine(GamePath, "fh6-omnimix")
+            Dim ConfigPath = GetFh6RaceStartPlaybackConfigPath(GamePath)
+            If String.IsNullOrWhiteSpace(ConfigPath) Then Return
+            Dim ConfigDir = Path.GetDirectoryName(ConfigPath)
             If Not Directory.Exists(ConfigDir) Then Directory.CreateDirectory(ConfigDir)
-            File.WriteAllText(Path.Combine(ConfigDir, "race_start_playback.txt"), ConfigValue, Encoding.UTF8)
+            File.WriteAllText(ConfigPath, ConfigValue, Encoding.UTF8)
             Logger.Info("已成功写入 FH6 比赛播放行为配置: " & ConfigValue)
         Catch Ex As Exception
             Logger.Warn(Ex, "写入 FH6 比赛播放行为配置异常")

@@ -331,6 +331,9 @@
                                FontSize="13"
                                Foreground="{DynamicResource ColorBrush2}"
                                Margin="0,0,0,10" />
+                    <local:MySearchBox x:Name="SearchLibrary"
+                                       HintText="搜索歌曲、歌手、专辑、歌单或来源"
+                                       Margin="0,0,0,12" />
                     <TextBlock x:Name="LabPlaylistSourcesSummary"
                                Text=""
                                TextWrapping="Wrap"
@@ -1236,9 +1239,15 @@
                                    TextWrapping="Wrap"
                                    FontSize="12"
                                    Foreground="{DynamicResource ColorBrushGray3}"
-                                   Margin="0,0,0,14" />
+                                   Margin="0,0,0,10" />
+                        <WrapPanel Margin="0,0,0,14">
+                            <local:MyTextButton x:Name="BtnAboutRepository"
+                                                Text="打开项目仓库"
+                                                Padding="9,5,9,5"
+                                                Margin="0,0,10,8" />
+                        </WrapPanel>
                         <local:MyListItem Title="当前组件"
-                                          Info="桌面前端 4.1.2；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷狗、酷我模块 2.0.0。"
+                                          Info="桌面前端 4.2.1；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="播放与队列"
@@ -1282,7 +1291,7 @@
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="音源与登录"
-                                          Info="部分在线音源需要在音源管理页面完成登录或授权。网易云、QQ音乐、酷狗和酷我已按 2.0.0 模块更新；若连续多首歌曲无法播放，优先检查账号状态、会员权限和平台版权限制。"
+                                          Info="部分在线音源需要在音源管理页面完成登录或授权。网易云、QQ音乐、酷我已按 2.0.0 模块更新，酷狗已按 2.0.1 模块更新；若连续多首歌曲无法播放，优先检查账号状态、会员权限和平台版权限制。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="歌词与悬浮窗"
@@ -1318,6 +1327,43 @@
                                           Info="卸载前请先在游戏集成页面移除桥接组件；如果游戏内无法连接、歌曲信息不同步或仍显示旧版本，可使用修复实例绑定或重新安装集成。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,0" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="CardAboutFeedback" Visibility="Collapsed">
+                        <TextBlock Text="问题反馈"
+                                   TextWrapping="Wrap"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource ColorBrush2}"
+                                   Margin="0,0,0,8" />
+                        <TextBlock Text="反馈时请尽量说明复现步骤、当前版本、使用的音源模块、是否启用了桌面播放器或游戏集成，并附上压缩后的日志。"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ColorBrushGray3}"
+                                   Margin="0,0,0,10" />
+                        <local:MyListItem Title="QQ群"
+                                          Info="851586605"
+                                          IsHitTestVisible="False"
+                                          Margin="-5,0,0,2" />
+                        <local:MyListItem Title="GitHub Issues"
+                                          Info="https://github.com/Dr-hydra/OmniMix/issues"
+                                          IsHitTestVisible="False"
+                                          Margin="-5,0,0,12" />
+                        <WrapPanel Margin="0,0,0,10">
+                            <local:MyTextButton x:Name="BtnFeedbackGithub"
+                                                Text="打开 GitHub Issues"
+                                                Padding="9,5,9,5"
+                                                Margin="0,0,10,8" />
+                            <local:MyTextButton x:Name="BtnFeedbackCompressLogs"
+                                                Text="一键压缩日志"
+                                                Padding="9,5,9,5"
+                                                Margin="0,0,10,8" />
+                        </WrapPanel>
+                        <TextBlock x:Name="LabFeedbackLogStatus"
+                                   Text="日志压缩包会生成到 AppData\Roaming\OmniMixPlayer\feedback。"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ColorBrushGray3}"
+                                   Margin="0,0,0,0" />
                     </StackPanel>
                 </StackPanel>
             </local:MyCard>

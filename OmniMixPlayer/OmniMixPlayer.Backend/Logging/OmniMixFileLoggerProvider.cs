@@ -204,7 +204,7 @@ namespace OmniMixPlayer.Backend.Logging
 
     public sealed class OmniMixFileLoggerOptions
     {
-        public string LogRoot { get; init; } = Path.Combine(AppContext.BaseDirectory, "logs");
+        public string LogRoot { get; init; } = RuntimePaths.LogsDirectory;
         public LogLevel BackendMinimumLevel { get; init; } = LogLevel.Information;
         public LogLevel ModuleMinimumLevel { get; init; } = LogLevel.Warning;
         public long MaxFileBytes { get; init; } = 10L * 1024 * 1024;

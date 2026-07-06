@@ -156,7 +156,7 @@ Public Class FormMain
 
         AniStart()
         TimerMainStart()
-        ShowOmniMixFloatingPlaybackWindow(False)
+        ApplyOmniMixFloatingPlaybackWindowSettings()
         Logger.Info("OmniMix GUI 已启动。")
         Logger.Info($"第三阶段加载用时：{GetTimeMs() - ApplicationStartTick} ms")
 
@@ -300,9 +300,9 @@ Public Class FormMain
         RunInUi(
         Sub()
             If OmniMixFloatingPlaybackWindow IsNot Nothing AndAlso OmniMixFloatingPlaybackWindow.IsVisible Then
-                OmniMixFloatingPlaybackWindow.Hide()
+                Settings.Set("OmniMixFloatingWindowVisible", False)
             Else
-                ShowOmniMixFloatingPlaybackWindow(True)
+                Settings.Set("OmniMixFloatingWindowVisible", True)
             End If
         End Sub)
     End Sub

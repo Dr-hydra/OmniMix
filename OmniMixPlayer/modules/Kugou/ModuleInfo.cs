@@ -4,7 +4,7 @@ namespace OmniMixPlayer.Module.Kugou
     {
         public const string MODULE_ID = "com.chillpatcher.kugou";
         public const string MODULE_NAME = "酷狗音乐";
-        public const string MODULE_VERSION = "2.0.0";
+        public const string MODULE_VERSION = "2.0.1";
         public const string MODULE_AUTHOR = "ChillPatcher";
         public const string MODULE_DESCRIPTION = "Kugou public music search and streaming integration";
     }

@@ -111,6 +111,7 @@ PLAYER_MODULE_MAP = [
     ("Kugou", "com.chillpatcher.kugou"),
     ("Kuwo", "com.chillpatcher.kuwo"),
     ("Spotify", "com.chillpatcher.spotify"),
+    ("YouTubeMusic", "com.chillpatcher.youtubemusic"),
 ]
 
 FH6_DIR = ROOT / "mods" / "ForzaHorizon6OmniBridge"

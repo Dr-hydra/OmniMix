@@ -1,4 +1,5 @@
 Imports System.Globalization
+Imports System.IO.Compression
 Imports System.Text.Json
 Imports System.Windows.Media
 Imports System.Windows.Shapes
@@ -23,6 +24,7 @@ Public Class PageOmniMixRight
     Private CurrentModulesPane As String = "launchpad"
     Private PreviousModulesPaneForDetail As String = "launchpad"
     Private CurrentLibraryPane As String = ""
+    Private CurrentLibrarySearchText As String = ""
     Private CurrentLibraryPlaylist As OmniMixPlaylistData = New OmniMixPlaylistData()
     Private CurrentLibraryTagSongs As Dictionary(Of String, List(Of OmniMixSongInfo)) = New Dictionary(Of String, List(Of OmniMixSongInfo))(StringComparer.OrdinalIgnoreCase)
     Private IsRefreshingLibraryCache As Boolean = False
@@ -45,6 +47,7 @@ Public Class PageOmniMixRight
     Private ReadOnly WsClient As New OmniMixWsClient()
     Private ReadOnly ExpandedLibraryAlbums As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Private ReadOnly PlaybackAutoRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(1)}
+    Private ReadOnly LibrarySearchDebounceTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromMilliseconds(220)}
     Private IsAutoRefreshingPlayback As Boolean = False
     Private CurrentQueueRenderKey As String = ""
     Private CurrentHomeLyricUuid As String = ""
@@ -56,6 +59,8 @@ Public Class PageOmniMixRight
     Private Const IconPlus As String = "M448 128h128v320h320v128H576v320H448V576H128V448h320z"
     Private Const IconExpandDown As String = "M192 352h640L512 704z"
     Private Const IconExpandUp As String = "M192 672h640L512 320z"
+    Private Const OmniMixRepositoryUrl As String = "https://github.com/Dr-hydra/OmniMix"
+    Private Const OmniMixIssuesUrl As String = "https://github.com/Dr-hydra/OmniMix/issues"
     Private Const EqualizerPlotLeft As Double = 46
     Private Const EqualizerPlotRight As Double = 18
     Private Const EqualizerPlotTop As Double = 18
@@ -252,10 +257,12 @@ Public Class PageOmniMixRight
 
         Dim ShowOverview = String.Equals(CurrentAboutPane, "overview", StringComparison.OrdinalIgnoreCase)
         Dim ShowUsage = String.Equals(CurrentAboutPane, "usage", StringComparison.OrdinalIgnoreCase)
+        Dim ShowFeedback = String.Equals(CurrentAboutPane, "feedback", StringComparison.OrdinalIgnoreCase)
 
-        CardAbout.Title = If(ShowUsage, "关于 - 使用说明", "关于 - 项目介绍")
+        CardAbout.Title = If(ShowFeedback, "关于 - 问题反馈", If(ShowUsage, "关于 - 使用说明", "关于 - 项目介绍"))
         CardAboutOverview.Visibility = If(ShowOverview, Visibility.Visible, Visibility.Collapsed)
         CardAboutUsage.Visibility = If(ShowUsage, Visibility.Visible, Visibility.Collapsed)
+        CardAboutFeedback.Visibility = If(ShowFeedback, Visibility.Visible, Visibility.Collapsed)
     End Sub
 
     Private Async Sub PageOmniMixRight_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
@@ -264,8 +271,13 @@ Public Class PageOmniMixRight
         CheckCloseBackendWithGui.Checked = Settings.Get(Of Boolean)("OmniMixCloseBackendWithGui")
         RemoveHandler CheckCloseBackendWithGui.Change, AddressOf CheckCloseBackendWithGui_Change
         AddHandler CheckCloseBackendWithGui.Change, AddressOf CheckCloseBackendWithGui_Change
+        CheckDesktopPlayerEnabled.Checked = Settings.Get(Of Boolean)("OmniMixDesktopPlayerEnabled")
+        RemoveHandler CheckDesktopPlayerEnabled.Change, AddressOf CheckDesktopPlayerEnabled_Change
+        AddHandler CheckDesktopPlayerEnabled.Change, AddressOf CheckDesktopPlayerEnabled_Change
         RemoveHandler PlaybackAutoRefreshTimer.Tick, AddressOf PlaybackAutoRefreshTimer_Tick
         AddHandler PlaybackAutoRefreshTimer.Tick, AddressOf PlaybackAutoRefreshTimer_Tick
+        RemoveHandler LibrarySearchDebounceTimer.Tick, AddressOf LibrarySearchDebounceTimer_Tick
+        AddHandler LibrarySearchDebounceTimer.Tick, AddressOf LibrarySearchDebounceTimer_Tick
         RemoveHandler WsClient.MessageReceived, AddressOf WsClient_MessageReceived
         AddHandler WsClient.MessageReceived, AddressOf WsClient_MessageReceived
         If PageKey = "Home" Then UpdateHomePaneSelection()
@@ -281,8 +293,19 @@ Public Class PageOmniMixRight
         If user Then Settings.Set("OmniMixCloseBackendWithGui", CheckCloseBackendWithGui.Checked)
     End Sub
 
+    Private Sub CheckDesktopPlayerEnabled_Change(sender As Object, user As Boolean)
+        If Not user Then Return
+        Settings.Set("OmniMixDesktopPlayerEnabled", CheckDesktopPlayerEnabled.Checked)
+        If CheckDesktopPlayerEnabled.Checked Then
+            If Not String.IsNullOrWhiteSpace(CurrentBaseUrl) Then OmniMixDesktopPlayerService.EnsureConnected(CurrentBaseUrl)
+        Else
+            OmniMixDesktopPlayerService.Disconnect()
+        End If
+    End Sub
+
     Private Sub PageOmniMixRight_Unloaded(sender As Object, e As RoutedEventArgs) Handles Me.Unloaded
         PlaybackAutoRefreshTimer.Stop()
+        LibrarySearchDebounceTimer.Stop()
         RemoveHandler WsClient.MessageReceived, AddressOf WsClient_MessageReceived
     End Sub
 
@@ -1237,6 +1260,159 @@ Public Class PageOmniMixRight
 
         FrmMain?.SetOmniMixConnectionStatus(False)
         LabServiceSummary.Text = LabServiceSummary.Text & vbCrLf & "服务启动后暂未发现 /api/health，可稍后刷新。"
+    End Function
+
+    Private Sub BtnAboutRepository_Click(sender As Object, e As EventArgs) Handles BtnAboutRepository.Click
+        OpenWebsite(OmniMixRepositoryUrl)
+    End Sub
+
+    Private Sub BtnFeedbackGithub_Click(sender As Object, e As EventArgs) Handles BtnFeedbackGithub.Click
+        OpenWebsite(OmniMixIssuesUrl)
+    End Sub
+
+    Private Sub BtnFeedbackCompressLogs_Click(sender As Object, e As EventArgs) Handles BtnFeedbackCompressLogs.Click
+        Try
+            LabFeedbackLogStatus.Text = "正在收集并压缩日志..."
+            Dim ArchivePath = CreateFeedbackLogArchive()
+            LabFeedbackLogStatus.Text = "日志压缩完成：" & ArchivePath
+            Hint("日志压缩完成。", HintType.Green)
+            OpenExplorer(ArchivePath)
+        Catch Ex As Exception
+            LabFeedbackLogStatus.Text = "日志压缩失败：" & Ex.Message
+            Hint("日志压缩失败。", HintType.Red)
+            Logger.Warn(Ex, "压缩反馈日志失败")
+        End Try
+    End Sub
+
+    Private Function CreateFeedbackLogArchive() As String
+        Dim OutputDir = IO.Path.Combine(PathAppdata, "feedback")
+        Directory.CreateDirectory(OutputDir)
+        Dim ArchivePath = IO.Path.Combine(OutputDir, "omnimix_logs_" & Date.Now.ToString("yyyyMMdd_HHmmss") & ".zip")
+        If File.Exists(ArchivePath) Then File.Delete(ArchivePath)
+
+        Dim UsedEntryNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        Dim SourceDirs = GetFeedbackLogSourceDirs()
+        Using Archive = ZipFile.Open(ArchivePath, ZipArchiveMode.Create)
+            WriteFeedbackDiagnostics(Archive, SourceDirs)
+            UsedEntryNames.Add("diagnostics.txt")
+            For Each Source In SourceDirs
+                AddLogDirectoryToArchive(Archive, Source.Item1, Source.Item2, UsedEntryNames)
+            Next
+        End Using
+
+        Return ArchivePath
+    End Function
+
+    Private Function GetFeedbackLogSourceDirs() As List(Of Tuple(Of String, String))
+        Dim Sources As New List(Of Tuple(Of String, String))
+        Dim Seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(PathExeFolder, "logs"), "app_logs")
+        AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(PathExeFolder, "OmniMixPlayer"), "legacy_gui_logs")
+        AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(PathAppdata, "logs"), "appdata_logs")
+        AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(PathAppdata, "mod_manager"), "mod_manager_logs")
+
+        Try
+            Dim BackendExe = OmniMixBackendManager.FindBackendExe()
+            If Not String.IsNullOrWhiteSpace(BackendExe) AndAlso File.Exists(BackendExe) Then
+                Dim BackendRoot = IO.Path.GetDirectoryName(BackendExe)
+                AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(BackendRoot, "logs"), "backend_logs")
+                AddFeedbackLogSource(Sources, Seen, IO.Path.Combine(BackendRoot, "modules"), "module_logs")
+            End If
+        Catch
+        End Try
+        Return Sources
+    End Function
+
+    Private Sub AddFeedbackLogSource(Sources As List(Of Tuple(Of String, String)), Seen As HashSet(Of String), Folder As String, Prefix As String)
+        Try
+            If String.IsNullOrWhiteSpace(Folder) OrElse Not Directory.Exists(Folder) Then Return
+            Dim FullPath = IO.Path.GetFullPath(Folder)
+            If Seen.Add(FullPath) Then Sources.Add(Tuple.Create(FullPath, Prefix))
+        Catch
+        End Try
+    End Sub
+
+    Private Sub WriteFeedbackDiagnostics(Archive As ZipArchive, SourceDirs As List(Of Tuple(Of String, String)))
+        Dim Entry = Archive.CreateEntry("diagnostics.txt", CompressionLevel.Fastest)
+        Using Writer As New StreamWriter(Entry.Open(), New System.Text.UTF8Encoding(False))
+            Writer.WriteLine("OmniMix feedback diagnostics")
+            Writer.WriteLine("GeneratedAt=" & Date.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"))
+            Writer.WriteLine("GuiVersion=4.2.1")
+            Writer.WriteLine("ExePath=" & PathExe)
+            Writer.WriteLine("ExeFolder=" & PathExeFolder)
+            Writer.WriteLine("AppData=" & PathAppdata)
+            Writer.WriteLine("CurrentBaseUrl=" & If(CurrentBaseUrl, ""))
+            Writer.WriteLine("DesktopPlayerEnabled=" & Settings.Get(Of Boolean)("OmniMixDesktopPlayerEnabled").ToString())
+            Writer.WriteLine("FloatingWindowVisible=" & Settings.Get(Of Boolean)("OmniMixFloatingWindowVisible").ToString())
+            Writer.WriteLine()
+            Writer.WriteLine("LogSources:")
+            For Each Source In SourceDirs
+                Writer.WriteLine(Source.Item2 & "=" & Source.Item1)
+            Next
+        End Using
+    End Sub
+
+    Private Sub AddLogDirectoryToArchive(Archive As ZipArchive, RootDir As String, Prefix As String, UsedEntryNames As HashSet(Of String))
+        Try
+            If String.IsNullOrWhiteSpace(RootDir) OrElse Not Directory.Exists(RootDir) Then Return
+            For Each FilePath In Directory.EnumerateFiles(RootDir, "*", SearchOption.AllDirectories)
+                If Not IsFeedbackLogFile(FilePath) Then Continue For
+                AddLogFileToArchive(Archive, RootDir, Prefix, FilePath, UsedEntryNames)
+            Next
+        Catch Ex As Exception
+            Logger.Warn(Ex, "收集日志目录失败：" & RootDir)
+        End Try
+    End Sub
+
+    Private Function IsFeedbackLogFile(FilePath As String) As Boolean
+        Try
+            Dim Info As New FileInfo(FilePath)
+            If Not Info.Exists Then Return False
+            If Info.Length <= 0 OrElse Info.Length > 25L * 1024L * 1024L Then Return False
+
+            Dim Name = Info.Name.ToLowerInvariant()
+            Dim Ext = Info.Extension.ToLowerInvariant()
+            If Ext = ".log" Then Return True
+            If Ext = ".txt" AndAlso (Name.StartsWith("log") OrElse Name.Contains("log") OrElse Name.Contains("debug")) Then Return True
+        Catch
+        End Try
+        Return False
+    End Function
+
+    Private Sub AddLogFileToArchive(Archive As ZipArchive, RootDir As String, Prefix As String, FilePath As String, UsedEntryNames As HashSet(Of String))
+        Try
+            Dim EntryName = BuildFeedbackLogEntryName(RootDir, Prefix, FilePath, UsedEntryNames)
+            Dim Entry = Archive.CreateEntry(EntryName, CompressionLevel.Optimal)
+            Using Input As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite Or FileShare.Delete)
+                Using Output = Entry.Open()
+                    Input.CopyTo(Output)
+                End Using
+            End Using
+        Catch Ex As Exception
+            Logger.Warn(Ex, "加入日志文件失败：" & FilePath)
+        End Try
+    End Sub
+
+    Private Function BuildFeedbackLogEntryName(RootDir As String, Prefix As String, FilePath As String, UsedEntryNames As HashSet(Of String)) As String
+        Dim RelativePath As String
+        Try
+            RelativePath = IO.Path.GetRelativePath(RootDir, FilePath)
+        Catch
+            RelativePath = IO.Path.GetFileName(FilePath)
+        End Try
+        RelativePath = RelativePath.Replace("\"c, "/"c).TrimStart("/"c)
+        Dim BaseName = Prefix.Trim("/"c) & "/" & RelativePath
+        Dim EntryName = BaseName
+        Dim Index = 2
+        While UsedEntryNames.Contains(EntryName)
+            Dim Dir = IO.Path.GetDirectoryName(BaseName)?.Replace("\"c, "/"c)
+            Dim Name = IO.Path.GetFileNameWithoutExtension(BaseName)
+            Dim Ext = IO.Path.GetExtension(BaseName)
+            EntryName = If(String.IsNullOrWhiteSpace(Dir), $"{Name}_{Index}{Ext}", $"{Dir}/{Name}_{Index}{Ext}")
+            Index += 1
+        End While
+        UsedEntryNames.Add(EntryName)
+        Return EntryName
     End Function
 
     Private Shared Function GetServiceStateText(State As OmniMixServiceState) As String
@@ -2850,8 +3026,7 @@ Public Class PageOmniMixRight
             If IsValidPath Then
                 Dim SavedVal = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
                 If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
-                Dim ConfigDir = System.IO.Path.Combine(GamePath, "fh6-omnimix")
-                Dim ConfigFile = System.IO.Path.Combine(ConfigDir, "race_start_playback.txt")
+                Dim ConfigFile = OmniMixModDeploymentService.GetFh6RaceStartPlaybackConfigPath(GamePath)
                 If Not System.IO.File.Exists(ConfigFile) Then
                     OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
                 End If
@@ -3730,6 +3905,17 @@ Public Class PageOmniMixRight
         End Try
     End Function
 
+    Private Sub SearchLibrary_TextChanged(sender As Object, e As EventArgs) Handles SearchLibrary.TextChanged
+        CurrentLibrarySearchText = If(SearchLibrary.Text, "").Trim()
+        LibrarySearchDebounceTimer.Stop()
+        LibrarySearchDebounceTimer.Start()
+    End Sub
+
+    Private Sub LibrarySearchDebounceTimer_Tick(sender As Object, e As EventArgs)
+        LibrarySearchDebounceTimer.Stop()
+        If PageKey = "Library" Then RenderLibrary()
+    End Sub
+
     Private Sub RenderLibrary()
         Dim Playlist = If(CurrentLibraryPlaylist, New OmniMixPlaylistData)
         Dim Albums = If(Playlist.Albums, New List(Of OmniMixAlbumInfo))
@@ -3737,6 +3923,9 @@ Public Class PageOmniMixRight
         Dim LibraryPlaylists = If(Playlist.Playlists, New List(Of OmniMixLibraryPlaylistInfo))
         Dim SelectedModuleId = If(CurrentLibraryPane, "")
         Dim HasSourceFilter = Not String.IsNullOrWhiteSpace(SelectedModuleId)
+        Dim SearchText = If(CurrentLibrarySearchText, "").Trim()
+        Dim SearchTokens = TokenizeLibrarySearchText(SearchText)
+        Dim IsSearching = SearchTokens.Count > 0
 
         PanLibraryList.Children.Clear()
 
@@ -3764,17 +3953,87 @@ Public Class PageOmniMixRight
             VisibleAlbums,
             VisibleSongs.Where(Function(Song) String.IsNullOrWhiteSpace(Song.Uuid) OrElse Not PlaylistSongUuids.Contains(Song.Uuid)).ToList()))
 
-        LabLibrarySummary.Text = $"{Groups.Count} 组，{VisibleSongs.Count} 首歌曲。"
+        Dim AlbumLookup = VisibleAlbums.
+            Where(Function(Album) Album IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(Album.Id)).
+            GroupBy(Function(Album) Album.Id, StringComparer.OrdinalIgnoreCase).
+            ToDictionary(Function(Group) Group.Key, Function(Group) Group.First(), StringComparer.OrdinalIgnoreCase)
+        If IsSearching Then Groups = FilterLibraryGroupsForSearch(Groups, SearchTokens, AlbumLookup)
+
+        Dim ResultSongCount = Groups.SelectMany(Function(Group) If(Group.Songs, New List(Of OmniMixSongInfo))).Select(Function(Song) If(Song.Uuid, "")).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)).Distinct(StringComparer.OrdinalIgnoreCase).Count()
+        If IsSearching Then
+            LabLibrarySummary.Text = "搜索""" & SearchText & """：" & Groups.Count & " 组，" & ResultSongCount & " 首歌曲。"
+        Else
+            LabLibrarySummary.Text = $"{Groups.Count} 组，{VisibleSongs.Count} 首歌曲。"
+        End If
 
         If Groups.Count = 0 Then
-            AddLibraryItem("这里还没有歌曲", "换一个来源，或等待对应模块加载完成。", 0)
+            AddLibraryItem(If(IsSearching, "没有匹配的歌曲", "这里还没有歌曲"), If(IsSearching, "换个关键词，或切换到全部来源后再搜索。", "换一个来源，或等待对应模块加载完成。"), 0)
             Return
         End If
 
         For Each Group In Groups
-            AddLibraryAlbumItem(Group)
+            AddLibraryAlbumItem(Group, IsSearching)
         Next
     End Sub
+
+    Private Shared Function TokenizeLibrarySearchText(SearchText As String) As List(Of String)
+        Return If(SearchText, "").
+            Trim().
+            ToLowerInvariant().
+            Split(New Char() {" "c, ControlChars.Tab}, StringSplitOptions.RemoveEmptyEntries).
+            Where(Function(Token) Not String.IsNullOrWhiteSpace(Token)).
+            ToList()
+    End Function
+
+    Private Function FilterLibraryGroupsForSearch(Groups As List(Of LibraryAlbumGroup), Tokens As List(Of String), AlbumLookup As Dictionary(Of String, OmniMixAlbumInfo)) As List(Of LibraryAlbumGroup)
+        Dim Result As New List(Of LibraryAlbumGroup)
+        For Each Group In If(Groups, New List(Of LibraryAlbumGroup))
+            If Group Is Nothing Then Continue For
+            Dim GroupMatches = MatchesLibrarySearch(BuildLibraryGroupSearchText(Group), Tokens)
+            Dim MatchedSongs = If(Group.Songs, New List(Of OmniMixSongInfo)).
+                Where(Function(Song) GroupMatches OrElse MatchesLibrarySearch(BuildLibrarySongSearchText(Song, AlbumLookup), Tokens)).
+                ToList()
+            If MatchedSongs.Count = 0 Then Continue For
+            Result.Add(New LibraryAlbumGroup With {
+                .GroupId = Group.GroupId,
+                .Name = Group.Name,
+                .ModuleId = Group.ModuleId,
+                .CoverPath = Group.CoverPath,
+                .Songs = MatchedSongs
+            })
+        Next
+        Return Result
+    End Function
+
+    Private Shared Function MatchesLibrarySearch(SearchText As String, Tokens As List(Of String)) As Boolean
+        Dim Haystack = If(SearchText, "").ToLowerInvariant()
+        Return If(Tokens, New List(Of String)).All(Function(Token) Haystack.Contains(Token))
+    End Function
+
+    Private Function BuildLibrarySongSearchText(Song As OmniMixSongInfo, AlbumLookup As Dictionary(Of String, OmniMixAlbumInfo)) As String
+        If Song Is Nothing Then Return ""
+        Dim Parts As New List(Of String) From {
+            Song.Title,
+            Song.Artist,
+            Song.Uuid,
+            Song.ModuleId,
+            Song.AlbumId
+        }
+        Dim Album As OmniMixAlbumInfo = Nothing
+        If Not String.IsNullOrWhiteSpace(Song.AlbumId) AndAlso AlbumLookup IsNot Nothing AndAlso AlbumLookup.TryGetValue(Song.AlbumId, Album) Then
+            Parts.Add(Album.Name)
+        End If
+        Return String.Join(" ", Parts.Where(Function(Part) Not String.IsNullOrWhiteSpace(Part)))
+    End Function
+
+    Private Shared Function BuildLibraryGroupSearchText(Group As LibraryAlbumGroup) As String
+        If Group Is Nothing Then Return ""
+        Return String.Join(" ", New String() {
+            Group.Name,
+            Group.GroupId,
+            Group.ModuleId
+        }.Where(Function(Part) Not String.IsNullOrWhiteSpace(Part)))
+    End Function
 
     Private Function MergeLibraryTagSongs(Songs As List(Of OmniMixSongInfo), SelectedModuleId As String) As List(Of OmniMixSongInfo)
         Dim Result = If(Songs, New List(Of OmniMixSongInfo)).ToList()
@@ -3895,8 +4154,8 @@ Public Class PageOmniMixRight
         If Not GroupSongs.Any(Function(Item) String.Equals(Item.Uuid, Song.Uuid, StringComparison.OrdinalIgnoreCase)) Then GroupSongs.Add(Song)
     End Sub
 
-    Private Sub AddLibraryAlbumItem(Group As LibraryAlbumGroup)
-        Dim IsExpanded = ExpandedLibraryAlbums.Contains(Group.GroupId)
+    Private Sub AddLibraryAlbumItem(Group As LibraryAlbumGroup, Optional ForceExpanded As Boolean = False)
+        Dim IsExpanded = ForceExpanded OrElse ExpandedLibraryAlbums.Contains(Group.GroupId)
         Dim SongUuids = Group.Songs.Select(Function(Song) Song.Uuid).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)).ToList()
         Dim Item As New MyListItem With {
             .Title = NonEmpty(Group.Name, Group.GroupId),
@@ -3914,7 +4173,7 @@ Public Class PageOmniMixRight
         Dim ExpandButton As New MyIconButton With {
             .Logo = If(IsExpanded, IconExpandUp, IconExpandDown),
             .LogoScale = 0.8,
-            .ToolTip = If(IsExpanded, "收起", "展开"),
+            .ToolTip = If(ForceExpanded, "搜索结果已展开", If(IsExpanded, "收起", "展开")),
             .Tag = Group.GroupId
         }
         AddHandler ExpandButton.Click, AddressOf LibraryAlbumExpandButton_Click
