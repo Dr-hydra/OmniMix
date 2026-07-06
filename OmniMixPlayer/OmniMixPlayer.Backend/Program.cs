@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.Backend.Audio;
 using OmniMixPlayer.Backend.Http;
+using OmniMixPlayer.Backend.Logging;
 using OmniMixPlayer.Backend.ModuleSystem;
 using OmniMixPlayer.Backend.ModuleSystem.Registry;
 using OmniMixPlayer.Backend.ModuleSystem.Services;
@@ -47,13 +48,22 @@ namespace OmniMixPlayer.Backend
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             var builder = WebApplication.CreateBuilder(args);
 
-            // File logging — always log to omni_backend.log next to exe for debugging
-            var logFilePath = Path.Combine(AppContext.BaseDirectory, "omni_backend.log");
+            var logOptions = new OmniMixFileLoggerOptions
+            {
+                LogRoot = Path.Combine(AppContext.BaseDirectory, "logs"),
+                BackendMinimumLevel = LogLevel.Information,
+                ModuleMinimumLevel = LogLevel.Warning,
+                MaxFileBytes = 10L * 1024 * 1024,
+                RetainedFileCount = 5,
+                WriteSessionLog = true
+            };
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
-            builder.Logging.AddProvider(new SimpleFileLoggerProvider(logFilePath));
+            builder.Logging.AddProvider(new OmniMixFileLoggerProvider(logOptions));
             // Suppress per-request logs (health checks poll every few seconds)
             builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+            builder.Logging.AddFilter((category, level) =>
+                category?.StartsWith("Module:", StringComparison.OrdinalIgnoreCase) != true || level >= LogLevel.Warning);
 
             // Enable running as Windows Service / Linux systemd service
             builder.Host.UseWindowsService();
@@ -161,8 +171,10 @@ namespace OmniMixPlayer.Backend
             using var loggerFactory = LoggerFactory.Create(logging =>
             {
                 logging.AddConsole();
-                logging.AddProvider(new SimpleFileLoggerProvider(logFilePath));
+                logging.AddProvider(new OmniMixFileLoggerProvider(logOptions));
                 logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+                logging.AddFilter((category, level) =>
+                    category?.StartsWith("Module:", StringComparison.OrdinalIgnoreCase) != true || level >= LogLevel.Warning);
             });
             var logger = loggerFactory.CreateLogger("OmniMixPlayer");
 
@@ -202,7 +214,7 @@ namespace OmniMixPlayer.Backend
             var contextFactory = new ModuleContextFactory(
                 pluginPath,
                 configDir,
-                loggerFactory.CreateLogger("ModuleContext"),
+                loggerFactory,
                 libraryRegistry,
                 EventBus.Instance,
                 DefaultCoverProvider.Instance,
@@ -366,56 +378,4 @@ namespace OmniMixPlayer.Backend
         }
     }
 
-    /// <summary>
-    /// Minimal file logger that writes to a text file.
-    /// Used to capture backend logs for debugging when running headless.
-    /// </summary>
-    public class SimpleFileLoggerProvider : ILoggerProvider
-    {
-        private readonly string _filePath;
-        private readonly StreamWriter _writer;
-        private readonly object _lock = new();
-
-        public SimpleFileLoggerProvider(string filePath)
-        {
-            _filePath = filePath;
-            var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-            _writer = new StreamWriter(stream) { AutoFlush = true };
-        }
-
-        public ILogger CreateLogger(string categoryName)
-            => new SimpleFileLogger(categoryName, _writer, _lock);
-
-        public void Dispose() => _writer?.Dispose();
-    }
-
-    public class SimpleFileLogger : ILogger
-    {
-        private readonly string _category;
-        private readonly StreamWriter _writer;
-        private readonly object _lock;
-
-        public SimpleFileLogger(string category, StreamWriter writer, object @lock)
-        {
-            _category = category;
-            _writer = writer;
-            _lock = @lock;
-        }
-
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
-            Exception exception, Func<TState, Exception, string> formatter)
-        {
-            lock (_lock)
-            {
-                var msg = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{logLevel}] {_category}: {formatter(state, exception)}";
-                if (exception != null)
-                    msg += $"\n{exception}";
-                _writer.WriteLine(msg);
-            }
-        }
-    }
 }

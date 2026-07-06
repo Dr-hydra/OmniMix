@@ -62,8 +62,8 @@ namespace OmniMixPlayer.Module.Kugou
             _dataPath = context.GetModuleDataPath(ModuleId);
             Directory.CreateDirectory(_dataPath);
             _sessionPath = Path.Combine(_dataPath, "kugou_session.json");
-            KugouImportDebugLog.Initialize(Path.Combine(_dataPath, "kugou_import_debug.log"));
-            KugouImportDebugLog.Write($"Initialize module dataPath='{_dataPath}', sessionPath='{_sessionPath}', debugLogPath='{KugouImportDebugLog.Path}'");
+            KugouImportDebugLog.Initialize(_logger, Path.Combine(_dataPath, "kugou_debug.log"));
+            KugouImportDebugLog.Write($"Module initialized sessionFile={File.Exists(_sessionPath)}, log='{KugouImportDebugLog.Path}'");
             _session = LoadSession();
 
             _bridge = new KugouBridge(_logger);
@@ -92,7 +92,7 @@ namespace OmniMixPlayer.Module.Kugou
         public async Task RefreshAsync()
         {
             var refreshId = Guid.NewGuid().ToString("N").Substring(0, 8);
-            KugouImportDebugLog.Write($"[{refreshId}] RefreshAsync begin");
+            KugouImportDebugLog.Write($"[{refreshId}] Refresh begin loggedIn={_session.IsLoggedIn}, userId='{_session.UserId}'");
             _context.Library.UnregisterModule(ModuleId);
             _songInfoMap.Clear();
             _playlists.Clear();
@@ -107,6 +107,7 @@ namespace OmniMixPlayer.Module.Kugou
 
             try
             {
+                _session = await _bridge.EnsureRegisteredDeviceAsync(_session);
                 _session = await _bridge.RefreshLoginAsync(_session);
                 SaveSession();
 
@@ -115,8 +116,7 @@ namespace OmniMixPlayer.Module.Kugou
                 var rawPlaylistIds = _context.ConfigManager.GetValue<string>("PlaylistIds", "");
                 var manualIds = ParseIds(rawPlaylistIds);
                 string importStatus = null;
-                KugouImportDebugLog.Write($"[{refreshId}] Config importMode='{importMode}', pageSize={pageSize}, loggedIn={_session.IsLoggedIn}, userId='{_session.UserId}', rawPlaylistIdsLength={rawPlaylistIds?.Length ?? 0}, rawPlaylistIds='{MaskPlaylistIdForLog(rawPlaylistIds)}'");
-                KugouImportDebugLog.Write($"[{refreshId}] Parsed manual ids count={manualIds.Count}: {string.Join(", ", manualIds.Select(MaskPlaylistIdForLog))}");
+                KugouImportDebugLog.Write($"[{refreshId}] Import config mode='{importMode}', pageSize={pageSize}, manualIds={manualIds.Count}");
 
                 if (string.Equals(importMode, "manual", StringComparison.OrdinalIgnoreCase))
                 {
@@ -131,12 +131,11 @@ namespace OmniMixPlayer.Module.Kugou
                     var failedIds = new List<string>();
                     foreach (var id in manualIds)
                     {
-                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist import started: id='{MaskPlaylistIdForLog(id)}'");
+                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist start id='{MaskPlaylistIdForLog(id)}'");
                         var playlist = await _bridge.GetPlaylistInfoAsync(id, _session)
                                        ?? new KugouPlaylistInfo { Id = id, Name = $"Kugou {id}" };
-                        KugouImportDebugLog.Write($"[{refreshId}] Playlist info selected: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', cover='{playlist.CoverUrl ?? ""}', count={playlist.Count}");
                         var songs = await LoadPlaylistSongsAsync(playlist, pageSize);
-                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist import finished: originalId='{MaskPlaylistIdForLog(id)}', resolvedId='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', songs={songs.Count}, firstSongs={FormatSongsForLog(songs.Take(5))}");
+                        KugouImportDebugLog.Write($"[{refreshId}] Manual playlist done id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', songs={songs.Count}");
                         _playlists.Add(playlist);
                         _registry.RegisterPlaylist(playlist, songs);
                         if (songs.Count == 0)
@@ -149,7 +148,7 @@ namespace OmniMixPlayer.Module.Kugou
                 else
                 {
                     var playlists = await _bridge.GetUserPlaylistsAsync(_session, 1, 100);
-                    KugouImportDebugLog.Write($"[{refreshId}] User playlist list returned {playlists.Count} playlists: {string.Join(", ", playlists.Take(10).Select(p => $"{MaskPlaylistIdForLog(p.Id)}:{p.Name}({p.Count})"))}");
+                    KugouImportDebugLog.Write($"[{refreshId}] User playlists count={playlists.Count}, first={string.Join(", ", playlists.Take(3).Select(p => $"{MaskPlaylistIdForLog(p.Id)}:{p.Count}"))}");
                     _playlists.AddRange(playlists);
                     foreach (var playlist in playlists)
                     {
@@ -159,7 +158,7 @@ namespace OmniMixPlayer.Module.Kugou
                 }
 
                 _statusText = importStatus ?? $"已导入 {_playlists.Count} 个歌单，{_songInfoMap.Count} 首歌曲";
-                KugouImportDebugLog.Write($"[{refreshId}] Refresh finished: playlists={_playlists.Count}, tracks={_songInfoMap.Count}, status='{_statusText}'");
+                KugouImportDebugLog.Write($"[{refreshId}] Refresh done playlists={_playlists.Count}, tracks={_songInfoMap.Count}");
             }
             catch (Exception ex)
             {
@@ -181,7 +180,14 @@ namespace OmniMixPlayer.Module.Kugou
             }
 
             var maxBitrate = MapQuality(quality);
+            var oldDfid = _session?.Dfid;
+            var oldRegisteredAt = _session?.DfidRegisteredAt ?? 0;
+            _session = await _bridge.EnsureRegisteredDeviceAsync(_session, cancellationToken: cancellationToken);
+            if (SessionDeviceChanged(oldDfid, oldRegisteredAt))
+                SaveSession();
             var playable = await _bridge.GetPlayableUrlAsync(song, _session, maxBitrate, cancellationToken);
+            if (SessionDeviceChanged(oldDfid, oldRegisteredAt))
+                SaveSession();
             if (playable == null || string.IsNullOrWhiteSpace(playable.Url)) return null;
 
             var format = AudioFormatExtensions.FromExtension(playable.Format);
@@ -278,7 +284,7 @@ namespace OmniMixPlayer.Module.Kugou
 
         public void HandleUIEvent(string nodeId, string action, string value)
         {
-            KugouImportDebugLog.Write($"UI event node='{nodeId}', action='{action}', value='{MaskPlaylistIdForLog(value)}'");
+            KugouImportDebugLog.Write($"UI event node='{nodeId}', action='{action}', valueLength={value?.Length ?? 0}");
             switch (nodeId)
             {
                 case "qr_login":
@@ -291,7 +297,7 @@ namespace OmniMixPlayer.Module.Kugou
                 case "playlist_ids":
                     _context.ConfigManager.SetValue("PlaylistIds", value ?? "");
                     _context.ConfigManager.Save();
-                    KugouImportDebugLog.Write($"PlaylistIds saved length={value?.Length ?? 0}, value='{MaskPlaylistIdForLog(value)}'");
+                    KugouImportDebugLog.Write($"PlaylistIds saved length={value?.Length ?? 0}");
                     break;
                 case "playlist_page_size":
                     if (int.TryParse(value, out var pageSize))
@@ -341,11 +347,11 @@ namespace OmniMixPlayer.Module.Kugou
         private async Task<List<KugouSongInfo>> LoadPlaylistSongsAsync(KugouPlaylistInfo playlist, int pageSize)
         {
             var songs = new List<KugouSongInfo>();
-            KugouImportDebugLog.Write($"LoadPlaylistSongs begin: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', pageSize={pageSize}");
+            KugouImportDebugLog.Write($"Playlist load start id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', pageSize={pageSize}");
             for (int page = 1; page <= 20; page++)
             {
                 var batch = await _bridge.GetPlaylistSongsAsync(playlist.Id, _session, page, pageSize);
-                KugouImportDebugLog.Write($"LoadPlaylistSongs page: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', page={page}, batch={batch.Count}, accumulated={songs.Count + batch.Count}, sample={FormatSongsForLog(batch.Take(3))}");
+                KugouImportDebugLog.Write($"Playlist page id='{MaskPlaylistIdForLog(playlist.Id)}', page={page}, songs={batch.Count}, total={songs.Count + batch.Count}");
                 if (batch.Count == 0) break;
 
                 foreach (var song in batch)
@@ -357,7 +363,7 @@ namespace OmniMixPlayer.Module.Kugou
 
                 if (batch.Count < pageSize) break;
             }
-            KugouImportDebugLog.Write($"LoadPlaylistSongs finished: id='{MaskPlaylistIdForLog(playlist.Id)}', name='{playlist.Name ?? ""}', total={songs.Count}");
+            KugouImportDebugLog.Write($"Playlist load done id='{MaskPlaylistIdForLog(playlist.Id)}', total={songs.Count}");
             return songs;
         }
 
@@ -418,6 +424,12 @@ namespace OmniMixPlayer.Module.Kugou
         {
             try { File.WriteAllText(_sessionPath, JsonConvert.SerializeObject(_session, Formatting.Indented)); }
             catch { }
+        }
+
+        private bool SessionDeviceChanged(string oldDfid, long oldRegisteredAt)
+        {
+            return !string.Equals(oldDfid, _session?.Dfid, StringComparison.Ordinal)
+                   || oldRegisteredAt != (_session?.DfidRegisteredAt ?? 0);
         }
 
         private void Logout()

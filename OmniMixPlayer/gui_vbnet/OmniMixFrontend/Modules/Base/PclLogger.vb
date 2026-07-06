@@ -4,12 +4,12 @@
     Private Const FeedbackPrompt As String = "是否要反馈此问题？反馈时请附上日志文件。" & vbCrLf &
                                              "你可以前往 GitHub Issues，或加入 QQ 群 851586605 进行反馈。"
 
-    Private Shared Function FilterAccessToken(Raw As String, FilterChar As Char) As String
+    Protected Shared Function FilterAccessToken(Raw As String, FilterChar As Char) As String
         If Raw Is Nothing Then Return Nothing
         Return Raw.RegexReplace("(?i)(access[_-]?token[""'\s:=]+)[^""'\s&]+", Function(m) m.Groups(1).Value & New String(FilterChar, 8))
     End Function
 
-    Private Shared Function FilterUserName(Raw As String, FilterChar As Char) As String
+    Protected Shared Function FilterUserName(Raw As String, FilterChar As Char) As String
         If Raw Is Nothing Then Return Nothing
         Dim UserName = Environment.UserName
         If String.IsNullOrWhiteSpace(UserName) Then Return Raw
@@ -57,5 +57,69 @@
         '遥测
         If Behavior >= LogBehavior.Toast Then Telemetry("错误日志", "Exception", DetailText)
     End Sub
+
+End Class
+
+Public Class OmniMixGuiLogger
+    Inherits PclLogger
+
+    Private ReadOnly SessionId As String = Guid.NewGuid().ToString("N").Substring(0, 8)
+    Private ReadOnly SyncRoot As New Object
+    Private Writer As IO.StreamWriter
+
+    Public Overrides Sub Init()
+        Dim Folder = If(String.IsNullOrWhiteSpace(logFolder), IO.Path.Combine(PathUtils.CurrentFolder, "logs"), logFolder)
+        Dim LogPath = IO.Path.Combine(Folder, "omnimix_gui.log")
+        Try
+            IO.Directory.CreateDirectory(Folder)
+            SyncLock SyncRoot
+                For Index = 4 To 1 Step -1
+                    Dim Older = $"{LogPath}.{Index}"
+                    Dim Newer = $"{LogPath}.{Index + 1}"
+                    If IO.File.Exists(Newer) Then IO.File.Delete(Newer)
+                    If IO.File.Exists(Older) Then IO.File.Move(Older, Newer)
+                Next
+                If IO.File.Exists($"{LogPath}.1") Then IO.File.Delete($"{LogPath}.1")
+                If IO.File.Exists(LogPath) Then IO.File.Move(LogPath, $"{LogPath}.1")
+                Writer = New IO.StreamWriter(PathUtils.ForApi(LogPath), append:=True) With {.AutoFlush = True}
+            End SyncLock
+        Catch ex As Exception
+            System.Diagnostics.Debug.WriteLine($"GUI 日志初始化失败：{ex.Message}")
+        End Try
+    End Sub
+
+    Public Overrides Function Format(Text As String, Level As LogLevel, FilePath As String, Ex As Exception) As String
+        Dim Prefix = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{GetBackendLevelName(Level)}] [{SessionId}] GUI"
+        Dim Source = PathUtils.GetLastPart(FilePath).BeforeFirst(".")
+        If Not String.IsNullOrWhiteSpace(Source) Then Prefix &= $"[{Source}]"
+        Prefix &= ": "
+
+        Text = If(Text, "")
+        Text = FilterUserName(FilterAccessToken(Text, "*"c), "*"c)
+        Dim Lines = Text.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf).Split({vbLf}, System.StringSplitOptions.None)
+        Return String.Join(vbCrLf, Lines.Select(Function(Line) Prefix & Line))
+    End Function
+
+    Public Overrides Sub Output(entry As LogEntry)
+        System.Diagnostics.Debug.WriteLine(entry.message)
+        SyncLock SyncRoot
+            Writer?.WriteLine(entry.message)
+        End SyncLock
+    End Sub
+
+    Private Shared Function GetBackendLevelName(Level As LogLevel) As String
+        Select Case Level
+            Case LogLevel.Trace
+                Return "Trace"
+            Case LogLevel.Info
+                Return "Information"
+            Case LogLevel.Warn
+                Return "Warning"
+            Case LogLevel.Error
+                Return "Error"
+            Case Else
+                Return Level.ToString()
+        End Select
+    End Function
 
 End Class

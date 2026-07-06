@@ -4,7 +4,7 @@ Public Class Settings
         New Setting("Identify", "", Source:=Sources.Registry),
         New Setting("WindowHeight", 650),
         New Setting("WindowWidth", 900),
-        New Setting("SystemDebugMode", False, Source:=Sources.Registry, OnChanged:=Sub() Logger.Instance.MinLevel = If(ModeDebug, LogLevel.Trace, LogLevel.Info)),
+        New Setting("SystemDebugMode", False, Source:=Sources.Registry, OnChanged:=Sub() Logger.Instance.MinLevel = If(ModeDebug, LogLevel.Trace, LogLevel.Warn)),
         New Setting("SystemDebugAnim", 9, Source:=Sources.Registry),
         New Setting("SystemDebugDelay", False, Source:=Sources.Registry),
         New Setting("SystemDebugSkipCopy", False, Source:=Sources.Registry),

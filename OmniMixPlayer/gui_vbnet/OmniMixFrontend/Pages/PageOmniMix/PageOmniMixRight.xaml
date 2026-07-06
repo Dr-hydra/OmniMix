@@ -1238,7 +1238,7 @@
                                    Foreground="{DynamicResource ColorBrushGray3}"
                                    Margin="0,0,0,14" />
                         <local:MyListItem Title="当前组件"
-                                          Info="桌面前端 4.1.1；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷狗、酷我模块 2.0.0。"
+                                          Info="桌面前端 4.1.2；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷狗、酷我模块 2.0.0。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="播放与队列"

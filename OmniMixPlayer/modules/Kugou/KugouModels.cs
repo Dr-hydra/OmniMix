@@ -14,6 +14,7 @@ namespace OmniMixPlayer.Module.Kugou
         public string DeviceId { get; set; } = "";
         public string Mac { get; set; } = "02:00:00:00:00:00";
         public string T1 { get; set; } = "";
+        public long DfidRegisteredAt { get; set; }
         public long LoginTime { get; set; }
 
         public bool IsLoggedIn => !string.IsNullOrWhiteSpace(Token) &&

@@ -13,7 +13,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem
     {
         private readonly string _pluginPath;
         private readonly string _configDirectory;
-        private readonly ILogger _logger;
+        private readonly ILoggerFactory _loggerFactory;
         private readonly ILibraryRegistry _library;
         private readonly IEventBus _eventBus;
         private readonly IDefaultCoverProvider _defaultCover;
@@ -23,7 +23,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem
         public ModuleContextFactory(
             string pluginPath,
             string configDirectory,
-            ILogger logger,
+            ILoggerFactory loggerFactory,
             ILibraryRegistry library,
             IEventBus eventBus,
             IDefaultCoverProvider defaultCover,
@@ -32,7 +32,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem
         {
             _pluginPath = pluginPath;
             _configDirectory = configDirectory;
-            _logger = logger;
+            _loggerFactory = loggerFactory;
             _library = library;
             _eventBus = eventBus;
             _defaultCover = defaultCover;
@@ -44,7 +44,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem
         {
             return new ModuleContext(
                 _pluginPath,
-                _logger,
+                _loggerFactory.CreateLogger($"Module:{moduleId}"),
                 moduleId,
                 _library,
                 _eventBus,

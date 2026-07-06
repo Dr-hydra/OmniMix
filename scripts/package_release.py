@@ -26,7 +26,7 @@ MEDIA_GEN_EXE = "chill-gen-media.exe"
 def main() -> int:
     configure_console()
     parser = argparse.ArgumentParser(description="Package OmniMix release zips.")
-    parser.add_argument("version", help="Release version, for example 4.1.1.")
+    parser.add_argument("version", help="Release version, for example 4.1.2.")
     args = parser.parse_args()
 
     if not PLAYER_BUILD.exists():

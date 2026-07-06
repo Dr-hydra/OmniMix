@@ -105,7 +105,7 @@ RetryCacheCheck:
                 FrmStart.Show(False, True)
             End If
             '日志初始化
-            OmniMixCore.Main.Init(New PclLogger With {.logFolder = PathExeFolder & "OmniMixPlayer", .MinLevel = If(ModeDebug, LogLevel.Trace, LogLevel.Info)})
+            OmniMixCore.Main.Init(New OmniMixGuiLogger With {.logFolder = IO.Path.Combine(PathExeFolder, "logs"), .MinLevel = If(ModeDebug, LogLevel.Trace, LogLevel.Warn)})
             Logger.Info($"程序版本：{VersionDisplay} ({VersionCode}{If(CommitHash = "", "", $"，#{CommitHash}")})")
             If BuildType = BuildTypes.Snapshot Then
                 Logger.Info($"识别码：{Identify}{If(ThemeCheckOne(9), "，已解锁反馈主题", "，未解锁反馈主题")}")

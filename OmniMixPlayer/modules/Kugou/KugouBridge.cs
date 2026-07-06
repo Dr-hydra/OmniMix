@@ -87,6 +87,7 @@ namespace OmniMixPlayer.Module.Kugou
             var json = await GetStringAsync("https://login-user.kugou.com/v2/get_userinfo_qrcode", values, current, cancellationToken);
             var root = JObject.Parse(json);
             var status = PickQrStatus(root);
+            KugouImportDebugLog.Write($"QR login poll status={status}");
 
             if (status == 4)
             {
@@ -98,7 +99,9 @@ namespace OmniMixPlayer.Module.Kugou
                 session.LoginTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 if (!session.IsLoggedIn)
                     return (status, null, "扫码已确认，但未取得有效登录凭据，请刷新二维码重试");
+                session = await EnsureRegisteredDeviceAsync(session, force: true, cancellationToken);
                 session = await RefreshLoginAsync(session, cancellationToken);
+                KugouImportDebugLog.Write($"Login success userId='{session.UserId}', vipType='{session.VipType ?? "0"}', hasVipToken={!string.IsNullOrWhiteSpace(session.VipToken)}");
                 return (status, session, "登录成功");
             }
 
@@ -176,10 +179,97 @@ namespace OmniMixPlayer.Module.Kugou
                 session.VipType = dataObj?["vip_type"]?.ToString() ?? session.VipType;
                 session.VipToken = dataObj?["vip_token"]?.ToString() ?? session.VipToken;
                 session.LoginTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                KugouImportDebugLog.Write($"Token refresh ok userId='{session.UserId}', vipType='{session.VipType ?? "0"}', hasVipToken={!string.IsNullOrWhiteSpace(session.VipToken)}");
             }
             catch (Exception ex)
             {
                 _logger?.LogDebug(ex, "[Kugou] Token refresh failed");
+                KugouImportDebugLog.Write("Token refresh failed", ex);
+            }
+
+            return session;
+        }
+
+        public async Task<KugouSession> EnsureRegisteredDeviceAsync(KugouSession session, bool force = false, CancellationToken cancellationToken = default)
+        {
+            session = EnsureSession(session);
+            if (!session.IsLoggedIn) return session;
+            if (!force && HasRegisteredDfid(session)) return session;
+
+            try
+            {
+                var data = new Dictionary<string, object>
+                {
+                    ["availableRamSize"] = 4983533568L,
+                    ["availableRomSize"] = 48114719,
+                    ["availableSDSize"] = 48114717,
+                    ["basebandVer"] = "",
+                    ["batteryLevel"] = 100,
+                    ["batteryStatus"] = 3,
+                    ["brand"] = "Redmi",
+                    ["buildSerial"] = "unknown",
+                    ["device"] = "marble",
+                    ["imei"] = session.Guid,
+                    ["imsi"] = "",
+                    ["manufacturer"] = "Xiaomi",
+                    ["uuid"] = session.Guid,
+                    ["accelerometer"] = false,
+                    ["accelerometerValue"] = "",
+                    ["gravity"] = false,
+                    ["gravityValue"] = "",
+                    ["gyroscope"] = false,
+                    ["gyroscopeValue"] = "",
+                    ["light"] = false,
+                    ["lightValue"] = "",
+                    ["magnetic"] = false,
+                    ["magneticValue"] = "",
+                    ["orientation"] = false,
+                    ["orientationValue"] = "",
+                    ["pressure"] = false,
+                    ["pressureValue"] = "",
+                    ["step_counter"] = false,
+                    ["step_counterValue"] = "",
+                    ["temperature"] = false,
+                    ["temperatureValue"] = ""
+                };
+
+                var encrypted = PlaylistAesEncrypt(data);
+                var p = RsaPkcs1EncryptHex(ToJson(new Dictionary<string, object>
+                {
+                    ["aes"] = encrypted.Key,
+                    ["uid"] = session.UserId,
+                    ["token"] = session.Token ?? ""
+                }));
+
+                var values = BuildDefaultParams(session);
+                values["part"] = "1";
+                values["platid"] = "1";
+                values["p"] = p;
+                values["signature"] = SignatureAndroid(values, encrypted.Base64);
+
+                var response = await PostRawBytesAsync("https://userservice.kugou.com/risk/v2/r_register_dev",
+                    values, encrypted.Base64, session, cancellationToken);
+                var decrypted = PlaylistAesDecrypt(response, encrypted.Key);
+                LogJsonSummary("Device register", decrypted);
+                var root = JObject.Parse(decrypted);
+                var status = root["status"]?.ToObject<int?>() ?? 0;
+                var dfid = PickStringDeep(root["data"], "dfid") ?? PickStringDeep(root, "dfid");
+                if (status == 1 && !string.IsNullOrWhiteSpace(dfid))
+                {
+                    session.Dfid = dfid;
+                    session.DfidRegisteredAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    KugouImportDebugLog.Write($"Device register ok dfid='{MaskDfid(session.Dfid)}'");
+                }
+                else
+                {
+                    var message = PickStringDeep(root, "msg", "message", "error_msg") ?? "";
+                    KugouImportDebugLog.WriteWarning($"Device register no-dfid status={status}, message='{KugouImportDebugLog.Truncate(message, 120)}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "[Kugou] Device register failed");
+                KugouImportDebugLog.Write("Device register failed", ex);
             }
 
             return session;
@@ -220,22 +310,22 @@ namespace OmniMixPlayer.Module.Kugou
             var publicId = ExtractQueryValue(playlistInput, "global_collection_id");
             if (string.IsNullOrWhiteSpace(publicId) && IsPublicCollectionId(playlistInput))
                 publicId = playlistInput.TrimEnd('/');
-            KugouImportDebugLog.Write($"Bridge.GetPlaylistSongs input='{MaskPlaylistInput(playlistInput)}', publicId='{publicId ?? ""}', page={Math.Max(1, page)}, pageSize={Math.Clamp(pageSize, 1, 200)}, loggedIn={session.IsLoggedIn}, userId='{session.UserId}'");
+            KugouImportDebugLog.Write($"Playlist songs request id='{MaskPlaylistInput(playlistInput)}', publicId='{publicId ?? ""}', page={Math.Max(1, page)}, loggedIn={session.IsLoggedIn}");
 
             if (!string.IsNullOrWhiteSpace(publicId))
             {
-                KugouImportDebugLog.Write($"Try endpoint=mobile_shared id='{publicId}', page={Math.Max(1, page)}");
+                KugouImportDebugLog.Write($"Playlist endpoint try mobile_shared id='{publicId}', page={Math.Max(1, page)}");
                 var sharedSongs = await GetMobileSharedPlaylistSongsAsync(playlistInput, publicId, page, cancellationToken);
-                KugouImportDebugLog.Write($"Endpoint result mobile_shared id='{publicId}', page={Math.Max(1, page)}, songs={sharedSongs.Count}");
+                KugouImportDebugLog.Write($"Playlist endpoint result mobile_shared id='{publicId}', songs={sharedSongs.Count}");
                 if (sharedSongs.Count > 0) return sharedSongs;
 
-                KugouImportDebugLog.Write($"Try endpoint=public_playlist id='{publicId}', page={Math.Max(1, page)}");
+                KugouImportDebugLog.Write($"Playlist endpoint try public_playlist id='{publicId}', page={Math.Max(1, page)}");
                 var publicSongs = await GetPublicPlaylistSongsAsync(publicId, session, page, pageSize, cancellationToken);
-                KugouImportDebugLog.Write($"Endpoint result public_playlist id='{publicId}', page={Math.Max(1, page)}, songs={publicSongs.Count}");
+                KugouImportDebugLog.Write($"Playlist endpoint result public_playlist id='{publicId}', songs={publicSongs.Count}");
                 if (publicSongs.Count > 0) return publicSongs;
             }
 
-            KugouImportDebugLog.Write($"Try endpoint=account_playlist listId='{MaskPlaylistInput(playlistInput)}', page={Math.Max(1, page)}");
+            KugouImportDebugLog.Write($"Playlist endpoint try account_playlist id='{MaskPlaylistInput(playlistInput)}', page={Math.Max(1, page)}");
             var data = new Dictionary<string, object>
             {
                 ["listid"] = playlistInput,
@@ -252,13 +342,12 @@ namespace OmniMixPlayer.Module.Kugou
             var body = ToJson(data);
             var values = BuildDefaultParams(session);
             values["signature"] = SignatureAndroid(values, body);
-            KugouImportDebugLog.Write($"Account playlist request params={FormatParamsForLog(values)}, body={body}");
 
             var json = await PostJsonAsync("https://gateway.kugou.com/v4/get_list_all_file", values, data, session, cancellationToken,
                 new Dictionary<string, string> { ["x-router"] = "cloudlist.service.kugou.com" });
-            LogJsonSummary("Account playlist endpoint", json);
+            LogJsonSummary("Playlist endpoint account_playlist", json);
             var songs = ParseSongs(JObject.Parse(json));
-            KugouImportDebugLog.Write($"Endpoint result account_playlist listId='{MaskPlaylistInput(playlistInput)}', page={Math.Max(1, page)}, songs={songs.Count}, sample={FormatSongsForLog(songs.Take(3))}");
+            KugouImportDebugLog.Write($"Playlist endpoint result account_playlist id='{MaskPlaylistInput(playlistInput)}', songs={songs.Count}");
             return songs;
         }
 
@@ -282,13 +371,12 @@ namespace OmniMixPlayer.Module.Kugou
                 var body = ToJson(data);
                 var values = BuildDefaultParams(session);
                 values["signature"] = SignatureAndroid(values, body);
-                KugouImportDebugLog.Write($"Public playlist detail request id='{publicId}', params={FormatParamsForLog(values)}, body={body}");
 
                 var json = await PostJsonAsync("https://gateway.kugou.com/v3/get_list_info", values, data, session, cancellationToken,
                     new Dictionary<string, string> { ["x-router"] = "pubsongs.kugou.com" });
-                LogJsonSummary("Public playlist detail endpoint", json);
+                LogJsonSummary("Playlist detail public", json);
                 var playlist = ParsePlaylistList(JObject.Parse(json)).FirstOrDefault();
-                KugouImportDebugLog.Write($"Public playlist detail result id='{publicId}', found={playlist != null}, name='{playlist?.Name ?? ""}', count={playlist?.Count ?? 0}, cover='{playlist?.CoverUrl ?? ""}'");
+                KugouImportDebugLog.Write($"Playlist detail result id='{publicId}', found={playlist != null}, name='{playlist?.Name ?? ""}', count={playlist?.Count ?? 0}");
                 return playlist;
             }
             catch (Exception ex)
@@ -424,14 +512,33 @@ namespace OmniMixPlayer.Module.Kugou
         public async Task<KugouPlayableUrl> GetPlayableUrlAsync(KugouSongInfo song, KugouSession session, int maxBitrate, CancellationToken cancellationToken = default)
         {
             if (song == null || string.IsNullOrWhiteSpace(song.Hash)) return null;
+            KugouImportDebugLog.Write($"PlayUrl request hash='{MaskHash(song.Hash)}', albumAudioId={song.AlbumAudioId}, loggedIn={session?.IsLoggedIn == true}, vipType='{session?.VipType ?? "0"}', hasVipToken={!string.IsNullOrWhiteSpace(session?.VipToken)}");
             if (session?.IsLoggedIn == true)
             {
+                session = await EnsureRegisteredDeviceAsync(session, cancellationToken: cancellationToken);
                 var loginUrl = await GetPrivilegedUrlAsync(song, session, cancellationToken);
                 if (loginUrl != null && !string.IsNullOrWhiteSpace(loginUrl.Url))
+                {
+                    KugouImportDebugLog.Write($"PlayUrl result route=priv_url hash='{MaskHash(song.Hash)}', format='{loginUrl.Format}', bitrate={loginUrl.Bitrate}");
                     return loginUrl;
+                }
+                if (session.IsLoggedIn)
+                {
+                    KugouImportDebugLog.Write($"PlayUrl priv_url retry after device register hash='{MaskHash(song.Hash)}'");
+                    session = await EnsureRegisteredDeviceAsync(session, force: true, cancellationToken);
+                    loginUrl = await GetPrivilegedUrlAsync(song, session, cancellationToken);
+                    if (loginUrl != null && !string.IsNullOrWhiteSpace(loginUrl.Url))
+                    {
+                        KugouImportDebugLog.Write($"PlayUrl result route=priv_url_retry hash='{MaskHash(song.Hash)}', format='{loginUrl.Format}', bitrate={loginUrl.Bitrate}");
+                        return loginUrl;
+                    }
+                }
+                KugouImportDebugLog.Write($"PlayUrl priv_url empty hash='{MaskHash(song.Hash)}', fallback=anonymous");
             }
 
-            return await GetPlayableUrlAsync(song.Hash, maxBitrate, cancellationToken);
+            var fallback = await GetPlayableUrlAsync(song.Hash, maxBitrate, cancellationToken);
+            KugouImportDebugLog.Write($"PlayUrl result route=anonymous hash='{MaskHash(song.Hash)}', success={fallback != null && !string.IsNullOrWhiteSpace(fallback.Url)}, format='{fallback?.Format ?? ""}', bitrate={fallback?.Bitrate ?? 0}");
+            return fallback;
         }
 
         public async Task<string> GetLyricAsync(string hash, CancellationToken cancellationToken = default)
@@ -562,13 +669,11 @@ namespace OmniMixPlayer.Module.Kugou
                 values["pagesize"] = Math.Clamp(pageSize, 1, 200).ToString();
                 values["global_collection_id"] = globalCollectionId;
                 values["signature"] = SignatureAndroid(values, "");
-                KugouImportDebugLog.Write($"Public playlist request id='{globalCollectionId}', page={Math.Max(1, page)}, params={FormatParamsForLog(values)}");
-
                 var json = await GetStringAsync("https://gateway.kugou.com/pubsongs/v2/get_other_list_file_nofilt", values, session, cancellationToken);
-                LogJsonSummary("Public playlist endpoint", json);
+                LogJsonSummary("Playlist endpoint public_playlist", json);
                 if (string.IsNullOrWhiteSpace(json)) return new List<KugouSongInfo>();
                 var songs = ParseSongs(JObject.Parse(json));
-                KugouImportDebugLog.Write($"Public playlist parsed id='{globalCollectionId}', page={Math.Max(1, page)}, songs={songs.Count}, sample={FormatSongsForLog(songs.Take(3))}");
+                KugouImportDebugLog.Write($"Playlist endpoint result public_playlist id='{globalCollectionId}', page={Math.Max(1, page)}, songs={songs.Count}");
                 return songs;
             }
             catch (Exception ex)
@@ -587,7 +692,7 @@ namespace OmniMixPlayer.Module.Kugou
                 var required = new[] { "uid", "sign", "_t", "token" };
                 if (required.Any(name => string.IsNullOrWhiteSpace(GetQueryValue(query, name))))
                 {
-                    KugouImportDebugLog.Write($"Mobile shared skipped id='{globalCollectionId}': missing params hasUid={!string.IsNullOrWhiteSpace(GetQueryValue(query, "uid"))}, hasSign={!string.IsNullOrWhiteSpace(GetQueryValue(query, "sign"))}, hasTime={!string.IsNullOrWhiteSpace(GetQueryValue(query, "_t"))}, hasToken={!string.IsNullOrWhiteSpace(GetQueryValue(query, "token"))}, input='{MaskPlaylistInput(playlistInput)}'");
+                    KugouImportDebugLog.Write($"Playlist endpoint skip mobile_shared id='{globalCollectionId}', reason=missing_share_params");
                     return new List<KugouSongInfo>();
                 }
 
@@ -597,17 +702,15 @@ namespace OmniMixPlayer.Module.Kugou
                 query["page"] = Math.Max(1, page).ToString();
 
                 var url = "https://m3ws.kugou.com/zlist/list?" + ToQueryString(query);
-                KugouImportDebugLog.Write($"Mobile shared request url='{MaskPlaylistInput(url)}'");
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Mobile Safari/537.36");
                 using var response = await _client.SendAsync(request, cancellationToken);
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                KugouImportDebugLog.Write($"Mobile shared HTTP status={(int)response.StatusCode}, id='{globalCollectionId}', page={Math.Max(1, page)}");
                 response.EnsureSuccessStatusCode();
-                LogJsonSummary("Mobile shared playlist endpoint", json);
+                LogJsonSummary("Playlist endpoint mobile_shared", json);
                 if (string.IsNullOrWhiteSpace(json)) return new List<KugouSongInfo>();
                 var songs = ParseSongs(JObject.Parse(json));
-                KugouImportDebugLog.Write($"Mobile shared parsed id='{globalCollectionId}', page={Math.Max(1, page)}, songs={songs.Count}, sample={FormatSongsForLog(songs.Take(3))}");
+                KugouImportDebugLog.Write($"Playlist endpoint result mobile_shared id='{globalCollectionId}', page={Math.Max(1, page)}, songs={songs.Count}");
                 return songs;
             }
             catch (Exception ex)
@@ -660,7 +763,7 @@ namespace OmniMixPlayer.Module.Kugou
                     ["qualities"] = new[] { "128", "320", "flac", "high", "multitrack", "viper_atmos", "viper_tape", "viper_clear", "super" },
                     ["resource"] = new Dictionary<string, object>
                     {
-                        ["album_audio_id"] = song.AlbumAudioId,
+                        ["album_audio_id"] = song.AlbumAudioId.ToString(),
                         ["collect_list_id"] = "3",
                         ["collect_time"] = clienttimeMs,
                         ["hash"] = song.Hash,
@@ -692,9 +795,15 @@ namespace OmniMixPlayer.Module.Kugou
                 values["signature"] = SignatureAndroid(values, body);
 
                 var json = await PostJsonAsync("http://tracker.kugou.com/v6/priv_url", values, data, session, cancellationToken);
+                LogJsonSummary("PlayUrl endpoint priv_url", json);
                 var root = JObject.Parse(json);
                 var url = FindFirstUrl(root);
-                if (string.IsNullOrWhiteSpace(url)) return null;
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    var reason = DescribePrivUrlNoUrl(root);
+                    KugouImportDebugLog.WriteWarning($"PlayUrl priv_url no-url hash='{MaskHash(song.Hash)}', reason='{reason}', vipType='{session.VipType ?? "0"}', hasVipToken={!string.IsNullOrWhiteSpace(session.VipToken)}");
+                    return null;
+                }
 
                 return new KugouPlayableUrl
                 {
@@ -707,6 +816,7 @@ namespace OmniMixPlayer.Module.Kugou
             catch (Exception ex)
             {
                 _logger?.LogDebug(ex, "[Kugou] Privileged URL failed: {Hash}", song.Hash);
+                KugouImportDebugLog.Write($"PlayUrl priv_url failed hash='{MaskHash(song.Hash)}'", ex);
                 return null;
             }
         }
@@ -732,6 +842,18 @@ namespace OmniMixPlayer.Module.Kugou
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             response.EnsureSuccessStatusCode();
             return json;
+        }
+
+        private async Task<byte[]> PostRawBytesAsync(string baseUrl, Dictionary<string, string> values, string data, KugouSession session, CancellationToken cancellationToken, Dictionary<string, string> extraHeaders = null)
+        {
+            var url = baseUrl + "?" + ToQueryString(values);
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Content = new ByteArrayContent(Encoding.UTF8.GetBytes(data ?? ""));
+            ApplyAndroidHeaders(request, values, session, extraHeaders);
+            using var response = await _client.SendAsync(request, cancellationToken);
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return bytes;
         }
 
         private static void ApplyAndroidHeaders(HttpRequestMessage request, Dictionary<string, string> values, KugouSession session, Dictionary<string, string> extraHeaders)
@@ -785,12 +907,20 @@ namespace OmniMixPlayer.Module.Kugou
             if (string.IsNullOrWhiteSpace(session.Mac))
                 session.Mac = "02:00:00:00:00:00";
             if (string.IsNullOrWhiteSpace(session.Dfid))
-                session.Dfid = RandomString(24);
-            if (string.IsNullOrWhiteSpace(session.Mid) || session.Mid == "0")
-                session.Mid = Md5Hex(session.Guid);
+                session.Dfid = "-";
+            if (string.IsNullOrWhiteSpace(session.Mid) || session.Mid == "0" || LooksLikeMd5Hex(session.Mid))
+                session.Mid = CalculateMid(session.Guid);
             if (string.IsNullOrWhiteSpace(session.UserId))
                 session.UserId = "0";
             return session;
+        }
+
+        private static bool HasRegisteredDfid(KugouSession session)
+        {
+            return session != null
+                   && session.DfidRegisteredAt > 0
+                   && !string.IsNullOrWhiteSpace(session.Dfid)
+                   && session.Dfid != "-";
         }
 
         private static string SignatureAndroid(Dictionary<string, string> values, string data)
@@ -920,23 +1050,59 @@ namespace OmniMixPlayer.Module.Kugou
 
         private static string FindFirstUrl(JToken token)
         {
+            var trackerUrl = FindFirstNamedUrl(token, "tracker_url");
+            if (!string.IsNullOrWhiteSpace(trackerUrl)) return trackerUrl;
+            return FindFirstNamedUrl(token, "url");
+        }
+
+        private static string DescribePrivUrlNoUrl(JObject root)
+        {
+            var item = root?["data"] is JArray dataArray ? dataArray.FirstOrDefault() as JObject : null;
+            if (item == null) return "empty_data";
+
+            var status = item["status"]?.ToString() ?? "";
+            var failProcess = item["fail_process"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "";
+            var privilege = item["privilege"]?.ToString() ?? "";
+            var payType = item["pay_type"]?.ToString() ?? "";
+            var payBlock = item.SelectToken("trans_param.pay_block_tpl")?.ToString() ?? "";
+            var trackerStatus = item.SelectToken("info.tracker_status")?.ToString() ?? "";
+            var trackerType = item.SelectToken("info.tracker_type")?.ToString() ?? "";
+            var message = item["_msg"]?.ToString() ?? "";
+
+            if (failProcess.Equals("20", StringComparison.OrdinalIgnoreCase) ||
+                payType == "2" ||
+                !string.IsNullOrWhiteSpace(payBlock))
+            {
+                return $"restricted_buy status={status}, fail_process={failProcess}, privilege={privilege}, pay_type={payType}, pay_block_tpl={payBlock}, tracker_status={trackerStatus}, tracker_type={trackerType}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(message))
+                return $"no_tracker_url status={status}, message={KugouImportDebugLog.Truncate(message, 80)}, tracker_status={trackerStatus}, tracker_type={trackerType}";
+
+            return $"no_tracker_url status={status}, fail_process={failProcess}, privilege={privilege}, tracker_status={trackerStatus}, tracker_type={trackerType}";
+        }
+
+        private static string FindFirstNamedUrl(JToken token, string name)
+        {
             if (token == null) return null;
             if (token is JObject obj)
             {
                 foreach (var prop in obj.Properties())
                 {
-                    if (prop.Name.Equals("url", StringComparison.OrdinalIgnoreCase))
+                    if (prop.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                     {
                         if (prop.Value is JArray arr)
                         {
-                            var first = arr.FirstOrDefault()?.ToString();
+                            var first = arr.Select(item => item?.ToString())
+                                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) &&
+                                                         value.StartsWith("http", StringComparison.OrdinalIgnoreCase));
                             if (!string.IsNullOrWhiteSpace(first)) return first;
                         }
                         var value = prop.Value?.ToString();
                         if (!string.IsNullOrWhiteSpace(value) && value.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                             return value;
                     }
-                    var nested = FindFirstUrl(prop.Value);
+                    var nested = FindFirstNamedUrl(prop.Value, name);
                     if (!string.IsNullOrWhiteSpace(nested)) return nested;
                 }
             }
@@ -944,7 +1110,7 @@ namespace OmniMixPlayer.Module.Kugou
             {
                 foreach (var child in array)
                 {
-                    var nested = FindFirstUrl(child);
+                    var nested = FindFirstNamedUrl(child, name);
                     if (!string.IsNullOrWhiteSpace(nested)) return nested;
                 }
             }
@@ -1066,17 +1232,18 @@ namespace OmniMixPlayer.Module.Kugou
             {
                 var root = JObject.Parse(json);
                 var status = PickStringDeep(root, "status", "errcode", "error_code") ?? "";
+                var errorCode = PickStringDeep(root, "error_code", "errcode", "code") ?? "";
                 var message = PickStringDeep(root, "error", "errmsg", "error_msg", "msg", "message") ?? "";
                 var arrays = FindArrays(root, "songs", "list", "info", "files", "lists")
                     .Select(a => a.Count)
                     .Take(5)
                     .ToList();
-                KugouImportDebugLog.Write($"{label} response summary: status='{status}', message='{message}', arrayCounts=[{string.Join(",", arrays)}], preview={KugouImportDebugLog.Truncate(json, 4000)}");
+                KugouImportDebugLog.Write($"{label} status='{status}', code='{errorCode}', message='{KugouImportDebugLog.Truncate(message, 160)}', arrays=[{string.Join(",", arrays)}]");
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "[Kugou] {Label} returned non-JSON or unparsable response: preview={Preview}", label, TruncateForLog(json, 500));
-                KugouImportDebugLog.Write($"{label} returned non-JSON or unparsable response: preview={KugouImportDebugLog.Truncate(json, 4000)}", ex);
+                KugouImportDebugLog.Write($"{label} non-json length={json?.Length ?? 0}", ex);
             }
         }
 
@@ -1122,6 +1289,18 @@ namespace OmniMixPlayer.Module.Kugou
         private static string FormatSongsForLog(IEnumerable<KugouSongInfo> songs)
         {
             return string.Join(" | ", songs.Select(s => $"{s.Artist} - {s.Title}#{s.Hash}/{s.AlbumAudioId}"));
+        }
+
+        private static string MaskHash(string hash)
+        {
+            if (string.IsNullOrWhiteSpace(hash)) return "";
+            return hash.Length <= 10 ? hash : hash.Substring(0, 6) + "..." + hash.Substring(hash.Length - 4);
+        }
+
+        private static string MaskDfid(string dfid)
+        {
+            if (string.IsNullOrWhiteSpace(dfid) || dfid.Length <= 8) return dfid ?? "";
+            return dfid.Substring(0, 4) + "..." + dfid.Substring(dfid.Length - 4);
         }
 
         private static string DecodeKrc(string content)
@@ -1265,6 +1444,38 @@ namespace OmniMixPlayer.Module.Kugou
             return Encoding.UTF8.GetString(decrypted);
         }
 
+        private static (string Base64, string Key) PlaylistAesEncrypt(Dictionary<string, object> data)
+        {
+            var tempKey = RandomString(6).ToLowerInvariant();
+            var digest = Md5Hex(tempKey);
+            var key = digest.Substring(0, 16);
+            var iv = digest.Substring(16, 16);
+            using var aes = Aes.Create();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.Key = Encoding.UTF8.GetBytes(key);
+            aes.IV = Encoding.UTF8.GetBytes(iv);
+            using var encryptor = aes.CreateEncryptor();
+            var bytes = Encoding.UTF8.GetBytes(ToJson(data));
+            return (Convert.ToBase64String(encryptor.TransformFinalBlock(bytes, 0, bytes.Length)), tempKey);
+        }
+
+        private static string PlaylistAesDecrypt(byte[] encrypted, string tempKey)
+        {
+            if (encrypted == null || encrypted.Length == 0 || string.IsNullOrWhiteSpace(tempKey)) return "";
+            var digest = Md5Hex(tempKey);
+            var key = digest.Substring(0, 16);
+            var iv = digest.Substring(16, 16);
+            using var aes = Aes.Create();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+            aes.Key = Encoding.UTF8.GetBytes(key);
+            aes.IV = Encoding.UTF8.GetBytes(iv);
+            using var decryptor = aes.CreateDecryptor();
+            var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+            return Encoding.UTF8.GetString(decrypted);
+        }
+
         private static string RsaRawEncryptHex(string plainText)
         {
             using var rsa = RSA.Create();
@@ -1292,6 +1503,33 @@ namespace OmniMixPlayer.Module.Kugou
             }
 
             return Convert.ToHexString(output).ToLowerInvariant();
+        }
+
+        private static string RsaPkcs1EncryptHex(string plainText)
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(RsaPublicKeyPem);
+            var encrypted = rsa.Encrypt(Encoding.UTF8.GetBytes(plainText ?? ""), RSAEncryptionPadding.Pkcs1);
+            return Convert.ToHexString(encrypted).ToLowerInvariant();
+        }
+
+        private static string CalculateMid(string value)
+        {
+            var digest = Md5Hex(value ?? "");
+            var number = BigInteger.Zero;
+            foreach (var ch in digest)
+            {
+                number *= 16;
+                number += Convert.ToInt32(ch.ToString(), 16);
+            }
+            return number.ToString();
+        }
+
+        private static bool LooksLikeMd5Hex(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value)
+                   && value.Length == 32
+                   && value.All(Uri.IsHexDigit);
         }
 
         private static (string artist, string title) SplitArtistTitle(string filename)
