@@ -87,36 +87,51 @@ Use the restore action to recover the original radio UI.
 
 ## Build
 
-Install the required .NET SDK, then run:
+Install the required .NET SDK, Node.js, Go, CMake, and Visual Studio C++ toolchain. For a quick desktop frontend build, run:
 
 ```powershell
 dotnet build "OmniMixPlayer/gui_vbnet/OmniMixFrontend.sln" -c Debug -v minimal
 ```
 
-Local single-file publish:
-
-```powershell
-dotnet publish "OmniMixPlayer/gui_vbnet/OmniMixFrontend/OmniMixFrontend.vbproj" `
-  -c Debug `
-  -o "OmniMixPlayer/bin/GuiVbnetSingle" `
-  /p:PublishSingleFile=true `
-  /p:SelfContained=true `
-  /p:RuntimeIdentifier=win-x64 `
-  /p:EnableCompressionInSingleFile=true `
-  /p:PublishReadyToRun=false `
-  -v minimal
-```
-
-Expected output:
-
-```text
-OmniMixPlayer/bin/GuiVbnetSingle/OmniMixPlayer.Gui.Vbnet.exe
-```
-
-Build the full package:
+The player build uses the shared task-tree script. The repository now has one desktop frontend, the VB.NET/WPF frontend. The `player` target publishes the backend, builds the embedded WebUI, publishes the VB.NET frontend, publishes the media generator, packages game-integration assets, and assembles `playerbuild/`:
 
 ```powershell
 python scripts/build_all.py player
+```
+
+Use `--full` to also run restore and native component builds:
+
+```powershell
+python scripts/build_all.py player --full
+```
+
+Preview the task tree without running it:
+
+```powershell
+python scripts/build_all.py player --full --dry-run
+```
+
+`playerbuild/` is the base directory for installers and release packages. Important entries include:
+
+- `OmniMixPlayer.Gui.Vbnet.exe`
+- `OmniMixPlayer.Backend.exe`
+- `chill-gen-media.exe`
+- `OmniMixAssets/ChillPatcher.zip`
+- `OmniMixAssets/FH6OmniBridge.zip`
+- `modules/`
+- `native/x64/`
+- `wwwroot/`
+
+Create release zip packages:
+
+```powershell
+python scripts/package_release.py 4.2.1
+```
+
+Create the Windows installer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.2.1
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:

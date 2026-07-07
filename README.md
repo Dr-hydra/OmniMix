@@ -77,16 +77,51 @@ FH6 集成页面提供“替换电台 UI”功能：
 
 ## 构建
 
-安装项目所需 .NET SDK 后运行：
+安装项目所需 .NET SDK、Node.js、Go、CMake、Visual Studio C++ 工具链后，可先运行桌面前端快速构建：
 
 ```powershell
 dotnet build "OmniMixPlayer/gui_vbnet/OmniMixFrontend.sln" -c Debug -v minimal
 ```
 
-构建完整包：
+播放器构建统一使用任务树脚本。当前只有一个桌面前端，即 VB.NET/WPF 前端；`player` 构建会依次发布后端、构建内嵌 WebUI、发布 VB.NET 前端、构建媒体生成器、打包游戏集成资源，并组装到 `playerbuild/`：
 
 ```powershell
 python scripts/build_all.py player
+```
+
+完整构建会额外执行 restore 和原生组件构建：
+
+```powershell
+python scripts/build_all.py player --full
+```
+
+如需先查看任务树：
+
+```powershell
+python scripts/build_all.py player --full --dry-run
+```
+
+`playerbuild/` 是安装器和发布包的基础目录，关键文件包括：
+
+- `OmniMixPlayer.Gui.Vbnet.exe`
+- `OmniMixPlayer.Backend.exe`
+- `chill-gen-media.exe`
+- `OmniMixAssets/ChillPatcher.zip`
+- `OmniMixAssets/FH6OmniBridge.zip`
+- `modules/`
+- `native/x64/`
+- `wwwroot/`
+
+生成发布 zip：
+
+```powershell
+python scripts/package_release.py 4.2.1
+```
+
+生成安装器：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.2.1
 ```
 
 当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：

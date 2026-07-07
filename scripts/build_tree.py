@@ -3,7 +3,7 @@
 统一构建任务树
 根据用户选择的模式和选项, 返回一棵 TaskNode 树。
 正确的依赖关系:
-  根 (3个): Backend / MediaGenerator / Player Assets
+  根: Backend / Desktop Frontend / MediaGenerator / Player Assets / Assemble
   Backend 的 wwwroot/ 内嵌 TypeScript WebUI
   Player Assets 下有两个 zip: ChillPatcher.zip, FH6OmniBridge.zip
 """
@@ -31,6 +31,7 @@ def build_tree(mode: str, full: bool) -> list[TaskNode]:
 
     if mode in ("all", "player"):
         roots.append(_backend(full))
+        roots.append(_desktop_frontend())
         roots.append(_media_generator())
         roots.append(_player_assets(full))
         roots.append(_assemble_playerbuild())
@@ -110,7 +111,18 @@ def _backend(full: bool) -> TaskNode:
 
 
 # ════════════════════════════════════════════
-#  根 2: MediaGenerator
+#  根 2: Desktop Frontend
+# ════════════════════════════════════════════
+
+def _desktop_frontend() -> TaskNode:
+    g = TaskNode("🪟 Desktop Frontend", "唯一桌面前端: VB.NET/WPF")
+    g.create_leaf("Publish VB.NET frontend", "framework-dependent single-file",
+                  run_fn=_publish_frontend)
+    return g
+
+
+# ════════════════════════════════════════════
+#  根 3: MediaGenerator
 # ════════════════════════════════════════════
 
 def _media_generator() -> TaskNode:
@@ -122,7 +134,7 @@ def _media_generator() -> TaskNode:
 
 
 # ════════════════════════════════════════════
-#  根 3: Player Assets
+#  根 4: Player Assets
 # ════════════════════════════════════════════
 
 def _player_assets(full: bool) -> TaskNode:
@@ -257,6 +269,12 @@ def _assemble_playerbuild() -> TaskNode:
         "chill-gen-media.exe + config.json + *.pdb → playerbuild/ 根目录",
         run_fn=lambda: _copy_mediagen_to_build())
 
+    # Desktop frontend
+    g.create_leaf(
+        "VB.NET frontend → playerbuild/",
+        f"{C.PLAYER_FRONTEND_EXE} → playerbuild/ 根目录",
+        run_fn=lambda: _copy_frontend_to_build())
+
     # Player assets
     g.create_leaf(
         "OmniMix assets → playerbuild/OmniMixAssets/",
@@ -265,8 +283,8 @@ def _assemble_playerbuild() -> TaskNode:
 
     # Native decoders (后端用)
     g.create_leaf(
-        "Native decoders → playerbuild/native/x64/",
-        "OmniAudioDecoder.dll → playerbuild/native/x64/",
+        "Native runtime DLLs → playerbuild/",
+        "OmniAudioDecoder.dll / OmniPcmShared.dll → playerbuild/native/x64/",
         run_fn=lambda: _copy_native_decoders())
 
     # 各模块 DLL
@@ -313,6 +331,16 @@ def _copy_mediagen_to_build() -> bool:
     return True
 
 
+def _copy_frontend_to_build() -> bool:
+    src = C.PLAYER_FRONTEND_PUBLISH / C.PLAYER_FRONTEND_EXE
+    if not src.exists():
+        info(f"  WARNING: Frontend publish output not found: {src}")
+        return False
+    copy_file(src, C.PLAYER_BUILD)
+    info(f"  {C.PLAYER_FRONTEND_EXE} → playerbuild/")
+    return True
+
+
 def _copy_player_assets_to_build() -> bool:
     if not C.PLAYER_ASSETS_DIR.exists():
         info("  WARNING: Player assets not found")
@@ -333,11 +361,18 @@ def _copy_native_decoders() -> bool:
         return False
     native_dst = C.PLAYER_BUILD / "native" / "x64"
     native_dst.mkdir(parents=True, exist_ok=True)
-    for dll in ["OmniAudioDecoder.dll"]:
+    copied = False
+    for dll in ["OmniAudioDecoder.dll", "OmniPcmShared.dll"]:
         src = native_src / dll
         if src.exists():
             copy_file(src, native_dst)
-    info("  Native decoders → playerbuild/native/x64/")
+            copied = True
+            if dll == "OmniPcmShared.dll":
+                copy_file(src, C.PLAYER_BUILD)
+    if not copied:
+        info("  WARNING: no native runtime DLLs copied")
+        return False
+    info("  Native runtime DLLs → playerbuild/")
     return True
 
 
@@ -429,6 +464,32 @@ def _publish_backend() -> int:
         shutil.rmtree(C.PLAYER_BACKEND_PUBLISH)
     return dotnet_publish(C.PLAYER_BACKEND_PROJ, C.PLAYER_BACKEND_PUBLISH,
                           single_file=True)
+
+
+def _publish_frontend() -> int:
+    if C.PLAYER_FRONTEND_PUBLISH.exists():
+        shutil.rmtree(C.PLAYER_FRONTEND_PUBLISH)
+    return run_cmd([
+        "dotnet",
+        "publish",
+        str(C.PLAYER_FRONTEND_PROJ),
+        "-c",
+        "Release",
+        "-r",
+        "win-x64",
+        "--self-contained",
+        "false",
+        "-o",
+        str(C.PLAYER_FRONTEND_PUBLISH),
+        "-p:PublishSingleFile=true",
+        "-p:SelfContained=false",
+        "-p:IncludeNativeLibrariesForSelfExtract=true",
+        "-p:IncludeAllContentForSelfExtract=true",
+        "-p:EnableCompressionInSingleFile=false",
+        "-p:PublishTrimmed=false",
+        "-v",
+        "minimal",
+    ])
 
 
 # ── Session 级去重: 同一个构建中, native 只编译一次 ──

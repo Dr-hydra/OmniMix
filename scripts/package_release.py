@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Package OmniMix VB.NET release artifacts from an existing playerbuild."""
+"""Package OmniMix release artifacts from an existing playerbuild."""
 from __future__ import annotations
 
 import argparse
@@ -8,20 +8,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-ROOT = Path(__file__).resolve().parent.parent
+from build_config import (
+    MEDIA_GEN_PROJ,
+    PLAYER_BACKEND_EXE,
+    PLAYER_BACKEND_PROJ,
+    PLAYER_BUILD,
+    PLAYER_FRONTEND_EXE,
+    PLAYER_FRONTEND_PROJ,
+    ROOT,
+)
+
 RELEASE = ROOT / "release"
 ARTIFACTS = ROOT / "artifacts"
-PLAYER_BUILD = ROOT / "playerbuild"
-
-BACKEND_PROJ = ROOT / "OmniMixPlayer" / "OmniMixPlayer.Backend" / "OmniMixPlayer.Backend.csproj"
-GUI_PROJ = ROOT / "OmniMixPlayer" / "gui_vbnet" / "OmniMixFrontend" / "OmniMixFrontend.vbproj"
-MEDIA_GEN_PROJ = ROOT / "ChillPatcher.MediaGenerator" / "ChillPatcher.MediaGenerator.csproj"
-
-GUI_EXE = "OmniMixPlayer.Gui.Vbnet.exe"
-BACKEND_EXE = "OmniMixPlayer.Backend.exe"
-MEDIA_GEN_EXE = "chill-gen-media.exe"
-
 
 def main() -> int:
     configure_console()
@@ -31,6 +31,12 @@ def main() -> int:
 
     if not PLAYER_BUILD.exists():
         print(f"Missing playerbuild: {PLAYER_BUILD}")
+        return 1
+    if not (PLAYER_BUILD / PLAYER_FRONTEND_EXE).exists():
+        print(f"Missing frontend executable in playerbuild: {PLAYER_FRONTEND_EXE}")
+        return 1
+    if not (PLAYER_BUILD / PLAYER_BACKEND_EXE).exists():
+        print(f"Missing backend executable in playerbuild: {PLAYER_BACKEND_EXE}")
         return 1
 
     RELEASE.mkdir(exist_ok=True)
@@ -44,10 +50,10 @@ def main() -> int:
     self_contained_gui = ARTIFACTS / f"gui-vbnet-selfcontained-{args.version}"
     fd_root = ARTIFACTS / f"framework-dependent-singlefile-{args.version}"
 
-    print("[publish] self-contained VB.NET frontend")
+    print("[publish] portable VB.NET frontend")
     reset_dir(self_contained_gui)
     run([
-        "dotnet", "publish", str(GUI_PROJ),
+        "dotnet", "publish", str(PLAYER_FRONTEND_PROJ),
         "-c", "Release",
         "-r", "win-x64",
         "--self-contained", "true",
@@ -64,21 +70,21 @@ def main() -> int:
     print("[stage] portable")
     reset_dir(portable_stage)
     copy_playerbuild(portable_stage)
-    shutil.copy2(self_contained_gui / GUI_EXE, portable_stage / GUI_EXE)
+    shutil.copy2(self_contained_gui / PLAYER_FRONTEND_EXE, portable_stage / PLAYER_FRONTEND_EXE)
     archive_stage(portable_stage, portable_zip)
 
     print("[publish] framework-dependent single-file executables")
     reset_dir(fd_root)
-    publish_framework_single_file(BACKEND_PROJ, fd_root / "backend")
+    publish_framework_single_file(PLAYER_BACKEND_PROJ, fd_root / "backend")
     publish_framework_single_file(MEDIA_GEN_PROJ, fd_root / "media-generator")
-    publish_framework_single_file(GUI_PROJ, fd_root / "gui")
+    publish_framework_single_file(PLAYER_FRONTEND_PROJ, fd_root / "gui")
 
     print("[stage] framework-dependent")
     reset_dir(framework_stage)
     copy_playerbuild(framework_stage)
-    replace_from_publish(fd_root / "backend", framework_stage)
-    replace_from_publish(fd_root / "media-generator", framework_stage)
-    replace_from_publish(fd_root / "gui", framework_stage)
+    copy_publish_output(fd_root / "backend", framework_stage)
+    copy_publish_output(fd_root / "media-generator", framework_stage)
+    copy_publish_output(fd_root / "gui", framework_stage)
     cleanup_framework_stage(framework_stage)
     archive_stage(framework_stage, framework_zip)
 
@@ -139,7 +145,7 @@ def publish_framework_single_file(project: Path, output: Path) -> None:
     ])
 
 
-def replace_from_publish(src: Path, dst: Path) -> None:
+def copy_publish_output(src: Path, dst: Path) -> None:
     for item in src.iterdir():
         if item.is_dir():
             target = dst / item.name

@@ -1,30 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Command-line compatibility wrapper for the v3 build task tree.
+"""Command-line wrapper for the OmniMix build task tree.
 
-The upstream v3 refactor moved build logic into task-tree modules used by the
-GUI. This file keeps the historical `build.cmd player --full` style entrypoint
-working for release automation and for the VB.NET frontend package flow.
+This keeps the historical `build.cmd player --full` style entrypoint while all
+actual build steps live in `build_tree.py`, shared with the GUI build manager.
 """
 from __future__ import annotations
 
 import argparse
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from build_config import PLAYER_BUILD, ROOT, setup_toolchain
+from build_config import setup_toolchain
 from build_tree import build_tree
 from tasks.base import TaskNode, TaskStatus
-
-
-VB_FRONTEND_PROJ = (
-    ROOT / "OmniMixPlayer" / "gui_vbnet" / "OmniMixFrontend" / "OmniMixFrontend.vbproj"
-)
-VB_FRONTEND_PUBLISH = ROOT / "OmniMixPlayer" / "bin" / "GuiVbnetSingle"
-VB_FRONTEND_EXE = "OmniMixPlayer.Gui.Vbnet.exe"
 
 
 def main() -> int:
@@ -53,9 +43,6 @@ def main() -> int:
         ok = _run_node(root) and ok
         if not ok:
             break
-
-    if ok and args.command in ("all", "player"):
-        ok = _publish_vbnet_frontend()
 
     return 0 if ok else 1
 
@@ -92,108 +79,6 @@ def _run_node(node: TaskNode) -> bool:
             return False
     node.status = TaskStatus.SUCCESS
     return True
-
-
-def _publish_vbnet_frontend() -> bool:
-    print("\n[run] VB.NET Frontend/Publish")
-    if not VB_FRONTEND_PROJ.exists():
-        print(f"Missing project: {VB_FRONTEND_PROJ}")
-        return False
-
-    if VB_FRONTEND_PUBLISH.exists():
-        shutil.rmtree(VB_FRONTEND_PUBLISH)
-
-    code = subprocess.run(
-        [
-            "dotnet",
-            "publish",
-            str(VB_FRONTEND_PROJ),
-            "-c",
-            "Release",
-            "-r",
-            "win-x64",
-            "--self-contained",
-            "false",
-            "-o",
-            str(VB_FRONTEND_PUBLISH),
-            "-p:PublishSingleFile=true",
-            "-p:SelfContained=false",
-            "-p:IncludeNativeLibrariesForSelfExtract=true",
-            "-p:IncludeAllContentForSelfExtract=true",
-            "-p:EnableCompressionInSingleFile=false",
-            "-p:PublishTrimmed=false",
-            "-v",
-            "minimal",
-        ],
-        cwd=ROOT,
-        shell=True,
-        check=False,
-    ).returncode
-    if code != 0:
-        print(f"VB.NET frontend publish failed: {code}")
-        return False
-
-    src = VB_FRONTEND_PUBLISH / VB_FRONTEND_EXE
-    if not src.exists():
-        print(f"Missing published executable: {src}")
-        return False
-
-    PLAYER_BUILD.mkdir(parents=True, exist_ok=True)
-    _remove_upstream_desktop_gui()
-    shutil.copy2(src, PLAYER_BUILD / VB_FRONTEND_EXE)
-    print(f"[success] VB.NET frontend copied to {PLAYER_BUILD / VB_FRONTEND_EXE}")
-
-    from build_config import OMNI_PCM_DLL
-    if OMNI_PCM_DLL.exists():
-        shutil.copy2(OMNI_PCM_DLL, PLAYER_BUILD / "OmniPcmShared.dll")
-        native_dst = PLAYER_BUILD / "native" / "x64"
-        native_dst.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(OMNI_PCM_DLL, native_dst / "OmniPcmShared.dll")
-        print(f"[success] OmniPcmShared.dll copied to {PLAYER_BUILD} and native/x64/")
-    else:
-        print(f"[warning] OmniPcmShared.dll not found at {OMNI_PCM_DLL}")
-
-    _copy_omnimix_assets()
-    return True
-
-
-def _copy_omnimix_assets() -> None:
-    dst_dir = PLAYER_BUILD / "OmniMixAssets"
-    dst_dir.mkdir(parents=True, exist_ok=True)
-
-    player_assets_dir = ROOT / "OmniMixPlayer" / "assets"
-    release_assets_dir = ROOT / "release" / "OmniMixAssets"
-
-    zip_files = ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip"]
-    for name in zip_files:
-        src = player_assets_dir / name
-        if not src.exists():
-            src = release_assets_dir / name
-
-        if src.exists():
-            shutil.copy2(src, dst_dir / name)
-            print(f"[success] Asset {name} copied from {src.parent.name}")
-        else:
-            print(f"[warning] Asset {name} not found in build or release folders")
-
-
-def _remove_upstream_desktop_gui() -> None:
-    for name in [
-        "omnimix_gui.exe",
-        "omni_mix_player.exe",
-        "OmniPcmShared.dll",
-    ]:
-        path = PLAYER_BUILD / name
-        if path.exists() and path.name != VB_FRONTEND_EXE:
-            path.unlink()
-
-    data_dir = PLAYER_BUILD / "data"
-    if data_dir.exists():
-        shutil.rmtree(data_dir, ignore_errors=True)
-
-    for dll in PLAYER_BUILD.glob("*_plugin.dll"):
-        dll.unlink()
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
