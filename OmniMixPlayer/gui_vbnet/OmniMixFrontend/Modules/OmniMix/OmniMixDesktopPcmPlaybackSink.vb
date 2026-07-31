@@ -40,8 +40,9 @@ Public Class OmniMixDesktopPcmPlaybackSink
         Private ReadOnly MapName As String
         Private Handle As IntPtr = IntPtr.Zero
         Private ReadOnly BufferLock As New Object()
+        Private Shared ReadOnly NativeLibraryLock As New Object()
+        Private Shared NativeLibraryHandle As IntPtr = IntPtr.Zero
         Private FloatBuffer As Single() = Array.Empty(Of Single)()
-        Private CurrentAudibleFrame As Long = 0
         Private LastOpenFailureTick As Long = 0
         Private LastLogTick As Long = 0
         Private IsDisposed As Boolean = False
@@ -72,8 +73,7 @@ Public Class OmniMixDesktopPcmPlaybackSink
 
                 Dim BytesRead = CInt(Math.Min(FramesRead * DefaultChannels * 4L, Count))
                 System.Buffer.BlockCopy(FloatBuffer, 0, Buffer, Offset, BytesRead)
-                CurrentAudibleFrame += FramesRead
-                OmniPcm_SetAudibleCursor(Handle, CurrentAudibleFrame, 0)
+                OmniPcm_ReportAudioSourcePosition(Handle, CInt(FramesRead))
             End SyncLock
 
             Return Count
@@ -93,9 +93,22 @@ Public Class OmniMixDesktopPcmPlaybackSink
             Dim NowTick = Environment.TickCount64
             If NowTick - LastOpenFailureTick < 2000 Then Return False
 
-            TryLoadNativeLibrary()
-            Handle = OmniPcm_OpenUtf8(If(String.IsNullOrWhiteSpace(MapName), Nothing, MapName))
-            If Handle <> IntPtr.Zero AndAlso OmniPcm_IsOpen(Handle) <> 0 Then Return True
+            Try
+                If Not TryLoadNativeLibrary() Then
+                    LastOpenFailureTick = NowTick
+                    LogThrottled("OmniMix 桌面播放器未找到 OmniPcmShared.dll。")
+                    Return False
+                End If
+
+                Handle = OmniPcm_OpenUtf8(If(String.IsNullOrWhiteSpace(MapName), Nothing, MapName))
+                If Handle <> IntPtr.Zero AndAlso OmniPcm_IsOpen(Handle) <> 0 Then Return True
+            Catch Ex As Exception When TypeOf Ex Is DllNotFoundException OrElse
+                                           TypeOf Ex Is BadImageFormatException OrElse
+                                           TypeOf Ex Is EntryPointNotFoundException
+                LastOpenFailureTick = NowTick
+                LogThrottled("OmniMix 桌面播放器加载 OmniPcmShared.dll 失败：" & Ex.Message)
+                Return False
+            End Try
 
             LastOpenFailureTick = NowTick
             LogThrottled("OmniMix 桌面播放器未能打开 OmniPcmShared。")
@@ -115,23 +128,34 @@ Public Class OmniMixDesktopPcmPlaybackSink
             Logger.Warn(Message)
         End Sub
 
-        Private Shared Sub TryLoadNativeLibrary()
-            Dim Candidates = {
-                Path.Combine(PathExe, "OmniPcmShared.dll"),
-                Path.Combine(PathExe, "native", "x64", "OmniPcmShared.dll"),
-                Path.Combine(Environment.CurrentDirectory, "OmniPcmShared.dll"),
-                Path.Combine(Environment.CurrentDirectory, "native", "x64", "OmniPcmShared.dll")
-            }
+        Private Shared Function TryLoadNativeLibrary() As Boolean
+            SyncLock NativeLibraryLock
+                If NativeLibraryHandle <> IntPtr.Zero Then Return True
 
-            For Each Candidate In Candidates
-                If Not File.Exists(Candidate) Then Continue For
-                Try
-                    NativeLibrary.Load(Candidate)
-                    Return
-                Catch
-                End Try
-            Next
-        End Sub
+                Dim BaseDirectory = PathExeFolder.TrimEnd("\"c, "/"c)
+                Dim AppBaseDirectory = AppContext.BaseDirectory.TrimEnd("\"c, "/"c)
+                Dim WorkingDirectory = Environment.CurrentDirectory.TrimEnd("\"c, "/"c)
+                Dim Candidates = {
+                    Path.Combine(BaseDirectory, "OmniPcmShared.dll"),
+                    Path.Combine(BaseDirectory, "native", "x64", "OmniPcmShared.dll"),
+                    Path.Combine(AppBaseDirectory, "OmniPcmShared.dll"),
+                    Path.Combine(AppBaseDirectory, "native", "x64", "OmniPcmShared.dll"),
+                    Path.Combine(WorkingDirectory, "OmniPcmShared.dll"),
+                    Path.Combine(WorkingDirectory, "native", "x64", "OmniPcmShared.dll")
+                }
+
+                For Each Candidate In Candidates.Distinct(StringComparer.OrdinalIgnoreCase)
+                    If Not File.Exists(Candidate) Then Continue For
+                    Try
+                        NativeLibraryHandle = NativeLibrary.Load(Candidate)
+                        If NativeLibraryHandle <> IntPtr.Zero Then Return True
+                    Catch
+                    End Try
+                Next
+
+                Return False
+            End SyncLock
+        End Function
 
         <DllImport("OmniPcmShared", EntryPoint:="OmniPcm_OpenUtf8", ExactSpelling:=True, CallingConvention:=CallingConvention.Cdecl)>
         Private Shared Function OmniPcm_OpenUtf8(<MarshalAs(UnmanagedType.LPStr)> MapNameUtf8 As String) As IntPtr
@@ -158,7 +182,7 @@ Public Class OmniMixDesktopPcmPlaybackSink
         End Function
 
         <DllImport("OmniPcmShared", CallingConvention:=CallingConvention.Cdecl)>
-        Private Shared Function OmniPcm_SetAudibleCursor(Handle As IntPtr, Frame As Long, AllowBackward As Integer) As Integer
+        Private Shared Function OmniPcm_ReportAudioSourcePosition(Handle As IntPtr, TimeSamples As Integer) As Integer
         End Function
     End Class
 

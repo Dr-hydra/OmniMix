@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
@@ -357,7 +358,7 @@ namespace OmniMixPlayer.Module.Netease
                 string cachePath = localPath
                     ?? (_fileCache != null
                         ? _fileCache.GetCachePath(songInfo.Id, artist, songName, format)
-                        : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "chillpatcher_audio_cache", $"netease_{songInfo.Id}.{format}"));
+                        : System.IO.Path.Combine(CachePaths.GetModuleDirectory("Netease"), $"netease_{songInfo.Id}.{format}"));
 
                 // 记录待写标签信息，在歌曲资源释放后异步写入
                 _pendingTags[uuid] = (cachePath, songInfo, songUrl.Size);

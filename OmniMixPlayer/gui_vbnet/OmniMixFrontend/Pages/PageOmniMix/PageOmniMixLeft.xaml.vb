@@ -15,6 +15,7 @@ Public Class PageOmniMixLeft
     Private ActiveLatency As Double = 0.1
     Private ActiveIsPlaying As Boolean = False
     Private ActivePlaybackMode As PlaybackMode = PlaybackMode.Sequence
+    Private ActiveDjEnabled As Boolean = False
     Private IsOnline As Boolean = False
     Private CanControlActiveInstance As Boolean = False
     Private IsUpdatingPlaybackUi As Boolean = False
@@ -122,6 +123,7 @@ Public Class PageOmniMixLeft
             Dim Instances = Await OmniMixApiClient.GetInstancesAsync(CurrentBaseUrl)
             OmniMixDesktopPlayerService.ReconcileWithInstances(CurrentBaseUrl, Instances)
             Dim Config = Await OmniMixApiClient.GetConfigAsync(CurrentBaseUrl)
+            ActiveDjEnabled = ConfigBoolean(Config, "fh6_dj_enabled", Settings.Get(Of Boolean)("OmniMixFh6DjEnabled"))
             Dim Playlist As OmniMixPlaylistData = Nothing
             If LoadPlaylist Then
                 Try
@@ -206,6 +208,7 @@ Public Class PageOmniMixLeft
             BtnLeftPlaybackMode.Opacity = If(CanControlActiveInstance, 1, 0.55)
             BtnLeftPlaybackMode.ToolTip = "播放模式：" & PlaybackModeText(ActivePlaybackMode)
             BtnLeftPlaybackMode.IsEnabled = True
+            UpdateDjButton()
             BtnLeftPlaybackPrev.IsEnabled = True
             BtnLeftPlaybackToggle.IsEnabled = True
             BtnLeftPlaybackNext.IsEnabled = True
@@ -222,7 +225,25 @@ Public Class PageOmniMixLeft
         BtnLeftPlaybackToggle.Logo = IconPlay
         BtnLeftPlaybackNext.Logo = IconNext
         BtnLeftPlaybackMode.Logo = IconSequence
+        BtnLeftPlaybackDj.Text = "DJ"
+        ActiveDjEnabled = Settings.Get(Of Boolean)("OmniMixFh6DjEnabled")
+        UpdateDjButton()
         SliderLeftProgress.GetHintText = Function(Value As Integer) FormatDuration(Value)
+    End Sub
+
+    Private Sub UpdateDjButton()
+        BtnLeftPlaybackDj.Text = "DJ"
+        BtnLeftPlaybackDj.ShowSlash = Not ActiveDjEnabled
+        BtnLeftPlaybackDj.Opacity = If(ActiveDjEnabled, 1, 0.5)
+        BtnLeftPlaybackDj.Theme = If(ActiveDjEnabled, MyIconButton.Themes.Color, MyIconButton.Themes.Black)
+        Dim ScopeText = If(
+            String.Equals(Settings.Get(Of String)("OmniMixFh6DjScope"), "desktop_instances", StringComparison.OrdinalIgnoreCase),
+            "桌面实例",
+            "FH6 实例")
+        BtnLeftPlaybackDj.ToolTip = If(
+            ActiveDjEnabled,
+            "DJ 模式已开启 · " & ScopeText,
+            "DJ 模式已关闭 · " & ScopeText)
     End Sub
 
     Private Function ResolvePlaybackMode() As PlaybackMode
@@ -502,6 +523,28 @@ Public Class PageOmniMixLeft
         End Try
     End Sub
 
+    Private Async Sub BtnLeftPlaybackDj_Click(sender As Object, e As EventArgs) Handles BtnLeftPlaybackDj.Click
+        Dim PreviousValue = ActiveDjEnabled
+        ActiveDjEnabled = Not ActiveDjEnabled
+        Settings.Set("OmniMixFh6DjEnabled", ActiveDjEnabled)
+        UpdateDjButton()
+
+        If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
+            Hint(If(ActiveDjEnabled, "DJ 模式已开启；连接后端后自动同步。", "DJ 模式已关闭。"), HintType.Blue)
+            Return
+        End If
+
+        Try
+            Await OmniMixBackendManager.SyncDjSettingsAsync(CurrentBaseUrl)
+            Hint(If(ActiveDjEnabled, "DJ 模式已开启。", "DJ 模式已关闭。"), HintType.Green)
+        Catch Ex As Exception
+            ActiveDjEnabled = PreviousValue
+            Settings.Set("OmniMixFh6DjEnabled", PreviousValue)
+            UpdateDjButton()
+            Hint("DJ 模式切换失败：" & Ex.Message, HintType.Red)
+        End Try
+    End Sub
+
     Private Sub SliderLeftProgress_Change(sender As Object, user As Boolean) Handles SliderLeftProgress.Change
         If IsUpdatingPlaybackUi Then Return
         If Not CanControlActiveInstance OrElse ActiveDuration <= 0 Then Return
@@ -579,6 +622,23 @@ Public Class PageOmniMixLeft
                 Return NonEmpty(Value.GetString(), Fallback)
             Case JsonValueKind.Number, JsonValueKind.True, JsonValueKind.False
                 Return Value.ToString()
+            Case Else
+                Return Fallback
+        End Select
+    End Function
+
+    Private Shared Function ConfigBoolean(Config As Dictionary(Of String, JsonElement), Key As String, Fallback As Boolean) As Boolean
+        If Config Is Nothing OrElse Not Config.ContainsKey(Key) Then Return Fallback
+        Dim Value = Config(Key)
+        Select Case Value.ValueKind
+            Case JsonValueKind.True
+                Return True
+            Case JsonValueKind.False
+                Return False
+            Case JsonValueKind.String
+                Dim Parsed As Boolean
+                If Boolean.TryParse(Value.GetString(), Parsed) Then Return Parsed
+                Return Fallback
             Case Else
                 Return Fallback
         End Select
@@ -694,7 +754,7 @@ Public Class PageOmniMixLeft
         CurrentRight.SetLibraryPane(CurrentLibrarySourceId)
     End Sub
 
-    Private Sub ModuleNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemModuleLaunchpad.Check, ItemModuleMod.Check, ItemModuleGameIntegration.Check
+    Private Sub ModuleNav_Check(sender As FrameworkElement, e As RouteEventArgs) Handles ItemModuleLaunchpad.Check, ItemModuleMod.Check, ItemModuleGameIntegration.Check, ItemModuleDj.Check
         If CurrentRight Is Nothing OrElse sender.Tag Is Nothing Then Return
         CurrentRight.SetModulesPane(sender.Tag.ToString())
     End Sub

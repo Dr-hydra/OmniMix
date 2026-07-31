@@ -9,6 +9,7 @@ Public Class Settings
         New Setting("SystemDebugDelay", False, Source:=Sources.Registry),
         New Setting("SystemDebugSkipCopy", False, Source:=Sources.Registry),
         New Setting("SystemSystemCache", "", Source:=Sources.Registry),
+        New Setting("OmniMixCacheMaxBytes", 2147483648L, Source:=Sources.Registry),
         New Setting("SystemSystemTelemetry", True, Source:=Sources.Registry),
         New Setting("ToolDownloadThread", 63, Source:=Sources.Registry),
         New Setting("ToolDownloadSpeed", 42, Source:=Sources.Registry, OnChanged:=AddressOf ModNet.UpdateNetTaskSpeedLimitHigh),
@@ -24,6 +25,9 @@ Public Class Settings
         New Setting("OmniMixFloatingWindowBackgroundOpacity", 88, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("OmniMixFloatingWindowScale", 100, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("OmniMixFloatingWindowVisible", True, OnChanged:=Sub(Value As Boolean) If FrmMain IsNot Nothing Then FrmMain.ApplyOmniMixFloatingPlaybackWindowSettings()),
+        New Setting("OmniMixFloatingWindowLeft", 0.0),
+        New Setting("OmniMixFloatingWindowTop", 0.0),
+        New Setting("OmniMixFloatingWindowMonitor", ""),
         New Setting("OmniMixFloatingWindowStyle", 0, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("OmniMixFloatingWindowTheme", 15, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
         New Setting("OmniMixFloatingWindowThemeHue", 210, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateOmniMixFloatingPlaybackWindowAppearance()),
@@ -47,7 +51,12 @@ Public Class Settings
         New Setting("OmniMixBackendPath", ""),
         New Setting("OmniMixCloseBackendWithGui", True),
         New Setting("OmniMixDesktopPlayerEnabled", True),
-        New Setting("OmniMixFh6RaceStartPlayback", "ignore")
+        New Setting("OmniMixFh6RaceStartPlayback", "ignore"),
+        New Setting("OmniMixFh6DjEnabled", False),
+        New Setting("OmniMixFh6DjHost", 1),
+        New Setting("OmniMixFh6DjScope", "fh6_instances"),
+        New Setting("OmniMixFh6DjContent", "smart"),
+        New Setting("OmniMixFh6DjFrequency", 1)
     }).ToDictionary(Function(e) e.Key)
 
     Public Enum Sources

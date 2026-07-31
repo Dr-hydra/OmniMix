@@ -17,6 +17,28 @@ Public Class MyIconButton
         End Set
     End Property
 
+    Private _Text As String = ""
+    Public Property Text As String
+        Get
+            Return _Text
+        End Get
+        Set(value As String)
+            _Text = If(value, "")
+            RefreshContent()
+        End Set
+    End Property
+
+    Private _ShowSlash As Boolean = False
+    Public Property ShowSlash As Boolean
+        Get
+            Return _ShowSlash
+        End Get
+        Set(value As Boolean)
+            _ShowSlash = value
+            RefreshContent()
+        End Set
+    End Property
+
     Private _LogoScale As Double = 1
     Public Property LogoScale() As Double
         Get
@@ -49,6 +71,15 @@ Public Class MyIconButton
             AniControlEnabled -= 1
         End Set
     End Property
+
+    Private Sub RefreshContent()
+        If Path Is Nothing OrElse LabText Is Nothing OrElse PathSlash Is Nothing Then Return
+        Dim HasText = Not String.IsNullOrWhiteSpace(_Text)
+        Path.Visibility = If(HasText, Visibility.Collapsed, Visibility.Visible)
+        LabText.Text = _Text
+        LabText.Visibility = If(HasText, Visibility.Visible, Visibility.Collapsed)
+        PathSlash.Visibility = If(_ShowSlash, Visibility.Visible, Visibility.Collapsed)
+    End Sub
 
     '鼠标点击判定（务必放在点击事件之后，以使得 Button_MouseUp 先于 Button_MouseLeave 执行）
     Private IsMouseDown As Boolean = False

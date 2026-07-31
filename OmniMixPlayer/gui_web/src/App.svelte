@@ -59,13 +59,17 @@
   $: pageTitle = view === "player" ? "播放控制" : view === "library" ? "曲库" : selectedModule ? selectedModule.name : "模块";
   $: currentTrackTitle = playbackStatus?.title || "未播放";
   $: currentTrackSub = [playbackStatus?.artist, playbackStatus?.albumId].filter(Boolean).join(" / ") || "等待播放实例";
+  $: djEnabled = configBoolean(config["fh6_dj_enabled"]);
+  $: djScopeText = configString(config["fh6_dj_scope"]) === "desktop_instances" ? "桌面实例" : "FH6 实例";
 
   onMount(() => {
     void refreshAll();
     connectWs();
     const timer = window.setInterval(() => void refreshPlayback(false), 4000);
+    const configTimer = window.setInterval(() => void refreshConfig(false), 4000);
     return () => {
       window.clearInterval(timer);
+      window.clearInterval(configTimer);
       socket?.close();
     };
   });
@@ -100,8 +104,12 @@
     }
   }
 
-  async function refreshConfig() {
-    config = await api.config();
+  async function refreshConfig(showErrors = true) {
+    try {
+      config = await api.config();
+    } catch (error) {
+      if (showErrors) message = error instanceof Error ? error.message : String(error);
+    }
   }
 
   function pickPreferredInstanceId(nextInstances: PlaybackInstance[]) {
@@ -243,6 +251,14 @@
     await refreshPlayback();
   }
 
+  async function toggleDj() {
+    await runAction(async () => {
+      await api.updateConfig({ fh6_dj_enabled: !djEnabled });
+      await api.saveConfig();
+      await refreshConfig();
+    });
+  }
+
   async function playTrack(uuid: string) {
     await runAction(async () => playback("play", { uuid }));
   }
@@ -358,6 +374,16 @@
     if (mode === "one") return "all";
     return "none";
   }
+
+  function configBoolean(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") return value.toLowerCase() === "true";
+    return false;
+  }
+
+  function configString(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
 </script>
 
 <div class="shell">
@@ -446,7 +472,21 @@
               <h3>{currentTrackTitle}</h3>
               <p>{currentTrackSub}</p>
             </div>
-            <span class:online={selectedInstance?.isOnline} class="pill">{selectedInstance?.isOnline ? "在线" : "不可播放"}</span>
+            <div class="now-actions">
+              <span class:online={selectedInstance?.isOnline} class="pill">{selectedInstance?.isOnline ? "在线" : "不可播放"}</span>
+              <button
+                type="button"
+                class="dj-toggle"
+                class:enabled={djEnabled}
+                disabled={busy}
+                aria-label={djEnabled ? "关闭 DJ 模式" : "开启 DJ 模式"}
+                aria-pressed={djEnabled}
+                title={`${djEnabled ? "关闭" : "开启"} DJ 模式 · ${djScopeText}`}
+                on:click={toggleDj}
+              >
+                <span class="dj-mark" aria-hidden="true">DJ</span>
+              </button>
+            </div>
           </div>
 
           <div class="transport">

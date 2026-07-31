@@ -13,7 +13,6 @@ namespace OmniMixPlayer.Backend.Audio
         private readonly InstanceRegistry _registry;
         private readonly ILibraryRegistry _library;
         private readonly IEventBus _eventBus;
-        private readonly Random _rng = new();
 
         public event Action<string> OnTimelineChanged;
 
@@ -40,6 +39,24 @@ namespace OmniMixPlayer.Backend.Audio
 
         public int GetManualQueueCount(string instanceId) => Get(instanceId).ManualQueueUuids.Count;
 
+        /// <summary>
+        /// Calculates the next track for a user-triggered advance without persisting
+        /// any queue, history, cursor, or shuffle mutation.
+        /// </summary>
+        public TimelineAdvanceResult PeekNext(string instanceId)
+        {
+            return Peek(instanceId, timeline => PlaybackTimelineReducer.Next(timeline, rng: null));
+        }
+
+        /// <summary>
+        /// Calculates the next track for natural completion without changing the
+        /// persisted timeline. FH6 DJ prefetch uses this to prepare in advance.
+        /// </summary>
+        public TimelineAdvanceResult PeekNaturalEnd(string instanceId)
+        {
+            return Peek(instanceId, timeline => PlaybackTimelineReducer.NaturalEnd(timeline, rng: null));
+        }
+
         public TimelineAdvanceResult PlayExplicit(string instanceId, string uuid)
         {
             return Mutate(instanceId, timeline =>
@@ -52,12 +69,12 @@ namespace OmniMixPlayer.Backend.Audio
 
         public TimelineAdvanceResult EnsureCurrentOrTakeNext(string instanceId)
         {
-            return Mutate(instanceId, timeline => PlaybackTimelineReducer.EnsureCurrentOrTakeNext(timeline, _rng));
+            return Mutate(instanceId, timeline => PlaybackTimelineReducer.EnsureCurrentOrTakeNext(timeline, rng: null));
         }
 
         public TimelineAdvanceResult Next(string instanceId)
         {
-            return Mutate(instanceId, timeline => PlaybackTimelineReducer.Next(timeline, _rng));
+            return Mutate(instanceId, timeline => PlaybackTimelineReducer.Next(timeline, rng: null));
         }
 
         public TimelineAdvanceResult Previous(string instanceId)
@@ -67,7 +84,7 @@ namespace OmniMixPlayer.Backend.Audio
 
         public TimelineAdvanceResult NaturalEnd(string instanceId)
         {
-            return Mutate(instanceId, timeline => PlaybackTimelineReducer.NaturalEnd(timeline, _rng));
+            return Mutate(instanceId, timeline => PlaybackTimelineReducer.NaturalEnd(timeline, rng: null));
         }
 
         public void ClearCurrent(string instanceId)
@@ -237,6 +254,17 @@ namespace OmniMixPlayer.Backend.Audio
             });
             OnTimelineChanged?.Invoke(instanceId);
             return result;
+        }
+
+        private TimelineAdvanceResult Peek(
+            string instanceId,
+            Func<PlaybackTimelineState, TimelineAdvanceResult> preview)
+        {
+            lock (_lock)
+            {
+                var timeline = Clone(GetProfileTimeline(instanceId));
+                return preview(timeline);
+            }
         }
 
         private PlaybackTimelineState GetProfileTimeline(string instanceId)

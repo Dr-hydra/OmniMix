@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -18,6 +19,10 @@ from build_config import (
     PLAYER_FRONTEND_EXE,
     PLAYER_FRONTEND_PROJ,
     ROOT,
+    FH6_PLAYER_ASSET,
+    VGMSTREAM_NOTICE,
+    VGMSTREAM_RUNTIME_DIR,
+    VGMSTREAM_RUNTIME_FILES,
 )
 
 RELEASE = ROOT / "release"
@@ -37,6 +42,8 @@ def main() -> int:
         return 1
     if not (PLAYER_BUILD / PLAYER_BACKEND_EXE).exists():
         print(f"Missing backend executable in playerbuild: {PLAYER_BACKEND_EXE}")
+        return 1
+    if not validate_game_integration_runtime():
         return 1
 
     RELEASE.mkdir(exist_ok=True)
@@ -91,6 +98,40 @@ def main() -> int:
     print(f"[ok] {portable_zip}")
     print(f"[ok] {framework_zip}")
     return 0
+
+
+def validate_game_integration_runtime() -> bool:
+    """Reject release archives that would leave FH6 DJ mode unusable after install."""
+    runtime_dir = VGMSTREAM_RUNTIME_DIR
+    required_runtime = [runtime_dir / name for name in VGMSTREAM_RUNTIME_FILES]
+    required_runtime.append(runtime_dir / VGMSTREAM_NOTICE.name)
+    missing_runtime = [path for path in required_runtime if not path.is_file() or path.stat().st_size <= 0]
+    if missing_runtime:
+        print("Missing vgmstream runtime files in playerbuild:")
+        for path in missing_runtime:
+            print(f"  {path}")
+        return False
+
+    bridge_archive = PLAYER_BUILD / "OmniMixAssets" / FH6_PLAYER_ASSET.name
+    if not bridge_archive.is_file() or bridge_archive.stat().st_size <= 0:
+        print(f"Missing FH6 Bridge archive in playerbuild: {bridge_archive}")
+        return False
+
+    try:
+        with ZipFile(bridge_archive) as archive:
+            entries = {entry.filename: entry for entry in archive.infolist()}
+            missing_bridge = [
+                name for name in ("version.dll", "OmniPcmShared.dll")
+                if name not in entries or entries[name].file_size <= 0
+            ]
+    except BadZipFile:
+        print(f"Invalid FH6 Bridge archive: {bridge_archive}")
+        return False
+
+    if missing_bridge:
+        print("FH6 Bridge archive is incomplete: " + ", ".join(missing_bridge))
+        return False
+    return True
 
 
 def configure_console() -> None:

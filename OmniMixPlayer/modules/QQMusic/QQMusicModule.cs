@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
@@ -211,8 +212,7 @@ namespace OmniMixPlayer.Module.QQMusic
 
                 var audioFormat = AudioFormatExtensions.FromExtension(songUrl.Format ?? InferFormatFromUrl(songUrl.URL));
                 var cachePath = Path.Combine(
-                    Path.GetTempPath(),
-                    "chillpatcher_audio_cache",
+                    CachePaths.GetModuleDirectory("QQMusic"),
                     $"qqmusic_{songInfo.Mid}.{audioFormat.GetFileExtension()}");
 
                 _logger?.LogInformation($"Got URL for {songInfo.Name} [format={audioFormat.ToFormatString()}, size={songUrl.Size}] (attempt {attempt}/{maxRetries})");

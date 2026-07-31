@@ -65,6 +65,21 @@ Public Class PageOmniMixRight
     Private Const EqualizerPlotRight As Double = 18
     Private Const EqualizerPlotTop As Double = 18
     Private Const EqualizerPlotBottom As Double = 28
+    Private Const MinimumCacheBytes As Long = 256L * 1024L * 1024L
+    Private Shared ReadOnly LegacyFrontendCacheCategories As String() = {
+        "Cache", "Download", "TaskTemp", "MyImage"
+    }
+    Private Shared ReadOnly CacheCategoryDisplayNames As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"Frontend", "前端"}, {"Streaming", "流媒体"}, {"Modules", "音乐模块"},
+        {"Covers", "封面"}, {"DJ", "DJ 资源与预混"}, {"Temp", "临时文件"}
+    }
+
+    Private NotInheritable Class CacheMigrationSummary
+        Public Property WasRequired As Boolean
+        Public Property MovedFileCount As Integer
+        Public Property MovedBytes As Long
+        Public Property RetainedFileCount As Integer
+    End Class
 
     Private Class LibraryQueueGroupPayload
         Public Property GroupId As String = ""
@@ -150,19 +165,21 @@ Public Class PageOmniMixRight
         If PageKey <> "Modules" Then Return
         If CardModuleUi.Visibility = Visibility.Visible Then CollapseModuleUi(False)
         Dim NormalizedPane = If(Pane, "launchpad").Trim().ToLowerInvariant()
-        If NormalizedPane <> "game" AndAlso NormalizedPane <> "mod" Then NormalizedPane = "launchpad"
+        If NormalizedPane <> "game" AndAlso NormalizedPane <> "mod" AndAlso NormalizedPane <> "dj" Then NormalizedPane = "launchpad"
         If String.Equals(CurrentModulesPane, NormalizedPane, StringComparison.OrdinalIgnoreCase) Then
             UpdatePluginPaneVisibility()
             If CurrentModules.Count > 0 Then
                 If CurrentModulesPane = "launchpad" Then RenderLaunchpad(CurrentModules)
                 If CurrentModulesPane = "mod" Then RenderModules(CurrentModules)
             End If
+            If CurrentModulesPane = "dj" Then Await RenderDjSettingsAsync()
             Return
         End If
 
         CurrentModulesPane = NormalizedPane
         If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
             Await RefreshBackendStatusAsync()
+            If CurrentModulesPane = "dj" AndAlso String.IsNullOrWhiteSpace(CurrentBaseUrl) Then Await RenderDjSettingsAsync()
         Else
             Await RefreshModulesAsync(CurrentBaseUrl)
         End If
@@ -692,15 +709,15 @@ Public Class PageOmniMixRight
     End Sub
 
     Private Async Sub BtnClearFrontendCache_Click(sender As Object, e As EventArgs) Handles BtnClearFrontendCache.Click
-        If MyMsgBox("确定要清理前端缓存吗？曲库数据库、模块数据和设置不会被删除。", "清理缓存", "清理", "取消") <> 1 Then Return
+        If MyMsgBox("确定要清理 OmniMix 的全部可再生成缓存吗？配置、登录信息、曲库数据库、播放列表和游戏备份不会被删除。正在使用的文件会保留。", "清理缓存", "清理", "取消") <> 1 Then Return
 
         BtnClearFrontendCache.IsEnabled = False
         Try
-            Await Task.Run(AddressOf ClearFrontendCache)
-            Hint("前端缓存已清理。", HintType.Green)
+            Await Task.Run(AddressOf ClearGlobalCache)
+            Hint("OmniMix 缓存已清理。", HintType.Green)
             Await RefreshCacheSizeAsync()
         Catch Ex As Exception
-            Logger.Warn(Ex, "清理前端缓存失败")
+            Logger.Warn(Ex, "清理 OmniMix 缓存失败")
             Hint("缓存清理失败：" & Ex.Message, HintType.Red)
         Finally
             BtnClearFrontendCache.IsEnabled = True
@@ -711,14 +728,42 @@ Public Class PageOmniMixRight
         Await RefreshCacheSizeAsync()
     End Sub
 
+    Private Async Sub BtnClearCacheCategory_Click(sender As Object, e As EventArgs) Handles BtnClearCacheCategory.Click
+        Dim Selected = TryCast(ComboCacheCategory.SelectedItem, MyComboBoxItem)
+        Dim Category = TryCast(Selected?.Tag, String)
+        If String.IsNullOrWhiteSpace(Category) Then Return
+        Dim DisplayName = If(CacheCategoryDisplayNames.ContainsKey(Category), CacheCategoryDisplayNames(Category), Category)
+        If MyMsgBox("确定要清理“" & DisplayName & "”缓存吗？正在使用的文件会保留。", "清理分类缓存", "清理", "取消") <> 1 Then Return
+
+        BtnClearCacheCategory.IsEnabled = False
+        Try
+            Dim Result = Await Task.Run(Function() CreateCacheQuotaManager().ClearCategory(Category))
+            If String.Equals(Category, "Frontend", StringComparison.OrdinalIgnoreCase) Then
+                Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
+            End If
+            Await RefreshCacheSizeAsync()
+            Dim Suffix = If(Result.SkippedLockedFileCount > 0, $"，保留 {Result.SkippedLockedFileCount} 个占用中文件", "")
+            Hint("已清理 " & DisplayName & " 缓存" & Suffix & "。", HintType.Green)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "清理分类缓存失败：" & Category)
+            Hint("分类缓存清理失败：" & Ex.Message, HintType.Red)
+        Finally
+            BtnClearCacheCategory.IsEnabled = True
+        End Try
+    End Sub
+
     Private Sub BtnBrowseCachePath_Click(sender As Object, e As EventArgs) Handles BtnBrowseCachePath.Click
         Using Dialog As New System.Windows.Forms.FolderBrowserDialog()
-            Dialog.Description = "选择 OmniMix 前端缓存文件夹"
+            Dialog.Description = "选择 OmniMix 全局缓存文件夹"
             Dialog.ShowNewFolderButton = True
             Dim CurrentPath = TxtCachePath.Text.Trim()
             If Directory.Exists(CurrentPath) Then Dialog.SelectedPath = CurrentPath
             If Dialog.ShowDialog() = System.Windows.Forms.DialogResult.OK Then TxtCachePath.Text = Dialog.SelectedPath
         End Using
+    End Sub
+
+    Private Sub BtnPortableCachePath_Click(sender As Object, e As EventArgs) Handles BtnPortableCachePath.Click
+        TxtCachePath.Text = System.IO.Path.Combine(PathExeFolder, "OmniMixData", "Cache")
     End Sub
 
     Private Async Sub BtnApplyCachePath_Click(sender As Object, e As EventArgs) Handles BtnApplyCachePath.Click
@@ -728,15 +773,22 @@ Public Class PageOmniMixRight
             Return
         End If
         Try
-            SelectedPath = System.IO.Path.GetFullPath(SelectedPath).TrimEnd("\"c, "/"c) & "\"
+            Dim MaxBytes = ParseCacheLimitBytes()
+            SelectedPath = System.IO.Path.GetFullPath(SelectedPath).TrimEnd("\"c, "/"c)
+            Dim PreviousPath = GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)
             Directory.CreateDirectory(SelectedPath)
             CheckPermissionWithException(SelectedPath)
-            Settings.Set("SystemSystemCache", SelectedPath)
-            PathTemp = SelectedPath
+            Dim Migration = Await Task.Run(Function() MigrateGlobalCache(PreviousPath, SelectedPath))
+            Settings.Set("SystemSystemCache", SelectedPath & "\")
+            Settings.Set("OmniMixCacheMaxBytes", MaxBytes)
+            OmniMixPlayer.SDK.Caching.CachePaths.Configure(SelectedPath, MaxBytes)
+            PathTemp = System.IO.Path.Combine(SelectedPath, "Frontend").TrimEnd("\"c, "/"c) & "\"
             Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
+            Await SyncGlobalCacheSettingsAsync()
+            Await Task.Run(Sub() EnforceGlobalCacheLimit(SelectedPath, MaxBytes))
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
-            Hint("缓存文件夹已更新。", HintType.Green)
+            Hint("全局缓存设置已更新。" & DescribeCacheMigration(Migration), HintType.Green)
         Catch Ex As Exception
             Logger.Warn(Ex, "更新缓存文件夹失败")
             Hint("缓存文件夹不可用：" & Ex.Message, HintType.Red)
@@ -744,19 +796,118 @@ Public Class PageOmniMixRight
     End Sub
 
     Private Async Sub BtnResetCachePath_Click(sender As Object, e As EventArgs) Handles BtnResetCachePath.Click
-        Settings.Reset("SystemSystemCache")
-        PathTemp = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
-        Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
-        RefreshCachePathText()
-        Await RefreshCacheSizeAsync()
-        Hint("已恢复系统默认缓存文件夹。", HintType.Green)
+        Try
+            Dim PreviousPath = GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+            Dim DefaultPath = GetDefaultOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+            Directory.CreateDirectory(DefaultPath)
+            CheckPermissionWithException(DefaultPath)
+            Dim Migration = Await Task.Run(Function() MigrateGlobalCache(PreviousPath, DefaultPath))
+            Settings.Reset("SystemSystemCache")
+            OmniMixPlayer.SDK.Caching.CachePaths.Configure(
+                DefaultPath,
+                Settings.Get(Of Long)("OmniMixCacheMaxBytes"))
+            PathTemp = GetOmniMixFrontendCacheRoot()
+            Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
+            Await SyncGlobalCacheSettingsAsync()
+            RefreshCachePathText()
+            Await RefreshCacheSizeAsync()
+            Hint("已恢复系统默认缓存文件夹。" & DescribeCacheMigration(Migration), HintType.Green)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "恢复默认缓存文件夹失败")
+            Hint("默认缓存文件夹不可用：" & Ex.Message, HintType.Red)
+        End Try
     End Sub
+
+    Private Shared Function MigrateGlobalCache(SourceRoot As String, TargetRoot As String) As CacheMigrationSummary
+        Dim Result = MigrateCacheDirectory(SourceRoot, TargetRoot)
+        Dim LegacyRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OmniMixPlayer")
+        If Not IsSameCacheDirectory(LegacyRoot, SourceRoot) Then
+            For Each Category In LegacyFrontendCacheCategories
+                MergeCacheMigrationResult(
+                    Result,
+                    MigrateCacheDirectory(
+                        System.IO.Path.Combine(LegacyRoot, Category),
+                        System.IO.Path.Combine(TargetRoot, "Frontend", Category)))
+            Next
+        End If
+        Return Result
+    End Function
+
+    Private Shared Function MigrateCacheDirectory(SourceDirectory As String, TargetDirectory As String) As CacheMigrationSummary
+        Dim Result As New CacheMigrationSummary()
+        If IsSameCacheDirectory(SourceDirectory, TargetDirectory) OrElse Not Directory.Exists(SourceDirectory) Then Return Result
+
+        Dim Migration = New OmniMixPlayer.SDK.Caching.CacheMigrationManager().
+            MoveDirectoryContents(SourceDirectory, TargetDirectory)
+        Result.WasRequired = True
+        Result.MovedFileCount = Migration.DeletedSourceFileCount
+        Result.MovedBytes = Migration.DeletedSourceBytes
+        Result.RetainedFileCount = Math.Max(
+            Migration.RemainingFileCount,
+            Migration.SkippedLockedFileCount + Migration.FailedFileCount + Migration.SkippedReparsePointCount)
+        Return Result
+    End Function
+
+    Private Shared Function IsSameCacheDirectory(First As String, Second As String) As Boolean
+        If String.IsNullOrWhiteSpace(First) OrElse String.IsNullOrWhiteSpace(Second) Then Return False
+        Dim FirstPath = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(First))
+        Dim SecondPath = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(Second))
+        Return String.Equals(FirstPath, SecondPath, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Shared Sub MergeCacheMigrationResult(Target As CacheMigrationSummary, Source As CacheMigrationSummary)
+        Target.WasRequired = Target.WasRequired OrElse Source.WasRequired
+        Target.MovedFileCount += Source.MovedFileCount
+        Target.MovedBytes += Source.MovedBytes
+        Target.RetainedFileCount += Source.RetainedFileCount
+    End Sub
+
+    Private Shared Function DescribeCacheMigration(Result As CacheMigrationSummary) As String
+        If Result Is Nothing OrElse Not Result.WasRequired Then Return ""
+        Dim Description = " 已迁移 " & Result.MovedFileCount & " 个缓存文件（" & FormatFileSize(Result.MovedBytes) & "）。"
+        If Result.RetainedFileCount > 0 Then
+            Description &= " 有 " & Result.RetainedFileCount & " 个正在使用或无法访问的旧缓存文件被保留。"
+        End If
+        Return Description
+    End Function
 
     Private Sub RefreshCachePathText()
         Dim ConfiguredPath = Settings.Get(Of String)("SystemSystemCache")
-        TxtCachePath.Text = If(String.IsNullOrWhiteSpace(ConfiguredPath), PathTemp, ConfiguredPath)
-        TxtCachePath.HintText = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
+        TxtCachePath.Text = If(String.IsNullOrWhiteSpace(ConfiguredPath), GetDefaultOmniMixCacheRoot(), ConfiguredPath).TrimEnd("\"c, "/"c)
+        TxtCachePath.HintText = GetDefaultOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+        TxtCacheMaxGb.Text = (Settings.Get(Of Long)("OmniMixCacheMaxBytes") / 1024.0 / 1024.0 / 1024.0).ToString("0.##", CultureInfo.CurrentCulture)
+        If ComboCacheCategory.Items.Count = 0 Then
+            For Each Category In OmniMixPlayer.SDK.Caching.CachePaths.KnownCategories
+                Dim DisplayName = If(CacheCategoryDisplayNames.ContainsKey(Category), CacheCategoryDisplayNames(Category), Category)
+                ComboCacheCategory.Items.Add(New MyComboBoxItem With {.Content = DisplayName, .Tag = Category})
+            Next
+            If ComboCacheCategory.Items.Count > 0 Then ComboCacheCategory.SelectedIndex = 0
+        End If
     End Sub
+
+    Private Function ParseCacheLimitBytes() As Long
+        Dim Value As Double
+        Dim Text = TxtCacheMaxGb.Text.Trim()
+        If Not Double.TryParse(Text, NumberStyles.Float, CultureInfo.CurrentCulture, Value) AndAlso
+           Not Double.TryParse(Text, NumberStyles.Float, CultureInfo.InvariantCulture, Value) Then
+            Throw New FormatException("最大总容量必须是有效的 GB 数值。")
+        End If
+        If Value < 0.25 OrElse Value > 1024 Then Throw New ArgumentOutOfRangeException(NameOf(Value), "最大总容量必须在 0.25 GB 到 1024 GB 之间。")
+        Return Math.Max(MinimumCacheBytes, CLng(Value * 1024.0 * 1024.0 * 1024.0))
+    End Function
+
+    Private Async Function SyncGlobalCacheSettingsAsync() As Task
+        If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then Return
+        Try
+            Await OmniMixApiClient.PutConfigRawAsync(CurrentBaseUrl, New Dictionary(Of String, Object) From {
+                {"cache_root", GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)},
+                {"cache_max_bytes", Settings.Get(Of Long)("OmniMixCacheMaxBytes")}
+            })
+            Await OmniMixApiClient.SaveConfigAsync(CurrentBaseUrl)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "同步 OmniMix 全局缓存设置到后端失败")
+        End Try
+    End Function
 
     Private Sub PersonalizationSlider_Change(sender As Object, user As Boolean) Handles SliderWindowOpacity.Change, SliderControlOpacity.Change, SliderBackgroundOpacity.Change, SliderBackgroundClarity.Change, SliderFloatingWindowOpacity.Change, SliderFloatingWindowBackgroundOpacity.Change, SliderFloatingWindowScale.Change, SliderFloatingThemeHue.Change, SliderFloatingThemeSat.Change, SliderFloatingThemeLight.Change, SliderFloatingBackgroundThemeHue.Change, SliderFloatingBackgroundThemeSat.Change, SliderFloatingBackgroundThemeLight.Change
         If sender Is SliderFloatingWindowScale AndAlso SliderFloatingWindowScale.Value < 70 Then
@@ -855,7 +1006,7 @@ Public Class PageOmniMixRight
         If InitializeBackend Then Scope.Add("后端配置、实例与历史")
         If InitializeLibrary Then Scope.Add("全部曲库")
         If InitializeSources Then Scope.Add("音乐源登录与模块数据")
-        If InitializeCache Then Scope.Add("前端缓存")
+        If InitializeCache Then Scope.Add("OmniMix 全部缓存")
         Dim Prompt = "确定要初始化以下内容吗？" & vbCrLf & String.Join("、", Scope) & vbCrLf & vbCrLf &
                      "此操作不可撤销；游戏集成安装状态会保留。"
         If MyMsgBox(Prompt, "初始化所选内容", "初始化", "取消", IsWarn:=True) <> 1 Then Return
@@ -872,7 +1023,7 @@ Public Class PageOmniMixRight
                 For Each Key In Settings.Entries.Keys.ToList()
                     Settings.Reset(Key)
                 Next
-                PathTemp = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
+                PathTemp = GetDefaultOmniMixCacheRoot()
             End If
             Await Task.Run(Sub() InitializeSelectedData(BackendRoots, CacheRoots, InitializeBackend, InitializeLibrary, InitializeSources, InitializeCache))
 
@@ -961,6 +1112,7 @@ Public Class PageOmniMixRight
         Dim Candidates As New List(Of String) From {
             PathTemp,
             Settings.Get(Of String)("SystemSystemCache"),
+            GetDefaultOmniMixCacheRoot(),
             System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer\"
         }
         Dim Result As New List(Of String)
@@ -1050,44 +1202,122 @@ Public Class PageOmniMixRight
         Next
     End Sub
 
-    Private Shared Sub ClearFrontendCache()
-        ClearFrontendCaches({PathTemp})
-    End Sub
-
     Private Shared Sub ClearFrontendCaches(CacheRoots As IEnumerable(Of String))
         For Each CacheRoot In CacheRoots
             If String.IsNullOrWhiteSpace(CacheRoot) Then Continue For
-            For Each CacheName In {"Cache", "Download", "TaskTemp", "MyImage"}
-                DirectoryUtils.Delete(System.IO.Path.Combine(CacheRoot, CacheName))
+            Try
+                Dim Manager As New OmniMixPlayer.SDK.Caching.CacheQuotaManager(CacheRoot, Long.MaxValue)
+                For Each Category In OmniMixPlayer.SDK.Caching.CachePaths.KnownCategories
+                    Manager.ClearCategory(Category)
+                Next
+            Catch
+            End Try
+            For Each CacheName In LegacyFrontendCacheCategories
+                ClearCacheDirectory(System.IO.Path.Combine(CacheRoot, CacheName))
             Next
         Next
         Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
     End Sub
 
+    Private Shared Sub ClearGlobalCache()
+        Dim CacheRoot = GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+        ClearFrontendCaches({CacheRoot})
+
+        Dim LegacyRoot = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer"
+        If Not String.Equals(CacheRoot, LegacyRoot, StringComparison.OrdinalIgnoreCase) Then
+            For Each CacheName In LegacyFrontendCacheCategories
+                ClearCacheDirectory(System.IO.Path.Combine(LegacyRoot, CacheName))
+            Next
+        End If
+        Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
+    End Sub
+
+    Private Shared Sub ClearCacheDirectory(DirectoryPath As String)
+        If Not System.IO.Directory.Exists(DirectoryPath) Then Return
+        Try
+            For Each FilePath In System.IO.Directory.EnumerateFiles(DirectoryPath, "*", SearchOption.AllDirectories)
+                Try
+                    Using Probe = New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.None)
+                    End Using
+                    File.Delete(FilePath)
+                Catch
+                End Try
+            Next
+            For Each ChildPath As String In System.IO.Directory.EnumerateDirectories(DirectoryPath, "*", SearchOption.AllDirectories).
+                    OrderByDescending(Function(Item) Item.Length)
+                Try
+                    If Not System.IO.Directory.EnumerateFileSystemEntries(ChildPath).Any() Then System.IO.Directory.Delete(ChildPath)
+                Catch
+                End Try
+            Next
+            If Not System.IO.Directory.EnumerateFileSystemEntries(DirectoryPath).Any() Then System.IO.Directory.Delete(DirectoryPath)
+        Catch
+        End Try
+    End Sub
+
     Private Async Function RefreshCacheSizeAsync() As Task
         LabCacheSummary.Text = "正在统计缓存大小..."
         Try
-            Dim Size = Await Task.Run(Function() GetFrontendCacheSize())
-            LabCacheSummary.Text = "当前前端缓存：" & FormatFileSize(Size) & "。统计范围包含网络缓存、下载临时文件、任务临时文件和图片缓存。"
+            Dim Sizes = Await Task.Run(Function() GetGlobalCacheSizes())
+            Dim Total = Sizes.Values.Sum()
+            Dim Limit = Settings.Get(Of Long)("OmniMixCacheMaxBytes")
+            LabCacheSummary.Text = "当前 OmniMix 缓存：" & FormatFileSize(Total) & " / " & FormatFileSize(Limit)
+            LabCacheDetails.Text = String.Join(" · ", Sizes.Where(Function(Item) Item.Value > 0).
+                OrderByDescending(Function(Item) Item.Value).
+                Select(Function(Item) Item.Key & " " & FormatFileSize(Item.Value)))
         Catch Ex As Exception
-            Logger.Warn(Ex, "统计前端缓存大小失败")
+            Logger.Warn(Ex, "统计 OmniMix 缓存大小失败")
             LabCacheSummary.Text = "缓存大小统计失败：" & Ex.Message
+            LabCacheDetails.Text = ""
         End Try
     End Function
 
-    Private Shared Function GetFrontendCacheSize() As Long
-        Dim Total As Long = 0
-        For Each CacheName In {"Cache", "Download", "TaskTemp", "MyImage"}
-            Dim CachePath = System.IO.Path.Combine(PathTemp, CacheName)
-            If Not Directory.Exists(CachePath) Then Continue For
-            Try
-                For Each Info In New DirectoryInfo(CachePath).EnumerateFiles("*", SearchOption.AllDirectories)
-                    Total += Info.Length
-                Next
-            Catch
-            End Try
+    Private Shared Function GetGlobalCacheSizes() As Dictionary(Of String, Long)
+        Dim Root = GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+        Dim Result As New Dictionary(Of String, Long)(StringComparer.OrdinalIgnoreCase)
+        Dim Statistics = CreateCacheQuotaManager().GetStatistics()
+        For Each Category In Statistics.Categories
+            Dim DisplayName = If(CacheCategoryDisplayNames.ContainsKey(Category.Name), CacheCategoryDisplayNames(Category.Name), Category.Name)
+            Result(DisplayName) = Category.SizeBytes
         Next
+        Dim LegacySize As Long = 0
+        For Each CacheName In LegacyFrontendCacheCategories
+            LegacySize += GetDirectorySize(System.IO.Path.Combine(Root, CacheName))
+        Next
+        Dim LegacyRoot = System.IO.Path.GetTempPath().TrimEnd("\"c, "/"c) & "\OmniMixPlayer"
+        If Not String.Equals(Root, LegacyRoot, StringComparison.OrdinalIgnoreCase) Then
+            For Each CacheName In LegacyFrontendCacheCategories
+                LegacySize += GetDirectorySize(System.IO.Path.Combine(LegacyRoot, CacheName))
+            Next
+        End If
+        If LegacySize > 0 Then Result("旧版缓存") = LegacySize
+        Return Result
+    End Function
+
+    Private Shared Function GetDirectorySize(DirectoryPath As String) As Long
+        If Not Directory.Exists(DirectoryPath) Then Return 0
+        Dim Total As Long = 0
+        Try
+            For Each Info In New DirectoryInfo(DirectoryPath).EnumerateFiles("*", SearchOption.AllDirectories)
+                Try
+                    Total += Info.Length
+                Catch
+                End Try
+            Next
+        Catch
+        End Try
         Return Total
+    End Function
+
+    Private Shared Sub EnforceGlobalCacheLimit(CacheRoot As String, MaxBytes As Long)
+        If MaxBytes < MinimumCacheBytes OrElse Not Directory.Exists(CacheRoot) Then Return
+        Dim Result = New OmniMixPlayer.SDK.Caching.CacheQuotaManager(CacheRoot, MaxBytes).EnforceQuota()
+    End Sub
+
+    Private Shared Function CreateCacheQuotaManager() As OmniMixPlayer.SDK.Caching.CacheQuotaManager
+        Return New OmniMixPlayer.SDK.Caching.CacheQuotaManager(
+            GetOmniMixCacheRoot().TrimEnd("\"c, "/"c),
+            Settings.Get(Of Long)("OmniMixCacheMaxBytes"))
     End Function
 
     Private Async Sub BtnBackendPathReset_Click(sender As Object, e As EventArgs) Handles BtnBackendPathReset.Click
@@ -1337,7 +1567,7 @@ Public Class PageOmniMixRight
         Using Writer As New StreamWriter(Entry.Open(), New System.Text.UTF8Encoding(False))
             Writer.WriteLine("OmniMix feedback diagnostics")
             Writer.WriteLine("GeneratedAt=" & Date.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"))
-            Writer.WriteLine("GuiVersion=4.2.1")
+            Writer.WriteLine("GuiVersion=4.3.1")
             Writer.WriteLine("ExePath=" & PathExe)
             Writer.WriteLine("ExeFolder=" & PathExeFolder)
             Writer.WriteLine("AppData=" & PathAppdata)
@@ -2805,16 +3035,19 @@ Public Class PageOmniMixRight
         If PageKey <> "Modules" Then Return
 
         UpdatePluginPaneVisibility()
-        LabModulesSummary.Text = If(CurrentModulesPane = "game", "正在加载游戏集成状态...", If(CurrentModulesPane = "launchpad", "正在加载启动台...", "正在加载音源列表..."))
+        LabModulesSummary.Text = If(CurrentModulesPane = "game", "正在加载游戏集成状态...", If(CurrentModulesPane = "launchpad", "正在加载启动台...", If(CurrentModulesPane = "dj", "正在加载 DJ 设置...", "正在加载音源列表...")))
         PanModulesList.Children.Clear()
         PanLaunchpadList.Children.Clear()
         PanGameIntegrationList.Children.Clear()
+        PanDjSettingsList.Children.Clear()
 
         Try
             If CurrentModulesPane = "game" Then
                 Dim Stats = Await OmniMixApiClient.GetInstanceStatsAsync(BaseUrl)
                 Dim Instances = Await OmniMixApiClient.GetInstancesAsync(BaseUrl)
                 RenderGameIntegration(Stats, Instances)
+            ElseIf CurrentModulesPane = "dj" Then
+                Await RenderDjSettingsAsync()
             Else
                 Dim Modules = Await OmniMixApiClient.GetModulesAsync(BaseUrl)
                 CurrentModules = If(Modules, New List(Of OmniMixModuleInfo))
@@ -2825,7 +3058,7 @@ Public Class PageOmniMixRight
                 End If
             End If
         Catch Ex As Exception
-            LabModulesSummary.Text = If(CurrentModulesPane = "game", "游戏集成状态加载失败：", If(CurrentModulesPane = "launchpad", "启动台加载失败：", "音源列表加载失败：")) & Ex.Message
+            LabModulesSummary.Text = If(CurrentModulesPane = "game", "游戏集成状态加载失败：", If(CurrentModulesPane = "launchpad", "启动台加载失败：", If(CurrentModulesPane = "dj", "DJ 设置加载失败：", "音源列表加载失败："))) & Ex.Message
         End Try
     End Function
 
@@ -2838,7 +3071,9 @@ Public Class PageOmniMixRight
         PanModulesList.Visibility = If(CurrentModulesPane = "mod", Visibility.Visible, Visibility.Collapsed)
         PanLaunchpadList.Visibility = If(CurrentModulesPane = "launchpad", Visibility.Visible, Visibility.Collapsed)
         PanGameIntegrationList.Visibility = If(CurrentModulesPane = "game", Visibility.Visible, Visibility.Collapsed)
-        CardModules.Title = If(CurrentModulesPane = "game", "音源管理 - 游戏集成", If(CurrentModulesPane = "launchpad", "音源管理 - 启动台", "音源管理"))
+        PanDjSettingsList.Visibility = If(CurrentModulesPane = "dj", Visibility.Visible, Visibility.Collapsed)
+        LabModulesSummary.Visibility = If(CurrentModulesPane = "dj", Visibility.Collapsed, Visibility.Visible)
+        CardModules.Title = If(CurrentModulesPane = "game", "音源管理 - 游戏集成", If(CurrentModulesPane = "launchpad", "音源管理 - 启动台", If(CurrentModulesPane = "dj", "音源管理 - DJ 模式", "音源管理")))
     End Sub
 
     Private Sub BtnModulesTab_Click(sender As Object, e As EventArgs) Handles BtnModulesTab.Click
@@ -2848,6 +3083,148 @@ Public Class PageOmniMixRight
     Private Sub BtnGameIntegrationTab_Click(sender As Object, e As EventArgs) Handles BtnGameIntegrationTab.Click
         SetModulesPane("game")
     End Sub
+
+    Private Async Function RenderDjSettingsAsync() As Task
+        PanDjSettingsList.Children.Clear()
+
+        Dim Config As New Dictionary(Of String, JsonElement)
+        If Not String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
+            Config = Await OmniMixApiClient.GetConfigAsync(CurrentBaseUrl)
+        End If
+
+        Dim Enabled = ConfigBoolean(Config, "fh6_dj_enabled", Settings.Get(Of Boolean)("OmniMixFh6DjEnabled"))
+        Dim Host = Math.Clamp(ConfigInteger(Config, "fh6_dj_host", Settings.Get(Of Integer)("OmniMixFh6DjHost")), 1, 9)
+        Dim Scope = ConfigString(Config, "fh6_dj_scope", Settings.Get(Of String)("OmniMixFh6DjScope"))
+        Dim Content = ConfigString(Config, "fh6_dj_content", Settings.Get(Of String)("OmniMixFh6DjContent")).Trim().ToLowerInvariant()
+        Dim Frequency = ConfigInteger(Config, "fh6_dj_frequency", Settings.Get(Of Integer)("OmniMixFh6DjFrequency"))
+
+        If String.Equals(Scope, "desktop_instances", StringComparison.OrdinalIgnoreCase) Then
+            Scope = "desktop_instances"
+        Else
+            Scope = "fh6_instances"
+        End If
+        If Content <> "smart" AndAlso Content <> "chatter" AndAlso Content <> "transition_in" AndAlso Content <> "transition_out" Then Content = "smart"
+        If Frequency <> 1 AndAlso Frequency <> 2 AndAlso Frequency <> 3 AndAlso Frequency <> 5 Then Frequency = 1
+
+        Settings.Set("OmniMixFh6DjEnabled", Enabled)
+        Settings.Set("OmniMixFh6DjHost", Host)
+        Settings.Set("OmniMixFh6DjScope", Scope)
+        Settings.Set("OmniMixFh6DjContent", Content)
+        Settings.Set("OmniMixFh6DjFrequency", Frequency)
+
+        Dim HostCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
+        Dim HostNames = {"Horizon Pulse", "Horizon Bass Arena", "Horizon Block Party", "Horizon XS", "Hospital Records", "Gacha City Radio", "Sub Pop Records", "Horizon Wave", "Horizon Opus"}
+        For Index = 1 To 9
+            Dim Item As New MyComboBoxItem With {
+                .Content = $"{HostNames(Index - 1)} · DJCharID {Index + 13}",
+                .Tag = Index
+            }
+            HostCombo.Items.Add(Item)
+            If Index = Host Then HostCombo.SelectedItem = Item
+        Next
+        AddDjSettingRow(PanDjSettingsList, "主持人", "选择用于本地语音预混的 FH6 原版主持人。", HostCombo)
+
+        Dim ScopeCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
+        Dim Fh6ScopeItem As New MyComboBoxItem With {.Content = "FH6 实例", .Tag = "fh6_instances"}
+        Dim DesktopScopeItem As New MyComboBoxItem With {.Content = "桌面实例", .Tag = "desktop_instances"}
+        ScopeCombo.Items.Add(Fh6ScopeItem)
+        ScopeCombo.Items.Add(DesktopScopeItem)
+        ScopeCombo.SelectedItem = If(Scope = "desktop_instances", DesktopScopeItem, Fh6ScopeItem)
+        AddDjSettingRow(PanDjSettingsList, "作用域", "选择 DJ 预混的音频输出实例。", ScopeCombo)
+
+        Dim ContentCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
+        Dim ContentOptions = {
+            Tuple.Create("智能选择", "smart"),
+            Tuple.Create("主持人闲聊", "chatter"),
+            Tuple.Create("入场转场", "transition_in"),
+            Tuple.Create("退场转场", "transition_out")
+        }
+        For Each OptionItem In ContentOptions
+            Dim Item As New MyComboBoxItem With {.Content = OptionItem.Item1, .Tag = OptionItem.Item2}
+            ContentCombo.Items.Add(Item)
+            If String.Equals(Content, OptionItem.Item2, StringComparison.OrdinalIgnoreCase) Then ContentCombo.SelectedItem = Item
+        Next
+        AddDjSettingRow(PanDjSettingsList, "插播内容", "控制优先使用的安全语音类别。", ContentCombo)
+
+        Dim FrequencyCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
+        Dim FrequencyOptions = {
+            Tuple.Create("每首一次", 1),
+            Tuple.Create("每 2 首一次", 2),
+            Tuple.Create("每 3 首一次", 3),
+            Tuple.Create("每 5 首一次", 5)
+        }
+        For Each OptionItem In FrequencyOptions
+            Dim Item As New MyComboBoxItem With {.Content = OptionItem.Item1, .Tag = OptionItem.Item2}
+            FrequencyCombo.Items.Add(Item)
+            If Frequency = OptionItem.Item2 Then FrequencyCombo.SelectedItem = Item
+        Next
+        AddDjSettingRow(PanDjSettingsList, "插播频率", "按所选作用域的播放交接次数计算。", FrequencyCombo)
+
+        AddHandler HostCombo.SelectionChanged, Async Sub()
+                                                   If Not TypeOf HostCombo.SelectedItem Is MyComboBoxItem Then Return
+                                                   Settings.Set("OmniMixFh6DjHost", CInt(CType(HostCombo.SelectedItem, MyComboBoxItem).Tag))
+                                                   Await SaveDjSettingsAsync()
+                                               End Sub
+        AddHandler ScopeCombo.SelectionChanged, Async Sub()
+                                                    If Not TypeOf ScopeCombo.SelectedItem Is MyComboBoxItem Then Return
+                                                    Settings.Set("OmniMixFh6DjScope", CType(ScopeCombo.SelectedItem, MyComboBoxItem).Tag.ToString())
+                                                    Await SaveDjSettingsAsync()
+                                                End Sub
+        AddHandler ContentCombo.SelectionChanged, Async Sub()
+                                                      If Not TypeOf ContentCombo.SelectedItem Is MyComboBoxItem Then Return
+                                                      Settings.Set("OmniMixFh6DjContent", CType(ContentCombo.SelectedItem, MyComboBoxItem).Tag.ToString())
+                                                      Await SaveDjSettingsAsync()
+                                                  End Sub
+        AddHandler FrequencyCombo.SelectionChanged, Async Sub()
+                                                        If Not TypeOf FrequencyCombo.SelectedItem Is MyComboBoxItem Then Return
+                                                        Settings.Set("OmniMixFh6DjFrequency", CInt(CType(FrequencyCombo.SelectedItem, MyComboBoxItem).Tag))
+                                                        Await SaveDjSettingsAsync()
+                                                    End Sub
+    End Function
+
+    Private Sub AddDjSettingRow(Panel As Panel, Title As String, Info As String, Editor As FrameworkElement)
+        Dim Row As New Grid With {
+            .MinHeight = 58,
+            .Margin = New Thickness(0, 0, 0, 6),
+            .Background = CType(Application.Current.FindResource("ColorBrushSemiTransparent"), Brush)
+        }
+        Row.ColumnDefinitions.Add(New ColumnDefinition With {.Width = New GridLength(1, GridUnitType.Star)})
+        Row.ColumnDefinitions.Add(New ColumnDefinition With {.Width = GridLength.Auto})
+
+        Dim TextPanel As New StackPanel With {.VerticalAlignment = VerticalAlignment.Center, .Margin = New Thickness(12, 8, 14, 8)}
+        TextPanel.Children.Add(New TextBlock With {
+            .Text = Title,
+            .FontSize = 14,
+            .Foreground = CType(Application.Current.FindResource("ColorBrush1"), Brush)
+        })
+        TextPanel.Children.Add(New TextBlock With {
+            .Text = Info,
+            .TextWrapping = TextWrapping.Wrap,
+            .FontSize = 11,
+            .Foreground = CType(Application.Current.FindResource("ColorBrushGray2"), Brush),
+            .Margin = New Thickness(0, 2, 0, 0)
+        })
+        Row.Children.Add(TextPanel)
+
+        Editor.VerticalAlignment = VerticalAlignment.Center
+        Editor.HorizontalAlignment = HorizontalAlignment.Right
+        Editor.Margin = New Thickness(0, 8, 12, 8)
+        Grid.SetColumn(Editor, 1)
+        Row.Children.Add(Editor)
+        Panel.Children.Add(Row)
+    End Sub
+
+    Private Async Function SaveDjSettingsAsync() As Task
+        If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
+            Return
+        End If
+
+        Try
+            Await OmniMixBackendManager.SyncDjSettingsAsync(CurrentBaseUrl)
+        Catch Ex As Exception
+            Hint("DJ 设置保存失败：" & Ex.Message, HintType.Red)
+        End Try
+    End Function
 
     Private Sub AddOmniMixSectionHeader(Panel As Panel, Title As String, Info As String, Optional TopMargin As Double = 10)
         If Panel Is Nothing Then Return
@@ -4867,6 +5244,23 @@ Public Class PageOmniMixRight
             Case JsonValueKind.String
                 Dim Parsed As Boolean
                 If Boolean.TryParse(Value.GetString(), Parsed) Then Return Parsed
+                Return Fallback
+            Case Else
+                Return Fallback
+        End Select
+    End Function
+
+    Private Shared Function ConfigInteger(Config As Dictionary(Of String, JsonElement), Key As String, Fallback As Integer) As Integer
+        If Config Is Nothing OrElse Not Config.ContainsKey(Key) Then Return Fallback
+        Dim Value = Config(Key)
+        Select Case Value.ValueKind
+            Case JsonValueKind.Number
+                Dim ParsedNumber As Integer
+                If Value.TryGetInt32(ParsedNumber) Then Return ParsedNumber
+                Return Fallback
+            Case JsonValueKind.String
+                Dim ParsedString As Integer
+                If Integer.TryParse(Value.GetString(), ParsedString) Then Return ParsedString
                 Return Fallback
             Case Else
                 Return Fallback

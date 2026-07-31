@@ -512,6 +512,53 @@ button:disabled {
   border-bottom: 1px solid #e4e9ef;
 }
 
+.now-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dj-toggle {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 32px;
+  min-height: 32px;
+  place-items: center;
+  border: 1px solid #cdd6e1;
+  border-radius: 8px;
+  padding: 0;
+  color: #667085;
+  background: #f2f5f8;
+}
+
+.dj-toggle.enabled {
+  border-color: #229b8c;
+  color: #064e3b;
+  background: #bdebdc;
+}
+
+.dj-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.dj-toggle:not(.enabled) .dj-mark::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 24px;
+  content: "";
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 .compact-head {
   padding-bottom: 12px;
 }

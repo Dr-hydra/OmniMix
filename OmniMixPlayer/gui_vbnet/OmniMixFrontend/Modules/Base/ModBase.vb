@@ -10,7 +10,7 @@ Public Module ModBase
 #Region "声明"
 
     '下列版本信息由更新器自动修改
-    Public Const VersionBaseName As String = "4.2.1" '显示用版本名
+    Public Const VersionBaseName As String = "4.3.1" '显示用版本名
     Public Const CommitHash As String = "" 'Commit Hash，由 GitHub Workflow 自动替换
 #If RELEASE Then
     Public Const VersionCode As Integer = 421 '正式版
@@ -55,11 +55,27 @@ Public Module ModBase
     ''' <summary>
     ''' 程序的缓存文件夹路径，以 \ 结尾。
     ''' </summary>
-    Public PathTemp As String = If(Settings.Get(Of String)("SystemSystemCache") = "", Path.GetTempPath() & "OmniMixPlayer\", Settings.Get(Of String)("SystemSystemCache")).ToString.Replace("/", "\").TrimEnd("\") & "\"
+    Public PathTemp As String = GetOmniMixFrontendCacheRoot()
     ''' <summary>
     ''' AppData 中的 OmniMix Player 文件夹路径，以 \ 结尾。
     ''' </summary>
     Public PathAppdata As String = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) & "\OmniMixPlayer\"
+
+    Public Function GetDefaultOmniMixCacheRoot() As String
+        Dim LocalData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+        If String.IsNullOrWhiteSpace(LocalData) Then LocalData = Path.GetTempPath()
+        Return Path.Combine(LocalData, "OmniMix", "Cache").TrimEnd("\"c, "/"c) & "\"
+    End Function
+
+    Public Function GetOmniMixCacheRoot() As String
+        Dim Configured = Settings.Get(Of String)("SystemSystemCache")
+        Dim Root = If(String.IsNullOrWhiteSpace(Configured), GetDefaultOmniMixCacheRoot(), Configured)
+        Return Path.GetFullPath(Root).Replace("/", "\").TrimEnd("\"c, "/"c) & "\"
+    End Function
+
+    Public Function GetOmniMixFrontendCacheRoot() As String
+        Return Path.Combine(GetOmniMixCacheRoot(), "Frontend").TrimEnd("\"c, "/"c) & "\"
+    End Function
     ''' <summary>
     ''' 当前程序的语言。
     ''' </summary>

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
@@ -144,7 +145,7 @@ namespace OmniMixPlayer.Module.Kuwo
                     ["User-Agent"] = KuwoBridge.UserAgent,
                     ["Referer"] = "http://www.kuwo.cn/"
                 },
-                CachePath = Path.Combine(Path.GetTempPath(), "chillpatcher_audio_cache", $"kuwo_{song.Id}.mp3"),
+                CachePath = Path.Combine(CachePaths.GetModuleDirectory("Kuwo"), $"kuwo_{song.Id}.mp3"),
                 UseCachePath = true
             };
         }

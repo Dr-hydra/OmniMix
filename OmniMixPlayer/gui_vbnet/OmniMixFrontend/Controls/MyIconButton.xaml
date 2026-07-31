@@ -3,11 +3,36 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
             CornerRadius="1000" Background="{StaticResource ColorBrushSemiTransparent}" BorderThickness="0.001" Cursor="Hand">
     <Border x:Name="PanBack" CornerRadius="1000"  RenderTransformOrigin="0.5,0.5" BorderThickness="0.001" IsHitTestVisible="False">
-        <Path x:Name="Path" Stretch="Uniform" Margin="5" RenderTransformOrigin="0.5,0.5">
-            <Path.RenderTransform>
-                <ScaleTransform />
-            </Path.RenderTransform>
-        </Path>
+        <Grid>
+            <Path x:Name="Path" Stretch="Uniform" Margin="5" RenderTransformOrigin="0.5,0.5">
+                <Path.RenderTransform>
+                    <ScaleTransform />
+                </Path.RenderTransform>
+            </Path>
+            <TextBlock x:Name="LabText"
+                       Visibility="Collapsed"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontFamily="Segoe UI"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       SnapsToDevicePixels="True"
+                       TextAlignment="Center"
+                       TextOptions.TextFormattingMode="Display"
+                       TextOptions.TextRenderingMode="ClearType"
+                       Foreground="{Binding ElementName=Path, Path=Fill}" />
+            <Line x:Name="PathSlash"
+                  Visibility="Collapsed"
+                  X1="6"
+                  Y1="6"
+                  X2="24"
+                  Y2="24"
+                  StrokeThickness="2"
+                  StrokeStartLineCap="Flat"
+                  StrokeEndLineCap="Flat"
+                  SnapsToDevicePixels="True"
+                  Stroke="{Binding ElementName=Path, Path=Fill}" />
+        </Grid>
         <Border.RenderTransform>
             <ScaleTransform />
         </Border.RenderTransform>

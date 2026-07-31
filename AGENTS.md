@@ -26,7 +26,7 @@
   - 完整自包含便携包
   - 完整框架依赖包
   - Windows 安装器
-- 完整包应包含后端、模块、原生库、Web 资源、媒体生成器、配置文件和 VB.NET 桌面前端。
+- 完整包应包含后端、模块、原生库、Web 资源、媒体生成器、配置文件、VB.NET 桌面前端，以及 DJ 离线准备所需的固定版本 `vgmstream` 运行时。
 - 如果包内仍包含来自原项目的后端/runtime 资产，保留简短来源说明，例如 `BACKEND_UPSTREAM.txt`，写明来源仓库、tag、asset URL 和 SHA256。
 - 发布说明使用中文。
 
@@ -80,7 +80,7 @@
 - 当前 WebUI：`OmniMixPlayer/gui_web/`
 - 技术栈：Vite + Svelte + TypeScript，构建产物复制到 `OmniMixPlayer/OmniMixPlayer.Backend/wwwroot/`。
 - WebUI 定位为后端内嵌远程控制台，优先覆盖后端状态、模块管理、模块 RawNode UI、配置摘要、事件推送等能力。
-- 播放器安装/游戏集成资产统一放在 `OmniMixPlayer/assets/`，构建时复制到 `playerbuild/OmniMixAssets/`。
+- 播放器安装/游戏集成资产统一放在 `OmniMixPlayer/assets/`。游戏集成压缩包复制到 `playerbuild/OmniMixAssets/`；固定版本的第三方运行时压缩包经哈希和成员校验后解压到对应运行目录，例如 `playerbuild/tools/vgmstream/`。
 
 ### 模块与原生组件
 

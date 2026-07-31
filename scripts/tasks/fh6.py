@@ -65,8 +65,12 @@ def _build_fh6_bridge() -> int:
 
 
 def _package() -> bool:
-    if not FH6_BIN.exists():
-        info(f"  ERROR: Missing {FH6_BIN}")
+    missing = [
+        path for path in (FH6_BIN, OMNI_PCM_DLL)
+        if not path.is_file() or path.stat().st_size <= 0
+    ]
+    if missing:
+        info("  ERROR: FH6 bridge package requires: " + ", ".join(str(path) for path in missing))
         return False
 
     if FH6_STAGE.exists():
@@ -74,8 +78,7 @@ def _package() -> bool:
     FH6_STAGE.mkdir(parents=True, exist_ok=True)
 
     copy_file(FH6_BIN, FH6_STAGE)
-    if OMNI_PCM_DLL.exists():
-        copy_file(OMNI_PCM_DLL, FH6_STAGE)
+    copy_file(OMNI_PCM_DLL, FH6_STAGE)
     readme = FH6_DIR / "README.md"
     if readme.exists():
         copy_file(readme, FH6_STAGE)

@@ -54,6 +54,22 @@ namespace OmniMixPlayer.Backend.Http
                     Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     TrackChanged = new ProtoEvents.TrackChangedEvent { InstanceId = id, Uuid = track?.Uuid ?? "", Title = track?.Title ?? "", Artist = track?.Artist ?? "", AlbumId = track?.AlbumId ?? "", Duration = track?.Duration ?? 0, ModuleId = track?.ModuleId ?? "" }
                 });
+            _sessions.OnPlaybackMetadataChanged += (id, track, duration) =>
+                _ = BroadcastProtoEvent(new ProtoEvents.WsEvent
+                {
+                    Type = "track.changed",
+                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    TrackChanged = new ProtoEvents.TrackChangedEvent
+                    {
+                        InstanceId = id,
+                        Uuid = track?.Uuid ?? "",
+                        Title = track?.Title ?? "",
+                        Artist = track?.Artist ?? "",
+                        AlbumId = track?.AlbumId ?? "",
+                        Duration = duration,
+                        ModuleId = track?.ModuleId ?? ""
+                    }
+                });
             _sessions.OnStateChanged += (id, ctrl) =>
                 _ = BroadcastProtoEvent(new ProtoEvents.WsEvent
                 {

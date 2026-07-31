@@ -8,7 +8,7 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.2.1`
+Current version: `4.3.1`
 
 Primary local artifact:
 
@@ -118,20 +118,23 @@ python scripts/build_all.py player --full --dry-run
 - `chill-gen-media.exe`
 - `OmniMixAssets/ChillPatcher.zip`
 - `OmniMixAssets/FH6OmniBridge.zip`
+- `tools/vgmstream/vgmstream-cli.exe` with the official Windows x64 runtime, license, and source notice
 - `modules/`
 - `native/x64/`
 - `wwwroot/`
 
+Offline FH6 DJ voice preparation uses a pinned `vgmstream` release. The build verifies the SHA256 of the official archive under `OmniMixPlayer/assets/tools/vgmstream/` before staging it into `playerbuild/tools/vgmstream/`. Release packages do not include original game voices or local cache data.
+
 Create release zip packages:
 
 ```powershell
-python scripts/package_release.py 4.2.1
+python scripts/package_release.py 4.3.1
 ```
 
 Create the Windows installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.2.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.1
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:

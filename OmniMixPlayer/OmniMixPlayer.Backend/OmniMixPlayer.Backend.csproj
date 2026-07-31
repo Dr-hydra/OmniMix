@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FModBankParser" Version="1.2.0" />
+    <PackageReference Include="Fmod5Sharp" Version="3.1.0" />
+    <PackageReference Include="SubstreamSharp" Version="1.0.3" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.67.*" />
     <PackageReference Include="Grpc.AspNetCore.Web" Version="2.67.*" />

@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.Backend.Audio;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Interfaces;
 
 namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
@@ -92,6 +93,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             {
                 try
                 {
+                    CacheQuotaManager.Default.Touch(cachePath);
                     OpenDecoder(cachePath, false);
                     _isReady = true;
                     _logger?.LogInformation("Using cached file: {Path}", cachePath);
@@ -122,7 +124,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
             }
 
             // Start HTTP download
-            _cache = new HttpAudioCache(url, cachePath, headers);
+            _cache = new HttpAudioCache(url, cachePath, headers, _logger);
             _cache.OnComplete += OnCacheComplete;
             _cache.StartDownload();
 

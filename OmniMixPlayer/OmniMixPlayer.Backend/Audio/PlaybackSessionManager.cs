@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.Backend.Audio.Dj;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
 
@@ -28,6 +29,7 @@ namespace OmniMixPlayer.Backend.Audio
         private readonly IStreamingService _streamingService;
         private readonly InstanceRegistry _registry;
         private readonly PlaybackTimelineStore _timeline;
+        private readonly Fh6DjAssetPreparationCoordinator _djAssets;
         private readonly Dictionary<string, PlaybackFailureNotice> _pendingFailureNotices = new();
         private readonly Action<string> _timelineChangedHandler;
         private readonly Action<string> _profileChangedHandler;
@@ -35,6 +37,7 @@ namespace OmniMixPlayer.Backend.Audio
         private bool _disposed;
 
         public event Action<string, Track> OnTrackChanged;
+        public event Action<string, Track, float> OnPlaybackMetadataChanged;
         public event Action<string, PlaybackController> OnStateChanged;
         public event Action<string, float> OnPositionChanged;
         public event Action<string, PlaybackFailureNotice> OnFailureNotice;
@@ -47,7 +50,8 @@ namespace OmniMixPlayer.Backend.Audio
             ILibraryRegistry library,
             IStreamingService streamingService,
             InstanceRegistry registry,
-            PlaybackTimelineStore timeline)
+            PlaybackTimelineStore timeline,
+            Fh6DjAssetPreparationCoordinator djAssets = null)
         {
             _loggerFactory = loggerFactory;
             _logger = loggerFactory.CreateLogger("PlaybackSessionManager");
@@ -56,6 +60,7 @@ namespace OmniMixPlayer.Backend.Audio
             _streamingService = streamingService;
             _registry = registry;
             _timeline = timeline;
+            _djAssets = djAssets;
             _timelineChangedHandler = id => OnQueueChanged?.Invoke(id);
             _timeline.OnTimelineChanged += _timelineChangedHandler;
             _profileChangedHandler = ApplyProfileToOnlineController;
@@ -107,8 +112,11 @@ namespace OmniMixPlayer.Backend.Audio
                     _streamingService,
                     _timeline,
                     instanceId: id,
-                    serverControlledPlayback: caps.ServerControlledPlayback);
+                    serverControlledPlayback: caps.ServerControlledPlayback,
+                    djAssets: _djAssets,
+                    profile: profile);
                 controller.ApplyProfile(profile);
+                controller.NotifyGlobalConfigurationChanged();
                 WireController(id, controller);
 
                 var session = new PlaybackSession
@@ -179,6 +187,22 @@ namespace OmniMixPlayer.Backend.Audio
         public PlaybackController GetController(string id) => Get(id)?.Controller;
         public bool IsOnline(string id) { lock (_lock) { return _sessions.TryGetValue(id, out var s) && s.IsAttached; } }
 
+        public void NotifyGlobalConfigurationChanged()
+        {
+            PlaybackController[] controllers;
+            lock (_lock)
+            {
+                controllers = _sessions.Values
+                    .Where(session => session.IsAttached)
+                    .Select(session => session.Controller)
+                    .Where(controller => controller != null)
+                    .ToArray();
+            }
+
+            foreach (var controller in controllers)
+                controller.NotifyGlobalConfigurationChanged();
+        }
+
         public string GetCurrentTrackUuid(string id) => _timeline.Get(id).CurrentUuid ?? "";
         public int GetQueueCount(string id) => _timeline.GetManualQueueCount(id);
 
@@ -193,7 +217,7 @@ namespace OmniMixPlayer.Backend.Audio
                 Title = track?.Title ?? "",
                 Artist = track?.Artist ?? "",
                 AlbumId = track?.AlbumId ?? "",
-                Duration = track?.Duration ?? 0,
+                Duration = track == null ? 0 : ctrl.CurrentDuration,
                 Position = ctrl.Position,
                 IsPlaying = ctrl.IsPlaying,
                 Shuffle = ctrl.Shuffle,
@@ -216,6 +240,8 @@ namespace OmniMixPlayer.Backend.Audio
         private void WireController(string id, PlaybackController ctrl)
         {
             ctrl.OnTrackChanged += track => OnTrackChanged?.Invoke(id, track);
+            ctrl.OnPlaybackMetadataChanged += (track, duration) =>
+                OnPlaybackMetadataChanged?.Invoke(id, track, duration);
             ctrl.OnStateChanged += state => OnStateChanged?.Invoke(id, ctrl);
             ctrl.OnPositionChanged += pos => OnPositionChanged?.Invoke(id, pos);
             ctrl.OnFailureNotice += notice =>

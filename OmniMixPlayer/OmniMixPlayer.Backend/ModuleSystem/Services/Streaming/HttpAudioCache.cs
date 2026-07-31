@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.SDK.Caching;
 
 namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
 {
@@ -183,6 +184,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
 
                     _logger?.LogInformation($"Download complete: {_downloaded} bytes -> {_cachePath}");
                     OnComplete?.Invoke();
+                    EnforceSharedCacheQuota();
                     return; // success, exit retry loop
                 }
                 catch (OperationCanceledException)
@@ -224,9 +226,7 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
         /// <summary>获取缓存目录路径</summary>
         public static string GetCacheDirectory()
         {
-            var dir = Path.Combine(Path.GetTempPath(), "chillpatcher_audio_cache");
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            return dir;
+            return CachePaths.StreamingDirectory;
         }
 
         /// <summary>清理过期缓存文件</summary>
@@ -248,6 +248,28 @@ namespace OmniMixPlayer.Backend.ModuleSystem.Services.Streaming
                 }
             }
             catch { /* file in use, skip */ }
+
+            try { CacheQuotaManager.Default.EnforceQuota(); }
+            catch { /* quota cleanup is best effort */ }
+        }
+
+        private void EnforceSharedCacheQuota()
+        {
+            try
+            {
+                var result = CacheQuotaManager.Default.EnforceQuota(new[] { _cachePath });
+                if (!result.QuotaSatisfied)
+                {
+                    _logger?.LogWarning(
+                        "Cache quota remains exceeded: {AfterBytes} bytes / {MaximumBytes} bytes; active files were preserved",
+                        result.AfterBytes,
+                        CacheQuotaManager.Default.MaximumBytes);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to enforce the shared OmniMix cache quota");
+            }
         }
     }
 }

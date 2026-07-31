@@ -2,6 +2,7 @@
 using System.Linq;
 
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.SDK.Caching;
 
 
 namespace OmniMixPlayer.Module.Netease
@@ -13,7 +14,6 @@ namespace OmniMixPlayer.Module.Netease
     public class NeteaseFileCache
     {
         private static readonly char[] InvalidFileNameChars = new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' };
-        private const string DefaultCacheDirName = "chillpatcher_audio_cache";
         private const string LogTag = "[NeteaseCache]";
 
         private readonly ILogger _logger;
@@ -85,7 +85,7 @@ namespace OmniMixPlayer.Module.Netease
             if (!string.IsNullOrEmpty(CacheDirectory))
                 return CacheDirectory;
 
-            return Path.Combine(Path.GetTempPath(), DefaultCacheDirName);
+            return CachePaths.GetModuleDirectory("Netease");
         }
 
         /// <summary>
@@ -93,8 +93,7 @@ namespace OmniMixPlayer.Module.Netease
         /// </summary>
         private string GetOldCachePath(long songId, string format)
         {
-            var oldDir = Path.Combine(Path.GetTempPath(), DefaultCacheDirName);
-            return Path.Combine(oldDir, "netease_" + songId + "." + format);
+            return Path.Combine(CachePaths.LegacySharedAudioDirectory, "netease_" + songId + "." + format);
         }
 
         /// <summary>

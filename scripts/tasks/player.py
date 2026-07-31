@@ -7,7 +7,9 @@ import shutil
 from build_config import (
     PLAYER_DIR, PLAYER_BUILD, PLAYER_SDK_PROJ, PLAYER_BACKEND_PROJ,
     PLAYER_BACKEND_PUBLISH, PLAYER_MODULES_BUILD, PLAYER_MODULE_MAP,
-    PLAYER_ASSETS_DIR,
+    PLAYER_ASSETS_DIR, VGMSTREAM_VERSION, VGMSTREAM_ARCHIVE,
+    VGMSTREAM_NOTICE, VGMSTREAM_ARCHIVE_SHA256, VGMSTREAM_RUNTIME_DIR,
+    VGMSTREAM_RUNTIME_FILES,
     PLAYER_WEB_DIR, PLAYER_WEB_BUILD, PLAYER_WWWROOT, MEDIA_GEN_PROJ, MEDIA_GEN_PUBLISH,
     OMNI_PCM_DLL, ROOT, FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP,
     FH6_PLAYER_ASSET, MOD_DIR, MOD_PLAYER_ASSET, NATIVE_PLUGINS_DIR,
@@ -17,6 +19,7 @@ from .common import (
     _rmtree_ignore_locked, copy_file, copy_dir_contents,
     dotnet_build, dotnet_restore, dotnet_publish,
     info, run_cmd, read_version_info, write_version_json, package_zip,
+    stage_verified_runtime_archive,
 )
 
 
@@ -224,6 +227,8 @@ def _assemble() -> bool:
     info("  Unnecessary files cleaned")
 
     _copy_player_assets_to_build()
+    if not _stage_vgmstream_runtime():
+        return False
 
     info("Player files assembled")
     return True
@@ -243,17 +248,37 @@ def _copy_player_assets_to_build():
     info("  Player assets copied")
 
 
+def _stage_vgmstream_runtime() -> bool:
+    staged = stage_verified_runtime_archive(
+        VGMSTREAM_ARCHIVE,
+        VGMSTREAM_RUNTIME_DIR,
+        VGMSTREAM_ARCHIVE_SHA256,
+        VGMSTREAM_RUNTIME_FILES,
+        VGMSTREAM_NOTICE,
+    )
+    if staged:
+        info(f"  vgmstream {VGMSTREAM_VERSION} copied")
+    return staged
+
+
 def _package_fh6_asset() -> bool:
+    missing = [
+        path for path in (FH6_BIN, OMNI_PCM_DLL)
+        if not path.is_file() or path.stat().st_size <= 0
+    ]
+    if missing:
+        info("  ERROR: FH6 bridge package requires: " + ", ".join(str(path) for path in missing))
+        return False
+
     if FH6_STAGE.exists():
         shutil.rmtree(FH6_STAGE)
     FH6_STAGE.mkdir(parents=True, exist_ok=True)
 
-    if FH6_BIN.exists():
-        copy_file(FH6_BIN, FH6_STAGE)
-    else:
-        info("  WARNING: FH6 version.dll not found")
-    if OMNI_PCM_DLL.exists():
-        copy_file(OMNI_PCM_DLL, FH6_STAGE)
+    copy_file(FH6_BIN, FH6_STAGE)
+    copy_file(OMNI_PCM_DLL, FH6_STAGE)
+    readme = FH6_DIR / "README.md"
+    if readme.is_file():
+        copy_file(readme, FH6_STAGE)
 
     return package_zip(FH6_STAGE, FH6_ZIP, FH6_PLAYER_ASSET)
 

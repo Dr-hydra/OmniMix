@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using OmniMixPlayer.SDK.Protos.Models;
 
 namespace OmniMixPlayer.Backend.Audio
@@ -59,7 +61,7 @@ namespace OmniMixPlayer.Backend.Audio
             if (!string.IsNullOrWhiteSpace(state.CurrentUuid))
                 return new TimelineAdvanceResult(state.CurrentUuid, TimelineAdvanceReason.InitialPlay);
 
-            var next = TakeManual(state, rng);
+            var next = TakeManual(state, rng, "initial-manual");
             if (next != null)
             {
                 SetManualCurrent(state, next);
@@ -90,7 +92,7 @@ namespace OmniMixPlayer.Backend.Audio
             }
 
             PushHistory(state, state.CurrentUuid);
-            var manual = TakeManual(state, rng);
+            var manual = TakeManual(state, rng, "next-manual");
             if (manual != null)
             {
                 SetManualCurrent(state, manual);
@@ -98,7 +100,7 @@ namespace OmniMixPlayer.Backend.Audio
                 return new TimelineAdvanceResult(state.CurrentUuid, TimelineAdvanceReason.UserNext);
             }
 
-            var sourceIndex = PickNextSourceIndex(state, rng, commitBase: false);
+            var sourceIndex = PickNextSourceIndex(state, rng, commitBase: false, selectionPurpose: "next-source");
             if (sourceIndex < 0)
             {
                 ClearCurrent(state);
@@ -138,7 +140,7 @@ namespace OmniMixPlayer.Backend.Audio
             PushHistory(state, state.CurrentUuid);
             state.NavForwardUuids.Clear();
 
-            var manual = TakeManual(state, rng);
+            var manual = TakeManual(state, rng, "natural-manual");
             if (manual != null)
             {
                 if (completedSourceIndex >= 0)
@@ -148,7 +150,7 @@ namespace OmniMixPlayer.Backend.Audio
                 return new TimelineAdvanceResult(state.CurrentUuid, TimelineAdvanceReason.NaturalEnd);
             }
 
-            var sourceIndex = PickNextSourceIndex(state, rng, commitBase: true);
+            var sourceIndex = PickNextSourceIndex(state, rng, commitBase: true, selectionPurpose: "natural-source");
             if (sourceIndex < 0)
             {
                 ClearCurrent(state);
@@ -281,12 +283,16 @@ namespace OmniMixPlayer.Backend.Audio
         private static int PickInitialSourceIndex(PlaybackTimelineState state, Random rng)
         {
             if (state.SourceUuids.Count == 0) return -1;
-            if (state.Shuffle) return rng?.Next(state.SourceUuids.Count) ?? 0;
+            if (state.Shuffle) return PickIndex(state, state.SourceUuids.Count, rng, "initial-source");
             var next = state.SourceCursor >= 0 ? state.SourceCursor : 0;
             return next >= state.SourceUuids.Count ? 0 : next;
         }
 
-        private static int PickNextSourceIndex(PlaybackTimelineState state, Random rng, bool commitBase)
+        private static int PickNextSourceIndex(
+            PlaybackTimelineState state,
+            Random rng,
+            bool commitBase,
+            string selectionPurpose)
         {
             if (state.SourceUuids.Count == 0) return -1;
             if (state.Shuffle)
@@ -295,7 +301,7 @@ namespace OmniMixPlayer.Backend.Audio
                 var current = state.CurrentUuid;
                 for (var i = 0; i < 8; i++)
                 {
-                    var idx = rng?.Next(state.SourceUuids.Count) ?? 0;
+                    var idx = PickIndex(state, state.SourceUuids.Count, rng, $"{selectionPurpose}:{i}");
                     if (state.SourceUuids[idx] != current)
                         return idx;
                 }
@@ -312,15 +318,37 @@ namespace OmniMixPlayer.Backend.Audio
             return state.RepeatMode == RepeatMode.All ? 0 : -1;
         }
 
-        private static string TakeManual(PlaybackTimelineState state, Random rng)
+        private static string TakeManual(PlaybackTimelineState state, Random rng, string selectionPurpose)
         {
             if (state.ManualQueueUuids.Count == 0) return null;
             var index = state.Shuffle && state.ManualQueueUuids.Count > 1
-                ? rng?.Next(state.ManualQueueUuids.Count) ?? 0
+                ? PickIndex(state, state.ManualQueueUuids.Count, rng, selectionPurpose)
                 : 0;
             var uuid = state.ManualQueueUuids[index];
             state.ManualQueueUuids.RemoveAt(index);
             return uuid;
+        }
+
+        // A null Random is used by the persisted timeline store. Its selection is
+        // deterministic for a particular state, so a read-only preview and the later
+        // state-changing advance choose the same shuffled item.
+        private static int PickIndex(PlaybackTimelineState state, int count, Random rng, string purpose)
+        {
+            if (count <= 0) return 0;
+            if (rng != null) return rng.Next(count);
+
+            var material = string.Join("|",
+                state.Revision,
+                state.CurrentUuid ?? string.Empty,
+                state.SourceCursor,
+                state.CurrentSourceIndex,
+                state.RepeatMode,
+                purpose ?? string.Empty,
+                string.Join(",", state.ManualQueueUuids),
+                string.Join(",", state.SourceUuids),
+                string.Join(",", state.NavForwardUuids));
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(material));
+            return (int)(BitConverter.ToUInt32(hash, 0) % (uint)count);
         }
 
         private static void SetSourceCurrent(PlaybackTimelineState state, int index, bool commitCursor)

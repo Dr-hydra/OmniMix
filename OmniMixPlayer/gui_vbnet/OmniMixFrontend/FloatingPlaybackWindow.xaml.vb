@@ -4,8 +4,32 @@ Imports System.IO
 Imports System.Text
 Imports System.Windows.Media
 Imports System.Windows.Media.Imaging
+Imports System.Runtime.InteropServices
 
 Public Class FloatingPlaybackWindow
+
+    <StructLayout(LayoutKind.Sequential)>
+    Private Structure NativeRect
+        Public Left As Integer
+        Public Top As Integer
+        Public Right As Integer
+        Public Bottom As Integer
+    End Structure
+
+    <DllImport("user32.dll")>
+    Private Shared Function GetWindowRect(WindowHandle As IntPtr, ByRef Bounds As NativeRect) As Boolean
+    End Function
+
+    <DllImport("user32.dll")>
+    Private Shared Function SetWindowPos(WindowHandle As IntPtr, InsertAfter As IntPtr, X As Integer, Y As Integer,
+                                         Width As Integer, Height As Integer, Flags As UInteger) As Boolean
+    End Function
+
+    Private Const SetPositionNoSize As UInteger = &H1UI
+    Private Const SetPositionNoZOrder As UInteger = &H4UI
+    Private Const SetPositionNoActivate As UInteger = &H10UI
+    Private Const MinimumVisibleWidth As Integer = 48
+    Private Const MinimumVisibleHeight As Integer = 32
 
     Private Shared ReadOnly CoverHttpClient As New System.Net.Http.HttpClient()
     Private ReadOnly RefreshTimer As DispatcherTimer
@@ -27,6 +51,10 @@ Public Class FloatingPlaybackWindow
     Private WithEvents SeekDebounceTimer As DispatcherTimer
     Private PendingSeekPosition As Double = -1
     Private IsSendingSeek As Boolean = False
+    Private IsDisplaySettingsHandlerAttached As Boolean = False
+    Private IsSystemParametersHandlerAttached As Boolean = False
+    Private IsWorkAreaValidationQueued As Boolean = False
+    Private IsWindowPositionInitialized As Boolean = False
 
     Public Sub New()
         InitializeComponent()
@@ -39,18 +67,31 @@ Public Class FloatingPlaybackWindow
     End Sub
 
     Private Sub FloatingPlaybackWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
-        If Left <= 0 AndAlso Top <= 0 Then
-            Left = Math.Max(0, SystemParameters.WorkArea.Right - Width - 24)
-            Top = Math.Max(0, SystemParameters.WorkArea.Bottom - Height - 32)
-        End If
         ApplyAppearance()
+        If Not RestoreWindowPosition() Then MoveToDefaultPosition()
+        IsWindowPositionInitialized = True
+        KeepInsideWorkArea()
+        AttachDisplaySettingsHandler()
         EnsureTopmost()
         RefreshTimer.Start()
         RefreshTimer_Tick(Nothing, EventArgs.Empty)
     End Sub
 
+    Private Sub FloatingPlaybackWindow_Closing(sender As Object, e As ComponentModel.CancelEventArgs) Handles Me.Closing
+        SaveWindowPosition()
+    End Sub
+
     Private Sub FloatingPlaybackWindow_Closed(sender As Object, e As EventArgs) Handles Me.Closed
+        DetachDisplaySettingsHandler()
         RefreshTimer.Stop()
+    End Sub
+
+    Private Sub FloatingPlaybackWindow_SizeChanged(sender As Object, e As SizeChangedEventArgs) Handles Me.SizeChanged
+        QueueWorkAreaValidation()
+    End Sub
+
+    Private Sub FloatingPlaybackWindow_DpiChanged(sender As Object, e As DpiChangedEventArgs) Handles Me.DpiChanged
+        QueueWorkAreaValidation()
     End Sub
 
     Private Sub FloatingPlaybackWindow_MouseLeftButtonDown(sender As Object, e As MouseButtonEventArgs) Handles PanRoot.MouseLeftButtonDown
@@ -59,6 +100,9 @@ Public Class FloatingPlaybackWindow
         Try
             DragMove()
         Catch
+        Finally
+            KeepInsideWorkArea()
+            SaveWindowPosition()
         End Try
     End Sub
 
@@ -488,13 +532,210 @@ Public Class FloatingPlaybackWindow
         Return Percent / 100.0
     End Function
 
+    Private Function RestoreWindowPosition() As Boolean
+        Try
+            If Settings.HasSaved("OmniMixFloatingWindowMonitor") Then
+                Dim MonitorName = Settings.Get(Of String)("OmniMixFloatingWindowMonitor")
+                If String.IsNullOrWhiteSpace(MonitorName) OrElse
+                   Not Settings.HasSaved("OmniMixFloatingWindowLeft") OrElse
+                   Not Settings.HasSaved("OmniMixFloatingWindowTop") Then Return False
+                Dim TargetScreen = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(
+                    Function(Screen) String.Equals(Screen.DeviceName, MonitorName, StringComparison.OrdinalIgnoreCase))
+                If TargetScreen Is Nothing Then Return False
+
+                Dim SavedLeft = Settings.Get(Of Double)("OmniMixFloatingWindowLeft")
+                Dim SavedTop = Settings.Get(Of Double)("OmniMixFloatingWindowTop")
+                If Not IsFinitePosition(SavedLeft, SavedTop) Then Return False
+
+                Dim Area = TargetScreen.WorkingArea
+                Dim TargetLeft = CLng(Area.Left) + CLng(Math.Round(SavedLeft))
+                Dim TargetTop = CLng(Area.Top) + CLng(Math.Round(SavedTop))
+                If TargetLeft < Integer.MinValue OrElse TargetLeft > Integer.MaxValue OrElse
+                   TargetTop < Integer.MinValue OrElse TargetTop > Integer.MaxValue Then Return False
+                If Not MoveToPhysicalPosition(CInt(TargetLeft), CInt(TargetTop)) Then Return False
+                ClampToWorkArea(TargetScreen)
+                SaveWindowPosition()
+                Return True
+            End If
+
+            ' Compatibility with the first implementation, which stored absolute WPF coordinates.
+            If Not Settings.HasSaved("OmniMixFloatingWindowLeft") OrElse
+               Not Settings.HasSaved("OmniMixFloatingWindowTop") Then Return False
+            Dim LegacyLeft = Settings.Get(Of Double)("OmniMixFloatingWindowLeft")
+            Dim LegacyTop = Settings.Get(Of Double)("OmniMixFloatingWindowTop")
+            If Not IsFinitePosition(LegacyLeft, LegacyTop) Then Return False
+            Left = LegacyLeft
+            Top = LegacyTop
+            If Not IsInsideVirtualScreen() Then Return False
+            SaveWindowPosition()
+            Return True
+        Catch Ex As Exception
+            Logger.Warn(Ex, "恢复 OmniMix 悬浮窗位置失败")
+            Return False
+        End Try
+    End Function
+
+    Private Sub SaveWindowPosition()
+        Try
+            Dim Bounds As System.Drawing.Rectangle
+            If Not TryGetPhysicalBounds(Bounds) Then Return
+            Dim CurrentScreen = System.Windows.Forms.Screen.FromRectangle(Bounds)
+            Dim Area = CurrentScreen.WorkingArea
+            Settings.Set("OmniMixFloatingWindowLeft", CDbl(Bounds.Left - Area.Left))
+            Settings.Set("OmniMixFloatingWindowTop", CDbl(Bounds.Top - Area.Top))
+            Settings.Set("OmniMixFloatingWindowMonitor", CurrentScreen.DeviceName)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "保存 OmniMix 悬浮窗位置失败")
+        End Try
+    End Sub
+
+    Private Sub MoveToDefaultPosition()
+        Dim TargetScreen = System.Windows.Forms.Screen.PrimaryScreen
+        Dim Bounds As System.Drawing.Rectangle
+        If TargetScreen IsNot Nothing AndAlso TryGetPhysicalBounds(Bounds) Then
+            Dim Area = TargetScreen.WorkingArea
+            MoveToPhysicalPosition(Math.Max(Area.Left, Area.Right - Bounds.Width - 24),
+                                   Math.Max(Area.Top, Area.Bottom - Bounds.Height - 32))
+            ClampToWorkArea(TargetScreen)
+            SaveWindowPosition()
+            Return
+        End If
+
+        Dim FallbackArea = SystemParameters.WorkArea
+        Left = Math.Max(FallbackArea.Left, FallbackArea.Right - Width - 24)
+        Top = Math.Max(FallbackArea.Top, FallbackArea.Bottom - Height - 32)
+    End Sub
+
+    Private Function IsInsideVirtualScreen() As Boolean
+        Dim Bounds As System.Drawing.Rectangle
+        If Not TryGetPhysicalBounds(Bounds) Then Return False
+        For Each Screen In System.Windows.Forms.Screen.AllScreens
+            Dim Area = Screen.WorkingArea
+            Dim VisibleBounds = System.Drawing.Rectangle.Intersect(Bounds, Area)
+            If VisibleBounds.Width >= MinimumVisibleWidth AndAlso
+               VisibleBounds.Height >= MinimumVisibleHeight Then Return True
+        Next
+        Return False
+    End Function
+
     Private Sub KeepInsideWorkArea()
-        If Not IsLoaded Then Return
-        Dim Area = SystemParameters.WorkArea
-        If Left + Width > Area.Right Then Left = Math.Max(Area.Left, Area.Right - Width - 24)
-        If Top + Height > Area.Bottom Then Top = Math.Max(Area.Top, Area.Bottom - Height - 32)
-        If Left < Area.Left Then Left = Area.Left
-        If Top < Area.Top Then Top = Area.Top
+        If Not IsLoaded OrElse Not IsWindowPositionInitialized Then Return
+        If IsInsideVirtualScreen() Then Return
+
+        Dim Bounds As System.Drawing.Rectangle
+        If Not TryGetPhysicalBounds(Bounds) Then
+            MoveToDefaultPosition()
+            Return
+        End If
+        ClampToWorkArea(System.Windows.Forms.Screen.FromRectangle(Bounds))
+        SaveWindowPosition()
+    End Sub
+
+    Private Sub ClampToWorkArea(TargetScreen As System.Windows.Forms.Screen)
+        If TargetScreen Is Nothing Then Return
+        Dim Bounds As System.Drawing.Rectangle
+        If Not TryGetPhysicalBounds(Bounds) Then Return
+        Dim Area = TargetScreen.WorkingArea
+        Dim MaximumLeft = Math.Max(Area.Left, Area.Right - Bounds.Width)
+        Dim MaximumTop = Math.Max(Area.Top, Area.Bottom - Bounds.Height)
+        Dim NewLeft = Math.Max(Area.Left, Math.Min(Bounds.Left, MaximumLeft))
+        Dim NewTop = Math.Max(Area.Top, Math.Min(Bounds.Top, MaximumTop))
+        If NewLeft <> Bounds.Left OrElse NewTop <> Bounds.Top Then
+            MoveToPhysicalPosition(NewLeft, NewTop)
+        End If
+    End Sub
+
+    Private Function TryGetPhysicalBounds(ByRef Bounds As System.Drawing.Rectangle) As Boolean
+        Dim WindowHandle = New System.Windows.Interop.WindowInteropHelper(Me).Handle
+        If WindowHandle = IntPtr.Zero Then Return False
+        Dim NativeBounds As NativeRect
+        If Not GetWindowRect(WindowHandle, NativeBounds) Then Return False
+        If NativeBounds.Right <= NativeBounds.Left OrElse NativeBounds.Bottom <= NativeBounds.Top Then Return False
+        Bounds = System.Drawing.Rectangle.FromLTRB(NativeBounds.Left, NativeBounds.Top, NativeBounds.Right, NativeBounds.Bottom)
+        Return True
+    End Function
+
+    Private Function MoveToPhysicalPosition(X As Integer, Y As Integer) As Boolean
+        Dim WindowHandle = New System.Windows.Interop.WindowInteropHelper(Me).Handle
+        If WindowHandle = IntPtr.Zero Then Return False
+        Return SetWindowPos(WindowHandle, IntPtr.Zero, X, Y, 0, 0,
+                            SetPositionNoSize Or SetPositionNoZOrder Or SetPositionNoActivate)
+    End Function
+
+    Private Shared Function IsFinitePosition(X As Double, Y As Double) As Boolean
+        Return Not Double.IsNaN(X) AndAlso Not Double.IsInfinity(X) AndAlso
+               Not Double.IsNaN(Y) AndAlso Not Double.IsInfinity(Y) AndAlso
+               X >= Integer.MinValue AndAlso X <= Integer.MaxValue AndAlso
+               Y >= Integer.MinValue AndAlso Y <= Integer.MaxValue
+    End Function
+
+    Private Sub AttachDisplaySettingsHandler()
+        If Not IsDisplaySettingsHandlerAttached Then
+            Try
+                AddHandler Microsoft.Win32.SystemEvents.DisplaySettingsChanged, AddressOf SystemDisplaySettingsChanged
+                IsDisplaySettingsHandlerAttached = True
+            Catch Ex As Exception
+                Logger.Warn(Ex, "监听显示器设置变化失败")
+            End Try
+        End If
+        If Not IsSystemParametersHandlerAttached Then
+            Try
+                AddHandler SystemParameters.StaticPropertyChanged, AddressOf SystemParametersChanged
+                IsSystemParametersHandlerAttached = True
+            Catch Ex As Exception
+                Logger.Warn(Ex, "监听工作区变化失败")
+            End Try
+        End If
+    End Sub
+
+    Private Sub DetachDisplaySettingsHandler()
+        If IsDisplaySettingsHandlerAttached Then
+            Try
+                RemoveHandler Microsoft.Win32.SystemEvents.DisplaySettingsChanged, AddressOf SystemDisplaySettingsChanged
+            Catch Ex As Exception
+                Logger.Warn(Ex, "停止监听显示器设置变化失败")
+            Finally
+                IsDisplaySettingsHandlerAttached = False
+            End Try
+        End If
+        If IsSystemParametersHandlerAttached Then
+            Try
+                RemoveHandler SystemParameters.StaticPropertyChanged, AddressOf SystemParametersChanged
+            Catch Ex As Exception
+                Logger.Warn(Ex, "停止监听工作区变化失败")
+            Finally
+                IsSystemParametersHandlerAttached = False
+            End Try
+        End If
+    End Sub
+
+    Private Sub SystemDisplaySettingsChanged(sender As Object, e As EventArgs)
+        QueueWorkAreaValidation()
+    End Sub
+
+    Private Sub SystemParametersChanged(sender As Object, e As ComponentModel.PropertyChangedEventArgs)
+        If Not String.Equals(e.PropertyName, NameOf(SystemParameters.WorkArea), StringComparison.Ordinal) Then Return
+        QueueWorkAreaValidation()
+    End Sub
+
+    Private Sub QueueWorkAreaValidation()
+        If Dispatcher.HasShutdownStarted OrElse Dispatcher.HasShutdownFinished Then Return
+        If Not IsLoaded OrElse Not IsWindowPositionInitialized OrElse IsWorkAreaValidationQueued Then Return
+        IsWorkAreaValidationQueued = True
+        Try
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded,
+                New Action(
+                    Sub()
+                        IsWorkAreaValidationQueued = False
+                        If Not IsLoaded Then Return
+                        KeepInsideWorkArea()
+                        SaveWindowPosition()
+                    End Sub))
+        Catch Ex As Exception
+            IsWorkAreaValidationQueued = False
+            Logger.Warn(Ex, "安排悬浮窗位置校正失败")
+        End Try
     End Sub
 
     Public Sub EnsureTopmost()
@@ -568,18 +809,19 @@ Public Class FloatingPlaybackWindow
         If Not ActiveInstance.Attached Then State = "离线"
 
         Dim IsDraggingProgress = ReferenceEquals(SliderProgress, DragControl)
-        Dim PositionToShow = If(IsDraggingProgress, ActivePosition, ActiveInstance.Position)
+        Dim LyricPosition = ActiveInstance.Position
+        Dim PositionToShow = If(IsDraggingProgress, ActivePosition, Math.Max(0, LyricPosition))
         If Not IsDraggingProgress Then
-            ActivePosition = ActiveInstance.Position
+            ActivePosition = PositionToShow
             ActiveDuration = Duration
         End If
 
         Dim TimeText = FormatDuration(PositionToShow) & If(Duration > 0, " / " & FormatDuration(Duration), "")
-        Dim Progress = If(Duration > 0, PositionToShow / Duration, 0)
+        Dim Progress = If(Duration > 0, Math.Max(0, Math.Min(1, PositionToShow / Duration)), 0)
         UpdateCommandButtons(True, ActiveInstance.IsPlaying)
         RenderStatus(Title, String.Join(" · ", MetaParts), State, TimeText, Progress)
         Await EnsureLyricsForTrackAsync(BaseUrl, Track)
-        RenderLyrics(PositionToShow)
+        RenderLyrics(If(IsDraggingProgress, PositionToShow, LyricPosition))
         If Settings.Get(Of Integer)("OmniMixFloatingWindowStyle") = 2 Then
             ClearCoverImage()
         Else
@@ -624,6 +866,13 @@ Public Class FloatingPlaybackWindow
         If CurrentLyricLines Is Nothing OrElse CurrentLyricLines.Count = 0 Then
             LabLyricCurrent.Text = "暂无歌词"
             LabLyricNext.Text = " "
+            Return
+        End If
+
+        If Position < -0.05 Then
+            LabLyricCurrent.Text = " "
+            LabLyricNext.Text = OmniMixLyricHelper.FormatLyricLine(CurrentLyricLines(0), True)
+            ApplyLyricTypography()
             Return
         End If
 

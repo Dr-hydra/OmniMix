@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.Backend.Audio;
+using OmniMixPlayer.Backend.Audio.Dj;
 using OmniMixPlayer.Backend.Http;
 using OmniMixPlayer.Backend.Logging;
 using OmniMixPlayer.Backend.ModuleSystem;
@@ -20,6 +21,7 @@ using OmniMixPlayer.Backend.ModuleSystem.Services.Streaming;
 using OmniMixPlayer.Backend.Services;
 using OmniMixPlayer.Backend.Storage;
 using OmniMixPlayer.SDK.Interfaces;
+using OmniMixPlayer.SDK.Caching;
 using ProtoEvents = OmniMixPlayer.SDK.Protos.Events;
 
 namespace OmniMixPlayer.Backend
@@ -214,7 +216,12 @@ namespace OmniMixPlayer.Backend
 
             // 7. Initialize GlobalConfigManager
             var globalConfig = new GlobalConfigManager(configDir);
-            globalConfig.OnConfigSaved = () => WritePortFiles();
+            ApplyCacheConfiguration(globalConfig, logger);
+            globalConfig.OnConfigSaved = () =>
+            {
+                WritePortFiles();
+                ApplyCacheConfiguration(globalConfig, logger);
+            };
 
             // 8. Initialize ModuleLoader with new LibraryRegistry
             var contextFactory = new ModuleContextFactory(
@@ -232,13 +239,20 @@ namespace OmniMixPlayer.Backend
             var profileStore = new InstanceProfileStore(configDir, loggerFactory.CreateLogger("InstanceProfileStore"));
             var instanceRegistry = new InstanceRegistry(profileStore, loggerFactory.CreateLogger("InstanceRegistry"));
             var timelineStore = new PlaybackTimelineStore(instanceRegistry, libraryRegistry, EventBus.Instance);
+            var djAssets = new Fh6DjAssetPreparationCoordinator(
+                globalConfig,
+                loggerFactory.CreateLogger("Fh6DjAssets"));
             var sessionManager = new PlaybackSessionManager(
                 loggerFactory,
                 EventBus.Instance,
                 libraryRegistry,
                 streamingService,
                 instanceRegistry,
-                timelineStore);
+                timelineStore,
+                djAssets);
+            globalConfig.OnConfigSaved += djAssets.NotifyConfigurationChanged;
+            globalConfig.OnConfigSaved += sessionManager.NotifyGlobalConfigurationChanged;
+            djAssets.NotifyConfigurationChanged();
 
             // 10. Create ApiServer (WS only)
             var apiServer = new ApiServer(instanceRegistry, sessionManager, libraryRegistry, timelineStore, loggerFactory.CreateLogger("ApiServer"));
@@ -260,6 +274,7 @@ namespace OmniMixPlayer.Backend
             builder.Services.AddSingleton(apiServer);
 
             var app = builder.Build();
+            app.Lifetime.ApplicationStopping.Register(djAssets.Dispose);
 
             // 12. Configure routes
             app.UseCors();
@@ -330,6 +345,34 @@ namespace OmniMixPlayer.Backend
             {
                 try { File.Delete(path); }
                 catch { /* ignore */ }
+            }
+        }
+
+        private static void ApplyCacheConfiguration(GlobalConfigManager config, ILogger logger)
+        {
+            try
+            {
+                var configuredRoot = config.GetValue<string>("cache_root", null);
+                var configuredMaximum = config.GetValue<long>("cache_max_bytes", CachePaths.MaximumBytes);
+                CachePaths.Configure(configuredRoot, configuredMaximum);
+                CachePaths.EnsureRootDirectory();
+
+                var cleanup = CacheQuotaManager.Default.EnforceQuota();
+                logger.LogInformation(
+                    "Cache root: {Root}; usage after cleanup: {Usage}/{Maximum} bytes",
+                    CachePaths.RootDirectory,
+                    cleanup.AfterBytes,
+                    CachePaths.MaximumBytes);
+                if (!cleanup.QuotaSatisfied)
+                {
+                    logger.LogWarning(
+                        "Cache quota remains exceeded because {Locked} files are active or locked",
+                        cleanup.SkippedLockedFileCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to apply global cache configuration");
             }
         }
 

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using OmniMixPlayer.SDK.Attributes;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
@@ -190,8 +191,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             if (_context.ConfigManager.GetBool(ConfigUseCachePath, true))
             {
                 source.CachePath = Path.Combine(
-                    Path.GetTempPath(),
-                    "chillpatcher_audio_cache",
+                    CachePaths.GetModuleDirectory("YouTubeMusic"),
                     $"youtube_music_{uuid}.{ext}");
                 source.UseCachePath = true;
             }

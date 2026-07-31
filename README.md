@@ -108,20 +108,23 @@ python scripts/build_all.py player --full --dry-run
 - `chill-gen-media.exe`
 - `OmniMixAssets/ChillPatcher.zip`
 - `OmniMixAssets/FH6OmniBridge.zip`
+- `tools/vgmstream/vgmstream-cli.exe` 及其官方 Windows x64 运行库、许可证和来源说明
 - `modules/`
 - `native/x64/`
 - `wwwroot/`
 
+FH6 DJ 语音的离线准备使用固定版本的 `vgmstream`。构建会校验 `OmniMixPlayer/assets/tools/vgmstream/` 中官方压缩包的 SHA256，再解压到 `playerbuild/tools/vgmstream/`；发布包不包含任何游戏原版语音或本地缓存。
+
 生成发布 zip：
 
 ```powershell
-python scripts/package_release.py 4.2.1
+python scripts/package_release.py 4.3.1
 ```
 
 生成安装器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.2.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.1
 ```
 
 当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：

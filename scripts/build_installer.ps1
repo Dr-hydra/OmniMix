@@ -30,7 +30,7 @@ if (-not $Version) {
         $Version = $VersionInfo.player_version -replace '\+.*$', ''
     }
     if (-not $Version) {
-        $Version = "4.2.1"
+        $Version = "4.3.1"
     }
 }
 

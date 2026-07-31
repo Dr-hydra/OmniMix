@@ -366,6 +366,7 @@
                     <StackPanel x:Name="PanModulesList" />
                     <WrapPanel x:Name="PanLaunchpadList" Visibility="Collapsed" />
                     <StackPanel x:Name="PanGameIntegrationList" Visibility="Collapsed" />
+                    <StackPanel x:Name="PanDjSettingsList" Visibility="Collapsed" />
                 </StackPanel>
             </local:MyCard>
 
@@ -993,33 +994,79 @@
                                    FontSize="13"
                                    Foreground="{DynamicResource ColorBrush2}"
                                    Margin="0,0,0,14" />
-                        <local:MyCard Title="缓存文件夹" Margin="0,0,0,15">
-                            <Grid Margin="25,40,25,17">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <local:MyTextBox x:Name="TxtCachePath"
-                                                 Height="34"
-                                                 HintText="使用系统临时目录" />
-                                <local:MyTextButton x:Name="BtnBrowseCachePath"
-                                                    Grid.Column="1"
-                                                    Text="选择"
-                                                    Padding="9,5,9,5"
-                                                    Margin="10,0,0,0" />
-                                <local:MyTextButton x:Name="BtnApplyCachePath"
-                                                    Grid.Column="2"
-                                                    Text="应用"
-                                                    Padding="9,5,9,5"
-                                                    Margin="10,0,0,0" />
-                                <local:MyTextButton x:Name="BtnResetCachePath"
-                                                    Grid.Column="3"
-                                                    Text="恢复默认"
-                                                    Padding="9,5,9,5"
-                                                    Margin="10,0,0,0" />
-                            </Grid>
+                        <local:MyCard Title="OmniMix 全局缓存" Margin="0,0,0,15">
+                            <StackPanel Margin="25,40,25,17">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <local:MyTextBox x:Name="TxtCachePath"
+                                                     Height="34"
+                                                     HintText="使用系统默认缓存目录" />
+                                    <local:MyTextButton x:Name="BtnBrowseCachePath"
+                                                        Grid.Column="1"
+                                                        Text="选择"
+                                                        Padding="9,5,9,5"
+                                                        Margin="10,0,0,0" />
+                                    <local:MyTextButton x:Name="BtnPortableCachePath"
+                                                        Grid.Column="2"
+                                                        Text="软件目录"
+                                                        Padding="9,5,9,5"
+                                                        Margin="10,0,0,0" />
+                                    <local:MyTextButton x:Name="BtnResetCachePath"
+                                                        Grid.Column="3"
+                                                        Text="系统默认"
+                                                        Padding="9,5,9,5"
+                                                        Margin="10,0,0,0" />
+                                </Grid>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="最大总容量 (GB)"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0" />
+                                    <local:MyTextBox x:Name="TxtCacheMaxGb"
+                                                     Grid.Column="1"
+                                                     Height="34"
+                                                     Text="2" />
+                                    <TextBlock x:Name="LabCacheDetails"
+                                               Grid.Column="2"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource ColorBrush2}"
+                                               Margin="16,0,12,0" />
+                                    <local:MyTextButton x:Name="BtnApplyCachePath"
+                                                        Grid.Column="3"
+                                                        Text="应用"
+                                                        Padding="9,5,9,5" />
+                                </Grid>
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="清理范围"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0" />
+                                    <local:MyComboBox x:Name="ComboCacheCategory"
+                                                      Grid.Column="1"
+                                                      Height="32" />
+                                    <local:MyTextButton x:Name="BtnClearCacheCategory"
+                                                        Grid.Column="2"
+                                                        Text="清理所选"
+                                                        Padding="9,5,9,5"
+                                                        Margin="10,0,0,0" />
+                                </Grid>
+                            </StackPanel>
                         </local:MyCard>
                         <local:MyCard Title="自定义初始化范围" Margin="0,0,0,15">
                             <StackPanel Margin="25,40,25,17">
@@ -1040,7 +1087,7 @@
                                                   Margin="0,8,0,0" />
                                 <local:MyCheckBox x:Name="CheckInitializeCache"
                                                   Checked="True"
-                                                  Text="前端缓存"
+                                                  Text="OmniMix 全部可再生成缓存"
                                                   Margin="0,8,0,0" />
                                 <TextBlock Text="游戏集成安装文件、安装标记、游戏路径映射和后台服务安装状态始终保留。"
                                            TextWrapping="Wrap"
@@ -1054,7 +1101,7 @@
                                                 Padding="9,5,9,5"
                                                 Margin="0,0,12,0" />
                             <local:MyTextButton x:Name="BtnClearFrontendCache"
-                                                Text="仅清理缓存"
+                                                Text="清理全部缓存"
                                                 Padding="9,5,9,5"
                                                 Margin="0,0,12,0" />
                             <local:MyTextButton x:Name="BtnRefreshCacheSize"
@@ -1247,7 +1294,7 @@
                                                 Margin="0,0,10,8" />
                         </WrapPanel>
                         <local:MyListItem Title="当前组件"
-                                          Info="桌面前端 4.2.1；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
+                                          Info="桌面前端 4.3.1；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="播放与队列"

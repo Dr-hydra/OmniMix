@@ -88,7 +88,13 @@
                                     Width="30"
                                     Height="30"
                                     LogoScale="0.82"
-                                    ToolTip="播放模式" />
+                                    ToolTip="播放模式"
+                                    Margin="0,0,10,0" />
+                <local:MyIconButton x:Name="BtnLeftPlaybackDj"
+                                    Width="30"
+                                    Height="30"
+                                    LogoScale="0.82"
+                                    ToolTip="DJ 模式" />
             </StackPanel>
             <Grid Margin="0,0,0,14">
                 <Grid.ColumnDefinitions>
@@ -175,6 +181,14 @@
                                       Height="36"
                                       VerticalAlignment="Top"
                                       Title="游戏集成"
+                                      IsScaleAnimationEnabled="False" />
+                    <local:MyListItem x:Name="ItemModuleDj"
+                                      Type="RadioBox"
+                                      Tag="dj"
+                                      MinPaddingRight="35"
+                                      Height="36"
+                                      VerticalAlignment="Top"
+                                      Title="DJ 模式"
                                       IsScaleAnimationEnabled="False" />
                 </StackPanel>
 

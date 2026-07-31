@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using OmniMixPlayer.Backend.Audio.Dj;
+using OmniMixPlayer.Backend.Http;
 using OmniMixPlayer.Backend.ModuleSystem;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
@@ -19,6 +21,7 @@ namespace OmniMixPlayer.Backend.Audio
         private readonly ILibraryRegistry _library;
         private readonly IStreamingService _streamingService;
         private readonly PlaybackTimelineStore _timeline;
+        private readonly Fh6DjPlaybackCoordinator _djCoordinator;
         private readonly object _lock = new();
 
         public string Id { get; }
@@ -36,10 +39,12 @@ namespace OmniMixPlayer.Backend.Audio
 
         private IPcmStreamReader _currentReader;
         private Track _playingTrack;
+        private float _currentDuration;
         private bool _disposed;
         private int _consecutivePlaybackFailures;
 
         public event Action<Track> OnTrackChanged;
+        public event Action<Track, float> OnPlaybackMetadataChanged;
         public event Action<int> OnStateChanged;
         public event Action<float> OnPositionChanged;
         public event Action<PlaybackFailureNotice> OnFailureNotice;
@@ -47,6 +52,7 @@ namespace OmniMixPlayer.Backend.Audio
         public Track CurrentTrack => _timeline.GetCurrentTrack(Id);
         public bool IsPlaying => _playState == 1;
         public float Position { get; private set; }
+        public float CurrentDuration => _currentDuration;
         public float Volume { get => _volumeNode.Volume; set => _volumeNode.Volume = value; }
         public float TargetLatency { get => _targetLatency; set => _targetLatency = Math.Clamp(value, 0.03f, 1.0f); }
         public bool Shuffle => _timeline.Get(Id).Shuffle;
@@ -60,7 +66,9 @@ namespace OmniMixPlayer.Backend.Audio
             IStreamingService streamingService,
             PlaybackTimelineStore timeline,
             string instanceId,
-            bool serverControlledPlayback = false)
+            bool serverControlledPlayback = false,
+            Fh6DjAssetPreparationCoordinator djAssets = null,
+            InstanceProfile profile = null)
         {
             _logger = logger;
             _sharedMemory = sharedMemory;
@@ -70,6 +78,17 @@ namespace OmniMixPlayer.Backend.Audio
             _timeline = timeline;
             Id = instanceId;
             ServerControlledPlayback = serverControlledPlayback;
+            if (djAssets != null && Fh6DjPlaybackCoordinator.TryGetPlaybackScope(profile, out var djPlaybackScope))
+            {
+                _djCoordinator = new Fh6DjPlaybackCoordinator(
+                    logger,
+                    instanceId,
+                    djPlaybackScope,
+                    timeline,
+                    library,
+                    djAssets,
+                    CreateBaseReaderForTrackAsync);
+            }
         }
 
         /// <summary>
@@ -158,7 +177,9 @@ namespace OmniMixPlayer.Backend.Audio
                 Position = position;
                 reader = _currentReader;
                 sampleRate = reader?.Info.SampleRate > 0 ? reader.Info.SampleRate : 44100;
-                targetFrame = Math.Max(0, (long)(position * sampleRate));
+                targetFrame = reader is Fh6DjPremixPcmStreamReader premix
+                    ? checked((long)premix.MapSongSecondsToTimelineFrame(position))
+                    : Math.Max(0, (long)(position * sampleRate));
                 if (reader != null && !reader.Seek((ulong)targetFrame))
                 {
                     _logger.LogWarning("Seek failed: position={Position}, frame={Frame}", position, targetFrame);
@@ -215,9 +236,14 @@ namespace OmniMixPlayer.Backend.Audio
             _playingTrack = track;
             SetPlayState(1);
             Position = 0;
+            _currentDuration = Math.Max(0f, track.Duration);
             OnTrackChanged?.Invoke(track);
 
             _eventBus.Publish(new PlayStartedEvent { Music = track, Source = source });
+
+            // This only schedules background preparation for the following track.
+            // The active track keeps its normal reader when no prepared premix exists.
+            _djCoordinator?.OnTrackStarted();
 
             var gen = Interlocked.Increment(ref _playbackGeneration);
             _playbackCts?.Cancel();
@@ -288,6 +314,12 @@ namespace OmniMixPlayer.Backend.Audio
                     lock (_lock) { _currentReader = reader; }
                     ResetPlaybackFailureStreak();
 
+                    if (reader is Fh6DjPremixPcmStreamReader initialPremix)
+                    {
+                        lock (_lock) { Position = (float)initialPremix.MapTimelineFrameToSongSeconds(0); }
+                        OnPositionChanged?.Invoke(Position);
+                    }
+
                     long totalFramesHint = track.Duration > 0 ? (long)(track.Duration * 44100f) : 0;
                     _sharedMemory?.BeginStream(track.Uuid, totalFramesHint);
 
@@ -317,6 +349,7 @@ namespace OmniMixPlayer.Backend.Audio
                                 totalFramesHint = info.TotalFrames > 0
                                     ? (long)info.TotalFrames
                                     : (track.Duration > 0 ? (long)(track.Duration * sampleRate) : 0);
+                                UpdateDurationFromReader(track, reader);
                                 _sharedMemory?.MarkFormatReady(sampleRate, channels, totalFramesHint);
                                 buffer = new float[1024 * channels];
                                 targetBufferedFrames = CalculateTargetBufferedFrames(sampleRate);
@@ -338,6 +371,7 @@ namespace OmniMixPlayer.Backend.Audio
                             totalFramesHint = currentInfo.TotalFrames > 0
                                 ? (long)currentInfo.TotalFrames
                                 : (track.Duration > 0 ? (long)(track.Duration * sampleRate) : 0);
+                            UpdateDurationFromReader(track, reader);
                             _sharedMemory?.MarkFormatReady(sampleRate, channels, totalFramesHint);
                             buffer = new float[1024 * channels];
                             targetBufferedFrames = CalculateTargetBufferedFrames(sampleRate);
@@ -365,7 +399,15 @@ namespace OmniMixPlayer.Backend.Audio
                         _volumeNode.Process(buffer, (int)frames, channels);
                         _equalizer.Process(buffer, (int)frames, channels, sampleRate);
 
-                        lock (_lock) { Position += (float)frames / sampleRate; }
+                        var audibleFrame = _sharedMemory != null
+                            ? Math.Max(0, _sharedMemory.GetAudibleCursor())
+                            : checked((long)reader.CurrentFrame);
+                        lock (_lock)
+                        {
+                            Position = reader is Fh6DjPremixPcmStreamReader premix
+                                ? (float)premix.MapTimelineFrameToSongSeconds(checked((ulong)audibleFrame))
+                                : (float)audibleFrame / sampleRate;
+                        }
                         OnPositionChanged?.Invoke(Position);
 
                         _sharedMemory?.WriteFrames(buffer, (int)frames);
@@ -452,6 +494,18 @@ namespace OmniMixPlayer.Backend.Audio
         }
 
         private async Task<IPcmStreamReader> CreateReaderForTrackAsync(Track track, CancellationToken ct)
+        {
+            var prepared = _djCoordinator?.TakePreparedReader(track);
+            if (prepared != null)
+            {
+                _logger.LogInformation("Using precomputed FH6 DJ PCM timeline for {Uuid}", track.Uuid);
+                return prepared;
+            }
+
+            return await CreateBaseReaderForTrackAsync(track, ct).ConfigureAwait(false);
+        }
+
+        private async Task<IPcmStreamReader> CreateBaseReaderForTrackAsync(Track track, CancellationToken ct)
         {
             var decoderProvider = ModuleLoader.Instance?.GetProvider<IModuleAudioDecoderProvider>(track.ModuleId);
             if (decoderProvider != null && decoderProvider.CanDecode(track.Uuid))
@@ -588,6 +642,28 @@ namespace OmniMixPlayer.Backend.Audio
             _playbackCts?.Cancel();
             _playbackCts?.Dispose();
             ReleaseCurrentReader(_playingTrack);
+            _djCoordinator?.Dispose();
+        }
+
+        private void UpdateDurationFromReader(Track track, IPcmStreamReader reader)
+        {
+            var info = reader?.Info;
+            if (track == null || info == null || info.SampleRate <= 0 || info.TotalFrames == 0)
+                return;
+
+            var duration = reader is Fh6DjPremixPcmStreamReader premix && premix.SongDurationSeconds > 0
+                ? (float)premix.SongDurationSeconds
+                : (float)info.TotalFrames / info.SampleRate;
+            if (duration <= 0f || Math.Abs(duration - _currentDuration) < 0.01f)
+                return;
+
+            _currentDuration = duration;
+            OnPlaybackMetadataChanged?.Invoke(track, duration);
+        }
+
+        public void NotifyGlobalConfigurationChanged()
+        {
+            _djCoordinator?.NotifyConfigurationChanged();
         }
     }
 }

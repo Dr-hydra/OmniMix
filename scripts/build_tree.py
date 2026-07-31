@@ -16,6 +16,7 @@ from tasks.common import (
     dotnet_build, dotnet_restore, dotnet_publish,
     info, run_cmd, clean_cmake_cache,
     read_version_info, write_version_json, package_zip,
+    stage_verified_runtime_archive,
 )
 import build_config as C
 
@@ -281,6 +282,11 @@ def _assemble_playerbuild() -> TaskNode:
         "OmniMixPlayer/assets/* → playerbuild/OmniMixAssets/",
         run_fn=lambda: _copy_player_assets_to_build())
 
+    g.create_leaf(
+        "vgmstream CLI → playerbuild/tools/vgmstream/",
+        f"Pinned {C.VGMSTREAM_VERSION} Windows x64 decoder + DLLs + license/source notices",
+        run_fn=lambda: _stage_vgmstream_runtime())
+
     # Native decoders (后端用)
     g.create_leaf(
         "Native runtime DLLs → playerbuild/",
@@ -352,6 +358,19 @@ def _copy_player_assets_to_build() -> bool:
             copy_file(item, dst)
     info("  OmniMix assets → playerbuild/OmniMixAssets/")
     return True
+
+
+def _stage_vgmstream_runtime() -> bool:
+    staged = stage_verified_runtime_archive(
+        C.VGMSTREAM_ARCHIVE,
+        C.VGMSTREAM_RUNTIME_DIR,
+        C.VGMSTREAM_ARCHIVE_SHA256,
+        C.VGMSTREAM_RUNTIME_FILES,
+        C.VGMSTREAM_NOTICE,
+    )
+    if staged:
+        info(f"  vgmstream {C.VGMSTREAM_VERSION} → playerbuild/tools/vgmstream/")
+    return staged
 
 
 def _copy_native_decoders() -> bool:
@@ -678,15 +697,22 @@ def _build_fh6_bridge() -> int:
 
 
 def _package_fh6_asset() -> bool:
+    missing = [
+        path for path in (C.FH6_BIN, C.OMNI_PCM_DLL)
+        if not path.is_file() or path.stat().st_size <= 0
+    ]
+    if missing:
+        info("  ERROR: FH6 bridge package requires: " + ", ".join(str(path) for path in missing))
+        return False
+
     if C.FH6_STAGE.exists():
         shutil.rmtree(C.FH6_STAGE)
     C.FH6_STAGE.mkdir(parents=True, exist_ok=True)
-    if C.FH6_BIN.exists():
-        copy_file(C.FH6_BIN, C.FH6_STAGE)
-    else:
-        info("  WARNING: FH6 version.dll not found")
-    if C.OMNI_PCM_DLL.exists():
-        copy_file(C.OMNI_PCM_DLL, C.FH6_STAGE)
+    copy_file(C.FH6_BIN, C.FH6_STAGE)
+    copy_file(C.OMNI_PCM_DLL, C.FH6_STAGE)
+    readme = C.FH6_DIR / "README.md"
+    if readme.is_file():
+        copy_file(readme, C.FH6_STAGE)
     return package_zip(C.FH6_STAGE, C.FH6_ZIP, C.FH6_PLAYER_ASSET)
 
 

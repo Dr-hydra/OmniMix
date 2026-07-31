@@ -25,6 +25,12 @@ async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function ensureOk(response: Response): Promise<void> {
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
 export class ApiClient {
   async health(): Promise<HealthResponse> {
     return parseJson<HealthResponse>(await fetch("/api/health"));
@@ -36,6 +42,16 @@ export class ApiClient {
 
   async config(): Promise<AppConfig> {
     return parseJson<AppConfig>(await fetch("/api/config"));
+  }
+
+  async updateConfig(updates: JsonBody): Promise<void> {
+    await ensureOk(
+      await fetch("/api/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      })
+    );
   }
 
   async saveConfig(): Promise<void> {

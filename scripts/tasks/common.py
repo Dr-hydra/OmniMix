@@ -3,12 +3,14 @@
 共享工具函数 — 所有 task 模块共用
 """
 import json
+import hashlib
 import os
 import re
 import shutil
 import subprocess
 import sys
 import threading
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from .base import TaskStatus
@@ -315,4 +317,65 @@ def package_zip(src_dir: Path, zip_path: Path,
         player_asset.parent.mkdir(parents=True, exist_ok=True)
         copy_file(zip_path, player_asset.parent)
         info(f"  {zip_path.name} -> {player_asset}")
+    return True
+
+
+def stage_verified_runtime_archive(
+    archive_path: Path,
+    destination: Path,
+    expected_sha256: str,
+    required_files: tuple[str, ...],
+    source_notice: Path | None = None,
+) -> bool:
+    """Verify and stage a pinned third-party runtime archive."""
+    if not archive_path.is_file():
+        info(f"  ERROR: Runtime archive not found: {archive_path}")
+        return False
+    if source_notice is not None and not source_notice.is_file():
+        info(f"  ERROR: Runtime source notice not found: {source_notice}")
+        return False
+
+    digest = hashlib.sha256()
+    with archive_path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    actual_sha256 = digest.hexdigest()
+    if actual_sha256.lower() != expected_sha256.lower():
+        info(
+            f"  ERROR: {archive_path.name} SHA256 mismatch: "
+            f"expected {expected_sha256}, got {actual_sha256}"
+        )
+        return False
+
+    try:
+        with zipfile.ZipFile(archive_path, "r") as package:
+            members = set(package.namelist())
+            required = set(required_files)
+            missing = sorted(required - members)
+            unexpected = sorted(members - required)
+            if missing or unexpected:
+                if missing:
+                    info(f"  ERROR: Runtime archive is missing: {', '.join(missing)}")
+                if unexpected:
+                    info(f"  ERROR: Runtime archive has unexpected files: {', '.join(unexpected)}")
+                return False
+
+            _rmtree_ignore_locked(destination)
+            if destination.exists():
+                info(f"  ERROR: Could not replace runtime directory: {destination}")
+                return False
+            destination.mkdir(parents=True, exist_ok=True)
+
+            for member in required_files:
+                target = destination / member
+                with package.open(member, "r") as source, target.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+    except (OSError, zipfile.BadZipFile) as exc:
+        info(f"  ERROR: Could not stage {archive_path.name}: {exc}")
+        return False
+
+    if source_notice is not None:
+        copy_file(source_notice, destination)
+        if not (destination / source_notice.name).is_file():
+            return False
     return True

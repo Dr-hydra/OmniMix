@@ -1,0 +1,14 @@
+vgmstream Windows x64 command-line decoder
+
+Upstream repository: https://github.com/vgmstream/vgmstream
+Source tag: r2117
+Source URL: https://github.com/vgmstream/vgmstream/tree/r2117
+Binary asset: vgmstream-win64.zip
+Binary asset URL: https://github.com/vgmstream/vgmstream/releases/download/r2117/vgmstream-win64.zip
+SHA256: 6C4A8A3813864FEFED081BBD337DBC0AD93BF88E0B92F5DB98D7AB258B22DC6C
+
+The files staged into tools/vgmstream are copied without modification from
+the official Windows x64 release archive. COPYING, README.md, and USAGE.md
+from that archive are retained next to the executable and codec libraries.
+
+No Forza Horizon game data or locally extracted audio is included.

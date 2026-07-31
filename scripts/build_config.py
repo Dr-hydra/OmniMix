@@ -84,6 +84,29 @@ PLAYER_BACKEND_PUBLISH = PLAYER_DIR / "bin" / "BackendPublish"
 PLAYER_FRONTEND_PUBLISH = PLAYER_DIR / "bin" / "GuiVbnetSingle"
 PLAYER_MODULES_BUILD = PLAYER_DIR / "bin" / "Modules"
 PLAYER_ASSETS_DIR = PLAYER_DIR / "assets"
+VGMSTREAM_VERSION = "r2117"
+VGMSTREAM_ASSET_DIR = PLAYER_ASSETS_DIR / "tools" / "vgmstream"
+VGMSTREAM_ARCHIVE = VGMSTREAM_ASSET_DIR / f"vgmstream-win64-{VGMSTREAM_VERSION}.zip"
+VGMSTREAM_NOTICE = VGMSTREAM_ASSET_DIR / "VGMSTREAM_UPSTREAM.txt"
+VGMSTREAM_ARCHIVE_SHA256 = "6c4a8a3813864fefed081bbd337dbc0ad93bf88e0b92f5db98d7ab258b22dc6c"
+VGMSTREAM_RUNTIME_DIR = PLAYER_BUILD / "tools" / "vgmstream"
+VGMSTREAM_RUNTIME_FILES = (
+    "vgmstream-cli.exe",
+    "avcodec-vgmstream-59.dll",
+    "avformat-vgmstream-59.dll",
+    "avutil-vgmstream-57.dll",
+    "swresample-vgmstream-4.dll",
+    "libatrac9.dll",
+    "libcelt-0061.dll",
+    "libcelt-0110.dll",
+    "libg719_decode.dll",
+    "libmpg123-0.dll",
+    "libspeex-1.dll",
+    "libvorbis.dll",
+    "COPYING",
+    "README.md",
+    "USAGE.md",
+)
 PLAYER_WEB_DIR = PLAYER_DIR / "gui_web"
 PLAYER_WEB_BUILD = PLAYER_WEB_DIR / "dist"
 PLAYER_WWWROOT = PLAYER_DIR / "OmniMixPlayer.Backend" / "wwwroot"

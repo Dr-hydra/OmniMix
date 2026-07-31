@@ -15,6 +15,7 @@ Public Module OmniMixBackendManager
         End If
         Dim Status = Await OmniMixApiClient.DiscoverAsync()
         If Status.IsOnline Then
+            Await SyncCacheSettingsAsync(Status.BaseUrl)
             Status.Message = "已发现正在运行的 OmniMix 后端。"
             Return Status
         End If
@@ -29,14 +30,17 @@ StartBundledBackend:
 
         Try
             Dim GuiDir = PathExeFolder.TrimEnd("\"c, "/"c)
-            StartProcess(New ProcessStartInfo With {
+            Dim StartInfo = New ProcessStartInfo With {
                 .FileName = BackendPath,
                 .Arguments = $"--port-file-dir=""{GuiDir}""",
                 .WorkingDirectory = Path.GetDirectoryName(BackendPath),
                 .UseShellExecute = False,
                 .CreateNoWindow = True,
                 .WindowStyle = ProcessWindowStyle.Hidden
-            })
+            }
+            StartInfo.EnvironmentVariables("OMNIMIX_CACHE_ROOT") = GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)
+            StartInfo.EnvironmentVariables("OMNIMIX_CACHE_MAX_BYTES") = Settings.Get(Of Long)("OmniMixCacheMaxBytes").ToString(Globalization.CultureInfo.InvariantCulture)
+            StartProcess(StartInfo)
         Catch ex As Exception
             Return New OmniMixBackendStatus With {
                 .IsOnline = False,
@@ -50,6 +54,7 @@ StartBundledBackend:
 
             Status = Await OmniMixApiClient.DiscoverAsync()
             If Status.IsOnline Then
+                Await SyncCacheSettingsAsync(Status.BaseUrl)
                 Status.BackendPath = BackendPath
                 Status.StartedBackend = True
                 Status.Message = "已启动并连接 OmniMix 后端。"
@@ -63,6 +68,58 @@ StartBundledBackend:
             .IsOnline = False,
             .BackendPath = BackendPath,
             .Message = "已尝试启动 OmniMix 后端，但 /api/health 未在等待时间内就绪。"
+        }
+    End Function
+
+    Private Async Function SyncCacheSettingsAsync(BaseUrl As String) As Task
+        If String.IsNullOrWhiteSpace(BaseUrl) Then Return
+        Try
+            Dim Updates As New Dictionary(Of String, Object) From {
+                {"cache_root", GetOmniMixCacheRoot().TrimEnd("\"c, "/"c)},
+                {"cache_max_bytes", Settings.Get(Of Long)("OmniMixCacheMaxBytes")}
+            }
+            For Each Pair In GetDjSettingsUpdates()
+                Updates(Pair.Key) = Pair.Value
+            Next
+            Await OmniMixApiClient.PutConfigRawAsync(BaseUrl, Updates)
+            Await OmniMixApiClient.SaveConfigAsync(BaseUrl)
+        Catch Ex As Exception
+            Logger.Warn(Ex, "同步 OmniMix 全局缓存配置失败")
+        End Try
+    End Function
+
+    Public Async Function SyncDjSettingsAsync(BaseUrl As String) As Task
+        If String.IsNullOrWhiteSpace(BaseUrl) Then Return
+        Await OmniMixApiClient.PutConfigRawAsync(BaseUrl, GetDjSettingsUpdates())
+        Await OmniMixApiClient.SaveConfigAsync(BaseUrl)
+    End Function
+
+    Private Function GetDjSettingsUpdates() As Dictionary(Of String, Object)
+        Dim Scope = Settings.Get(Of String)("OmniMixFh6DjScope")
+        If String.Equals(Scope, "desktop_instances", StringComparison.OrdinalIgnoreCase) Then
+            Scope = "desktop_instances"
+        Else
+            Scope = "fh6_instances"
+        End If
+
+        Dim Content = Settings.Get(Of String)("OmniMixFh6DjContent")
+        Select Case If(Content, "").Trim().ToLowerInvariant()
+            Case "smart", "chatter", "transition_in", "transition_out"
+                Content = Content.Trim().ToLowerInvariant()
+            Case Else
+                Content = "smart"
+        End Select
+
+        Dim Frequency = Settings.Get(Of Integer)("OmniMixFh6DjFrequency")
+        If Frequency <> 1 AndAlso Frequency <> 2 AndAlso Frequency <> 3 AndAlso Frequency <> 5 Then Frequency = 1
+
+        Return New Dictionary(Of String, Object) From {
+            {"fh6_dj_enabled", Settings.Get(Of Boolean)("OmniMixFh6DjEnabled")},
+            {"fh6_dj_host", Math.Clamp(Settings.Get(Of Integer)("OmniMixFh6DjHost"), 1, 9)},
+            {"fh6_dj_scope", Scope},
+            {"fh6_dj_content", Content},
+            {"fh6_dj_frequency", Frequency},
+            {"fh6_game_root", OmniMixModDeploymentService.LoadGamePath("forza_horizon_6")}
         }
     End Function
 

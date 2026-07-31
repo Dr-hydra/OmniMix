@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using OmniMixPlayer.SDK;
 using OmniMixPlayer.SDK.Attributes;
+using OmniMixPlayer.SDK.Caching;
 using OmniMixPlayer.SDK.Events;
 using OmniMixPlayer.SDK.Interfaces;
 using OmniMixPlayer.SDK.Protos.Models;
@@ -203,7 +204,7 @@ namespace OmniMixPlayer.Module.Kugou
                 {
                     ["User-Agent"] = KugouBridge.UserAgent
                 },
-                CachePath = Path.Combine(Path.GetTempPath(), "chillpatcher_audio_cache", $"kugou_{song.Hash}.{playable.Format}"),
+                CachePath = Path.Combine(CachePaths.GetModuleDirectory("Kugou"), $"kugou_{song.Hash}.{playable.Format}"),
                 UseCachePath = true
             };
         }
