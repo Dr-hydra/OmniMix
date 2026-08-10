@@ -104,7 +104,10 @@ static class SwatchBinBuilder
         Console.WriteLine($"[swb] PNG loaded: {skBitmap.Width}x{skBitmap.Height} -> resizing to {tw}x{th}");
         Console.WriteLine($"[swb] Target data: {targetInfo.DataSize:N0} bytes, top mip: {topMipSize:N0} bytes, mipmaps={generateMipMaps}");
 
-        using var normalized = new SKBitmap(new SKImageInfo(skBitmap.Width, skBitmap.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        // BCnEncoder expects straight (non-premultiplied) RGBA. Keeping the
+        // source in premultiplied form makes transparent edges encode darker
+        // than intended and can produce visibly corrupted purple/black logos.
+        using var normalized = new SKBitmap(new SKImageInfo(skBitmap.Width, skBitmap.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         using (var canvas = new SKCanvas(normalized))
         {
             canvas.Clear(SKColors.Transparent);
@@ -161,13 +164,12 @@ static class SwatchBinBuilder
         // Copy header
         Array.Copy(targetInfo.HeaderBytes, 0, result, 0, targetInfo.HeaderSize);
 
-        // Update size fields
+        // Update only fields that describe the replacement payload. Other
+        // container metadata (including the texture descriptor at 0x84) is
+        // format-specific and must remain exactly as in the target template.
         WriteU32(result, 0x0C, (uint)newTotalSize);              // burG total size
         WriteU32(result, 0x24, (uint)compressed.Length);          // BCXT dataSize
         WriteU32(result, 0x28, (uint)compressed.Length);          // BCXT dataSizeDup
-
-        // Update mip table top-level entry
-        UpdateMipTableTopLevel(result, targetInfo.HeaderSize, compressed.Length);
 
         // Copy compressed pixel data
         Array.Copy(compressed, 0, result, targetInfo.HeaderSize, compressed.Length);
@@ -176,22 +178,6 @@ static class SwatchBinBuilder
                           $"({targetInfo.HeaderSize} header + {compressed.Length} BCn data)");
 
         return result;
-    }
-
-    /// <summary>
-    /// Updates the top-level mip data size entry in the mip table.
-    /// </summary>
-    static void UpdateMipTableTopLevel(byte[] result, int headerSize, int newDataSize)
-    {
-        // Scan backwards from headerSize for the 0xFFFFFFFF terminator
-        for (int i = headerSize - 4; i >= 0x64; i -= 4)
-        {
-            if (BitConverter.ToUInt32(result, i) == 0xFFFFFFFF)
-            {
-                WriteU32(result, i - 4, (uint)newDataSize);
-                return;
-            }
-        }
     }
 
     static int GetMipDataSize(int width, int height, CompressionFormat format)

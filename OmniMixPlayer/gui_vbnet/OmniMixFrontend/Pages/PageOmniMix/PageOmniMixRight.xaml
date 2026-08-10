@@ -1292,9 +1292,21 @@
                                                 Text="打开项目仓库"
                                                 Padding="9,5,9,5"
                                                 Margin="0,0,10,8" />
+                            <local:MyTextButton x:Name="BtnAboutBilibili"
+                                                Text="B站主页"
+                                                Padding="9,5,9,5"
+                                                Margin="0,0,10,8" />
+                            <local:MyTextButton x:Name="BtnAboutXiaoheihe"
+                                                Text="小黑盒主页"
+                                                Padding="9,5,9,5"
+                                                Margin="0,0,10,8" />
                         </WrapPanel>
                         <local:MyListItem Title="当前组件"
-                                          Info="桌面前端 4.3.1；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
+                                          Info="桌面前端 4.3.2；FH6 Omni Bridge 3.0.2；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
+                                          IsHitTestVisible="False"
+                                          Margin="-5,0,0,2" />
+                        <local:MyListItem Title="社区与交流"
+                                          Info="B站：space.bilibili.com/441133155；小黑盒：用户 38080236；QQ群：851586605。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="播放与队列"

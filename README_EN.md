@@ -8,7 +8,7 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.3.1`
+Current version: `4.3.2`
 
 Primary local artifact:
 
@@ -80,7 +80,7 @@ The FH6 integration page provides a radio UI replacement workflow:
 
 1. Select a valid FH6 directory.
 2. Click the radio UI replacement action.
-3. Choose a custom PNG.
+3. Choose a readable PNG. It is resized directly to the game's radio-logo sizes (196x104 standard and 392x208 HiRes). To avoid stretching, use a 49:26 aspect ratio at 392x208 or larger; an opaque RGB/RGBA PNG gives the most predictable result.
 4. OmniMix runs the media generator, backs up original files, and writes generated files into the game's `media` directory.
 
 Use the restore action to recover the original radio UI.
@@ -128,13 +128,13 @@ Offline FH6 DJ voice preparation uses a pinned `vgmstream` release. The build ve
 Create release zip packages:
 
 ```powershell
-python scripts/package_release.py 4.3.1
+python scripts/package_release.py 4.3.2
 ```
 
 Create the Windows installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.2
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:
@@ -149,6 +149,12 @@ npm run dev
 - The current VB.NET/WPF branch is the primary maintained branch.
 - `main` is kept as a historical baseline and for possible future comparison or selective pulls.
 - If original-project updates are needed, use a temporary sync branch and migrate only the required backend, SDK, module, or build-script changes.
+
+## Community
+
+- Bilibili: [Dr.Hydra](https://space.bilibili.com/441133155)
+- Xiaoheihe: [Dr.Hydra](https://www.xiaoheihe.cn/app/user/profile/38080236)
+- QQ group: `851586605`
 
 ## Original Project
 

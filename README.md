@@ -4,6 +4,8 @@ OmniMix 是一个面向 Windows 的桌面音乐与游戏集成工具，由 Dr.Hy
 
 English version: [README_EN.md](README_EN.md)
 
+当前版本：`4.3.2`
+
 ## 项目状态
 
 发布包通常包含：
@@ -65,7 +67,7 @@ FH6 集成页面提供“替换电台 UI”功能：
 
 1. 选择有效 FH6 目录。
 2. 点击“替换电台 UI”。
-3. 选择自定义 PNG并输入自定义电台名称。
+3. 选择可读取的 PNG 并输入自定义电台名称。图片会直接缩放到游戏电台徽标尺寸（普通版 196×104，HiRes 版 392×208）；为避免拉伸变形，建议使用 49:26 宽高比、至少 392×208 的 RGB/RGBA PNG。不透明背景的显示效果最可预测。
 4. 前端会调用媒体生成器生成文件、备份原始文件并写入游戏 `media` 目录。
 
 如需恢复，点击“还原原始电台 UI”。
@@ -118,13 +120,13 @@ FH6 DJ 语音的离线准备使用固定版本的 `vgmstream`。构建会校验 
 生成发布 zip：
 
 ```powershell
-python scripts/package_release.py 4.3.1
+python scripts/package_release.py 4.3.2
 ```
 
 生成安装器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.2
 ```
 
 当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：
@@ -138,6 +140,12 @@ npm run dev
 
 - 当前 VB.NET/WPF 分支是主维护分支。
 - `main` 分支保留用于历史基线和未来必要的拉取/比对。
+
+## 社区与交流
+
+- B站主页：[Dr.Hydra](https://space.bilibili.com/441133155)
+- 小黑盒主页：[Dr.Hydra](https://www.xiaoheihe.cn/app/user/profile/38080236)
+- QQ群：`851586605`
 
 ## 关于原项目
 

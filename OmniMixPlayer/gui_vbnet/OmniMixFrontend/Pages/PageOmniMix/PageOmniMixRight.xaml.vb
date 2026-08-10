@@ -61,6 +61,8 @@ Public Class PageOmniMixRight
     Private Const IconExpandUp As String = "M192 672h640L512 320z"
     Private Const OmniMixRepositoryUrl As String = "https://github.com/Dr-hydra/OmniMix"
     Private Const OmniMixIssuesUrl As String = "https://github.com/Dr-hydra/OmniMix/issues"
+    Private Const OmniMixBilibiliUrl As String = "https://space.bilibili.com/441133155"
+    Private Const OmniMixXiaoheiheUrl As String = "https://www.xiaoheihe.cn/app/user/profile/38080236"
     Private Const EqualizerPlotLeft As Double = 46
     Private Const EqualizerPlotRight As Double = 18
     Private Const EqualizerPlotTop As Double = 18
@@ -1496,6 +1498,14 @@ Public Class PageOmniMixRight
         OpenWebsite(OmniMixRepositoryUrl)
     End Sub
 
+    Private Sub BtnAboutBilibili_Click(sender As Object, e As EventArgs) Handles BtnAboutBilibili.Click
+        OpenWebsite(OmniMixBilibiliUrl)
+    End Sub
+
+    Private Sub BtnAboutXiaoheihe_Click(sender As Object, e As EventArgs) Handles BtnAboutXiaoheihe.Click
+        OpenWebsite(OmniMixXiaoheiheUrl)
+    End Sub
+
     Private Sub BtnFeedbackGithub_Click(sender As Object, e As EventArgs) Handles BtnFeedbackGithub.Click
         OpenWebsite(OmniMixIssuesUrl)
     End Sub
@@ -1567,7 +1577,7 @@ Public Class PageOmniMixRight
         Using Writer As New StreamWriter(Entry.Open(), New System.Text.UTF8Encoding(False))
             Writer.WriteLine("OmniMix feedback diagnostics")
             Writer.WriteLine("GeneratedAt=" & Date.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"))
-            Writer.WriteLine("GuiVersion=4.3.1")
+            Writer.WriteLine("GuiVersion=4.3.2")
             Writer.WriteLine("ExePath=" & PathExe)
             Writer.WriteLine("ExeFolder=" & PathExeFolder)
             Writer.WriteLine("AppData=" & PathAppdata)
@@ -3396,7 +3406,7 @@ Public Class PageOmniMixRight
             If IsMediaUiReplaced Then
                 AddGameDetailAction(PanModuleUi, "还原原始电台 UI", "恢复备份的游戏原始电台 Logo 与 XML 文件。", Logo.IconButtonReset, "还原原始电台 UI", Game.Id, AddressOf GameUiRestoreButton_Click, IsValidPath, MyIconButton.Themes.Red)
             Else
-                AddGameDetailAction(PanModuleUi, "替换电台 UI", "生成并注入自定义电台 UI (需要选择自定义 Logo PNG 图像)。", Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
+                AddGameDetailAction(PanModuleUi, "替换电台 UI", "生成并注入自定义电台 UI（选择可读取的 PNG；会自动缩放到游戏徽标比例）。", Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
             End If
 
             ' 自动写入默认配置文件（防首次没有文件产生）

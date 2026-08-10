@@ -5,7 +5,7 @@
 
 #define MyAppName "OmniMixPlayer"
 #ifndef MyAppVersion
-  #define MyAppVersion "4.3.1"
+  #define MyAppVersion "4.3.2"
 #endif
 #define MyAppPublisher "Dr-hydra"
 #define MyAppURL "https://github.com/Dr-hydra/OmniMix"
