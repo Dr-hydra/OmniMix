@@ -95,11 +95,13 @@ namespace OmniMixPlayer.Backend.Audio
 
         private readonly ILogger _logger;
         private readonly string _mapName;
+        private string _actualMapName;
         private byte* _ptr;
         private IntPtr _mapHandle;
         private IntPtr _viewHandle;
         private long _capacity;
         private bool _disposed;
+        private readonly Timer _heartbeatTimer;
 
         public int SampleRate { get; set; } = DefaultSampleRate;
         public int Channels { get; set; } = DefaultChannels;
@@ -108,11 +110,13 @@ namespace OmniMixPlayer.Backend.Audio
         public int TotalSize => SharedMemoryProtocol.HeaderSize + BufferSize;
 
         public string MapName => _mapName;
+        public string ActualMapName => _actualMapName ?? _mapName;
 
         public SharedMemoryServer(ILogger logger, string mapName = DefaultMapName)
         {
             _logger = logger;
             _mapName = string.IsNullOrWhiteSpace(mapName) ? DefaultMapName : mapName;
+            _heartbeatTimer = new Timer(_ => Touch(), null, Timeout.Infinite, Timeout.Infinite);
         }
 
         public bool Initialize()
@@ -197,8 +201,35 @@ namespace OmniMixPlayer.Backend.Audio
 
                 if (_mapHandle == IntPtr.Zero)
                 {
-                    _logger.LogError("CreateFileMapping failed: {Error}", Marshal.GetLastWin32Error());
-                    return false;
+                    var error = Marshal.GetLastWin32Error();
+                    if (error == 5 && _mapName.StartsWith(@"Global\", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _actualMapName = @"Local\" + _mapName.Substring(@"Global\".Length);
+                        SECURITY_ATTRIBUTES fallbackAttributes = default;
+                        _mapHandle = CreateFileMapping(
+                            INVALID_HANDLE_VALUE,
+                            ref fallbackAttributes,
+                            PAGE_READWRITE,
+                            sizeHigh,
+                            sizeLow,
+                            _actualMapName);
+                        if (_mapHandle != IntPtr.Zero)
+                        {
+                            _logger.LogWarning(
+                                "Global shared memory requires elevation; using session-local mapping {Name}",
+                                _actualMapName);
+                        }
+                        else
+                        {
+                            error = Marshal.GetLastWin32Error();
+                        }
+                    }
+
+                    if (_mapHandle == IntPtr.Zero)
+                    {
+                        _logger.LogError("CreateFileMapping failed: {Error}", error);
+                        return false;
+                    }
                 }
 
                 _viewHandle = MapViewOfFile(_mapHandle, FILE_MAP_ALL_ACCESS, 0, 0, (UIntPtr)_capacity);
@@ -210,7 +241,8 @@ namespace OmniMixPlayer.Backend.Audio
 
                 _ptr = (byte*)_viewHandle;
                 InitializeHeader();
-                _logger.LogInformation("Shared memory created: {Name}, size={Size} bytes, buffer={BufferFrames} frames", _mapName, TotalSize, BufferFrames);
+                _heartbeatTimer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+                _logger.LogInformation("Shared memory created: {Name}, size={Size} bytes, buffer={BufferFrames} frames", ActualMapName, TotalSize, BufferFrames);
                 return true;
             }
             catch (Exception ex)
@@ -239,7 +271,7 @@ namespace OmniMixPlayer.Backend.Audio
             WriteI64(SharedMemoryProtocol.StreamId, 0);
             WriteI32(SharedMemoryProtocol.StreamState, (int)SharedMemoryStreamState.Stopped);
             WriteI32(SharedMemoryProtocol.ErrorCode, (int)SharedMemoryStreamError.None);
-            WriteI64(SharedMemoryProtocol.LastUpdateTick, DateTime.UtcNow.Ticks);
+            WriteI64(SharedMemoryProtocol.LastUpdateTick, Environment.TickCount64);
         }
 
         public void SetPlayState(int state)
@@ -379,6 +411,34 @@ namespace OmniMixPlayer.Backend.Audio
             return streamId;
         }
 
+        public long AdvanceGeneration(long frame)
+        {
+            if (_ptr == null) return 0;
+            WriteU32(SharedMemoryProtocol.Flags, (uint)(SharedMemoryStreamFlags.FormatReady | SharedMemoryStreamFlags.Discontinuity));
+            ResetCursors(frame);
+            WriteI32(SharedMemoryProtocol.ErrorCode, (int)SharedMemoryStreamError.None);
+            var streamId = Interlocked.Increment(ref *(long*)(_ptr + SharedMemoryProtocol.StreamId));
+            SetStreamState(SharedMemoryStreamState.Playing);
+            Touch();
+            return streamId;
+        }
+
+        public long StopStream()
+        {
+            if (_ptr == null) return 0;
+            var writeCursor = GetWriteCursor();
+            WriteI64(SharedMemoryProtocol.ReadCursor, writeCursor);
+            WriteI64(SharedMemoryProtocol.AudibleCursor, writeCursor);
+            WriteI64(SharedMemoryProtocol.FinalWriteCursor, writeCursor);
+            WriteU32(SharedMemoryProtocol.Flags, (uint)SharedMemoryStreamFlags.Discontinuity);
+            SetCurrentUuid(string.Empty);
+            var streamId = Interlocked.Increment(ref *(long*)(_ptr + SharedMemoryProtocol.StreamId));
+            SetStreamState(SharedMemoryStreamState.Stopped);
+            WriteI32(SharedMemoryProtocol.LegacyPlayState, 0);
+            Touch();
+            return streamId;
+        }
+
         public void MarkFormatReady(int sampleRate, int channels, long totalFramesHint)
         {
             UpdateFormat(sampleRate, channels);
@@ -460,13 +520,14 @@ namespace OmniMixPlayer.Backend.Audio
         private void Touch()
         {
             if (_ptr != null)
-                Interlocked.Exchange(ref *(long*)(_ptr + SharedMemoryProtocol.LastUpdateTick), DateTime.UtcNow.Ticks);
+                Interlocked.Exchange(ref *(long*)(_ptr + SharedMemoryProtocol.LastUpdateTick), Environment.TickCount64);
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            _heartbeatTimer.DisposeAsync().AsTask().GetAwaiter().GetResult();
             if (_viewHandle != IntPtr.Zero) { UnmapViewOfFile(_viewHandle); _viewHandle = IntPtr.Zero; }
             if (_mapHandle != IntPtr.Zero) { CloseHandle(_mapHandle); _mapHandle = IntPtr.Zero; }
             _ptr = null;

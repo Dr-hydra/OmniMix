@@ -4,7 +4,7 @@ OmniMix 是一个面向 Windows 的桌面音乐与游戏集成工具，由 Dr.Hy
 
 English version: [README_EN.md](README_EN.md)
 
-当前版本：`4.3.2`
+当前版本：`4.4.0`
 
 ## 项目状态
 
@@ -27,6 +27,7 @@ English version: [README_EN.md](README_EN.md)
 - 支持均衡器和实例配置。
 - 支持游戏集成桥安装、实例 ID 修复和端口文件同步。
 - 支持 FH6 游戏集成，包括 Steam 与 Xbox 不同目录结构识别。
+- 支持通过 Better Endfield 官方 CLI 注册终末地音乐替换后端，不向其安装目录或游戏目录复制文件。
 - 提供个性化界面设置，包括背景、不透明度、主题色和 HSL 自定义。
 
 VB.NET 界面层与 [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT) 同步维护；QING.UIKIT 是从PCL2中整理出的可复用 WPF UI Kit。
@@ -56,6 +57,16 @@ VB.NET 界面层与 [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT) 同步�
 2. 点击“选择游戏目录”。
 3. 安装对应游戏集成桥。
 4. 启动游戏前，建议先启动 OmniMix 前端，让前端刷新端口文件和实例绑定。
+
+Better Endfield 使用独立的注册式接入：在对应详情页选择或自动定位包含
+`BetterEndfield.exe`、`runtime/BetterEndfield.Host.dll` 和 `modules/` 的安装目录，
+然后执行“注册”或“修复注册”。实时状态来自 Better Endfield 的 JSON CLI；登录、
+主界面和游戏内音乐替换范围仍在 Better Endfield 中设置。OmniMix 不会向该目录写入
+端口文件、Mod 或配置，解除注册也不会删除任何程序和用户文件。
+
+本次 PCM ABI 升级不兼容旧游戏桥。FH6 Bridge `4.0.0` 和 ChillPatcher `2.0.0`
+会校验 OmniPcmShared ABI 2；游戏集成页检测到旧版本时会显示更新操作。旧桥加载
+不兼容 DLL 时会安全停用自定义音频，不应影响游戏启动，请按提示升级桥。
 
 ### FH6游戏内设置
 
@@ -110,6 +121,7 @@ python scripts/build_all.py player --full --dry-run
 - `chill-gen-media.exe`
 - `OmniMixAssets/ChillPatcher.zip`
 - `OmniMixAssets/FH6OmniBridge.zip`
+- `OmniMixAssets/OmniPcmSharedSDK-2.0.0.zip`
 - `tools/vgmstream/vgmstream-cli.exe` 及其官方 Windows x64 运行库、许可证和来源说明
 - `modules/`
 - `native/x64/`
@@ -117,16 +129,22 @@ python scripts/build_all.py player --full --dry-run
 
 FH6 DJ 语音的离线准备使用固定版本的 `vgmstream`。构建会校验 `OmniMixPlayer/assets/tools/vgmstream/` 中官方压缩包的 SHA256，再解压到 `playerbuild/tools/vgmstream/`；发布包不包含任何游戏原版语音或本地缓存。
 
+`OmniPcmSharedSDK-2.0.0.zip` 是独立版本的 Windows x64 C ABI 交付包，包含
+静态 MSVC 运行时 DLL、头文件、`VERSION`、`SHA256SUMS`、README 和不依赖曲库的
+48 kHz 双声道测试流。规范实例映射名为
+`Global\OmniMixPlayer_PCM_<instance_id>`；普通用户无权创建全局映射时，后端与 SDK
+透明回退到同后缀的 `Local\` 映射。
+
 生成发布 zip：
 
 ```powershell
-python scripts/package_release.py 4.3.2
+python scripts/package_release.py 4.4.0
 ```
 
 生成安装器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.2
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.0
 ```
 
 当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：

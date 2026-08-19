@@ -144,3 +144,6 @@ MOD_RELEASE_ZIP = ROOT / "release" / "ChillPatcher.zip"
 MOD_PLAYER_ASSET = PLAYER_ASSETS_DIR / "ChillPatcher.zip"
 
 OMNI_PCM_DLL = ROOT / "bin" / "native" / "x64" / "OmniPcmShared.dll"
+OMNI_PCM_SDK_VERSION = "2.0.0"
+OMNI_PCM_SDK_ZIP = ROOT / "release" / f"OmniPcmSharedSDK-{OMNI_PCM_SDK_VERSION}.zip"
+OMNI_PCM_SDK_ASSET = PLAYER_ASSETS_DIR / OMNI_PCM_SDK_ZIP.name

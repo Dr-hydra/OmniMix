@@ -52,6 +52,7 @@ public:
 
 private:
     // ── OmniPcmShared SDK function pointer types ──────────────────
+    using GetAbiVersionFn = uint32_t (OMNI_PCM_CALL *)(void);
     using OpenUtf8Fn      = OmniPcmHandle (*)(const char*);
     using CloseFn         = void          (*)(OmniPcmHandle);
     using IsOpenFn        = int           (*)(OmniPcmHandle);
@@ -85,6 +86,7 @@ private:
         HMODULE dll = nullptr;
 
         // Shared memory
+        GetAbiVersionFn get_abi_version = nullptr;
         OpenUtf8Fn      open_utf8     = nullptr;
         CloseFn         close         = nullptr;
         IsOpenFn        is_open       = nullptr;

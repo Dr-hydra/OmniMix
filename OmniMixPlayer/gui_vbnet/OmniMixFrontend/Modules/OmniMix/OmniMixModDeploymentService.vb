@@ -26,6 +26,7 @@ Public Class OmniMixGameDeclaration
     Public Property SupportedFrameworks As List(Of String) = New List(Of String)
     Public Property SupportedMods As List(Of String) = New List(Of String)
     Public Property WebsiteUrl As String = ""
+    Public Property IntegrationKind As String = "mod"
 End Class
 
 Public Class OmniMixFrameworkDeclaration
@@ -92,6 +93,15 @@ Public Module OmniMixModDeploymentService
                 .SupportedFrameworks = New List(Of String),
                 .SupportedMods = New List(Of String) From {"fh6_omni_bridge"},
                 .WebsiteUrl = "https://forza.net"
+            },
+            New OmniMixGameDeclaration With {
+                .Id = OmniMixBetterEndfieldIntegrationService.GameId,
+                .Name = "Better Endfield",
+                .ExeName = "BetterEndfield.exe",
+                .SignatureFiles = New List(Of String) From {"BetterEndfield.exe", "runtime\BetterEndfield.Host.dll", "modules"},
+                .SupportedFrameworks = New List(Of String),
+                .SupportedMods = New List(Of String),
+                .IntegrationKind = "registration_cli"
             }
         }
     End Function
@@ -115,7 +125,7 @@ Public Module OmniMixModDeploymentService
             New OmniMixModDeclaration With {
                 .Id = "chill_patcher",
                 .Name = "ChillPatcher",
-                .Version = GetBundledModVersion("chill_patcher", "1.0.0"),
+                .Version = GetBundledModVersion("chill_patcher", "2.0.0"),
                 .ArchiveName = "ChillPatcher.zip",
                 .TargetFramework = "bepinex_5",
                 .FolderName = "ChillPatcher",
@@ -124,7 +134,7 @@ Public Module OmniMixModDeploymentService
             New OmniMixModDeclaration With {
                 .Id = "fh6_omni_bridge",
                 .Name = "Forza Horizon 6 Omni Bridge",
-                .Version = GetBundledModVersion("fh6_omni_bridge", "3.0.2"),
+                .Version = GetBundledModVersion("fh6_omni_bridge", "4.0.0"),
                 .ArchiveName = "FH6OmniBridge.zip",
                 .FolderName = "fh6-omnimix",
                 .RootFilesToLink = New List(Of String) From {"version.dll", "OmniPcmShared.dll"},
@@ -137,7 +147,7 @@ Public Module OmniMixModDeploymentService
 
     Private Function GetBundledModVersion(ModId As String, Fallback As String) As String
         If String.Equals(ModId, "fh6_omni_bridge", StringComparison.OrdinalIgnoreCase) Then
-            Return "3.0.2"
+            Return "4.0.0"
         End If
         Try
             Dim VersionInfoPath = ResolveAssetPath("version_info.json")

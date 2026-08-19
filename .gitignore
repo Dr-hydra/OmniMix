@@ -17,6 +17,7 @@ netease_bridge/*.h
 OmniMixPlayer/assets/FH6OmniBridge.zip
 OmniMixPlayer/assets/ChillPatcher.zip
 OmniMixPlayer/assets/version_info.json
+OmniMixPlayer/assets/OmniPcmSharedSDK-*.zip
 
 .vscode/
 .playwright-cli/

@@ -74,7 +74,7 @@ inline bool event_queue_pop(OmniPcmEventInfo* queue, std::size_t cap,
 
 bool OmniPcmSource::Api::ready() const noexcept {
     return dll
-        && open_utf8 && close && is_open && last_error && snapshot && info
+        && get_abi_version && open_utf8 && close && is_open && last_error && snapshot && info
         && bind_current && format_ready && has_error && complete && read_frames
         && request_seek && set_audible
         && client_create && client_destroy && client_last_error
@@ -393,6 +393,7 @@ bool OmniPcmSource::load_api() {
     };
 
     // Shared memory API
+    proc(api_.get_abi_version, "OmniPcm_GetAbiVersion");
     proc(api_.open_utf8,      "OmniPcm_OpenUtf8");
     proc(api_.close,          "OmniPcm_Close");
     proc(api_.is_open,        "OmniPcm_IsOpen");
@@ -422,6 +423,14 @@ bool OmniPcmSource::load_api() {
     proc(api_.client_stop_events,         "OmniPcmClient_StopEvents");
     proc(api_.client_get_target_latency,  "OmniPcmClient_GetTargetLatency");
     proc(api_.client_set_target_latency,  "OmniPcmClient_SetTargetLatency");
+
+    if (!api_.get_abi_version || (api_.get_abi_version() >> 16) != OMNI_PCM_ABI_VERSION_MAJOR) {
+        log::error("[omni] incompatible OmniPcmShared ABI; bridge requires {}.x",
+                   OMNI_PCM_ABI_VERSION_MAJOR);
+        FreeLibrary(api_.dll);
+        api_ = {};
+        return false;
+    }
 
     return api_.ready();
 }

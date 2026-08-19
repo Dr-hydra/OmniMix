@@ -14,6 +14,7 @@ namespace OmniMixPlayer.Backend.Audio
     public class PlaybackController : IDisposable
     {
         private const int ConsecutiveFailureNoticeThreshold = 3;
+        private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(8);
 
         private readonly ILogger _logger;
         private readonly SharedMemoryServer _sharedMemory;
@@ -189,8 +190,8 @@ namespace OmniMixPlayer.Backend.Audio
             }
             if (reader != null)
             {
+                _sharedMemory?.AdvanceGeneration(targetFrame);
                 _sharedMemory?.RequestSeek(targetFrame);
-                _sharedMemory?.ResetCursors(targetFrame);
             }
         }
 
@@ -251,9 +252,12 @@ namespace OmniMixPlayer.Backend.Audio
             _playbackTask = Task.Run(() => PlaybackLoopAsync(track, gen, _playbackCts.Token));
         }
 
-        private void StopInternal(bool clearTimeline)
+        private void StopInternal(bool clearTimeline, bool preserveSharedMemoryTerminalState = false)
         {
-            SetPlayState(0);
+            _playState = 0;
+            if (!preserveSharedMemoryTerminalState)
+                _sharedMemory?.StopStream();
+            OnStateChanged?.Invoke(0);
             var track = _playingTrack;
             _playingTrack = null;
             if (clearTimeline)
@@ -264,6 +268,7 @@ namespace OmniMixPlayer.Backend.Audio
 
         private async Task PlaybackLoopAsync(Track track, int generation, CancellationToken ct)
         {
+            var completedNaturally = false;
             try
             {
                 if (track.SourceType == SourceType.Stream ||
@@ -285,28 +290,7 @@ namespace OmniMixPlayer.Backend.Audio
                                 track.Uuid);
                             _sharedMemory?.MarkError(
                                 SDK.Ipc.SharedMemoryStreamError.DecoderFailed);
-                            lock (_lock)
-                            {
-                                _eventBus.Publish(new PlayEndedEvent
-                                {
-                                    Music = track,
-                                    Reason = PlayEndReason.Failed
-                                });
-                                RegisterPlaybackFailure(track);
-
-                                if (ServerControlledPlayback)
-                                {
-                                    var result = _timeline.NaturalEnd(Id);
-                                    if (!string.IsNullOrWhiteSpace(result.CurrentUuid))
-                                        PlayTimelineResult(result, PlaySource.AutoNext);
-                                    else
-                                        StopInternal(clearTimeline: false);
-                                }
-                                else
-                                {
-                                    StopInternal(clearTimeline: false);
-                                }
-                            }
+                            lock (_lock) { HandlePlaybackFailureInternal(track); }
                         }
                         return;
                     }
@@ -329,6 +313,7 @@ namespace OmniMixPlayer.Backend.Audio
                     float[] buffer = Array.Empty<float>();
                     var targetBufferedFrames = CalculateTargetBufferedFrames(sampleRate);
 
+                    var decoderFailed = false;
                     while (!ct.IsCancellationRequested && !reader.IsEndOfStream)
                     {
                         if (_playState == 2)
@@ -388,6 +373,7 @@ namespace OmniMixPlayer.Backend.Audio
                         if (frames < 0)
                         {
                             _sharedMemory?.MarkError(SDK.Ipc.SharedMemoryStreamError.DecoderFailed);
+                            decoderFailed = true;
                             break;
                         }
                         if (frames == 0)
@@ -413,19 +399,35 @@ namespace OmniMixPlayer.Backend.Audio
                         _sharedMemory?.WriteFrames(buffer, (int)frames);
                     }
 
-                    if (!ct.IsCancellationRequested)
+                    var naturalDecoderEof = !decoderFailed && reader.IsEndOfStream;
+                    if (!ct.IsCancellationRequested && generation == _playbackGeneration && naturalDecoderEof)
+                    {
                         _sharedMemory?.MarkDecoderEof((long)reader.CurrentFrame);
+                        await WaitForClientDrainAsync(track, sampleRate, generation, ct).ConfigureAwait(false);
+                        if (!ct.IsCancellationRequested && generation == _playbackGeneration)
+                        {
+                            _sharedMemory?.MarkEnded();
+                            completedNaturally = true;
+                        }
+                    }
 
                     reader.Dispose();
                     lock (_lock) { _currentReader = null; }
                     _eventBus.Publish(new MusicResourcesReleasedEvent { Music = track });
+
+                    if (!ct.IsCancellationRequested && generation == _playbackGeneration && decoderFailed)
+                    {
+                        _logger.LogWarning("Track {Uuid} decoder failed — advancing to next track", track.Uuid);
+                        lock (_lock) { HandlePlaybackFailureInternal(track); }
+                        return;
+                    }
                 }
                 else
                 {
                     await Task.Delay(100, ct);
                 }
 
-                if (!ct.IsCancellationRequested && generation == _playbackGeneration)
+                if (!ct.IsCancellationRequested && generation == _playbackGeneration && completedNaturally)
                 {
                     lock (_lock)
                     {
@@ -439,7 +441,7 @@ namespace OmniMixPlayer.Backend.Audio
                             if (!string.IsNullOrWhiteSpace(result.CurrentUuid))
                                 PlayTimelineResult(result, PlaySource.AutoNext);
                             else
-                                StopInternal(clearTimeline: false);
+                                StopInternal(clearTimeline: false, preserveSharedMemoryTerminalState: true);
                         }
                         else
                         {
@@ -447,7 +449,7 @@ namespace OmniMixPlayer.Backend.Audio
                             _logger.LogInformation(
                                 "Track {Uuid} ended (client-managed mode), stopping and waiting for client to choose next",
                                 track.Uuid);
-                            StopInternal(clearTimeline: false);
+                            StopInternal(clearTimeline: false, preserveSharedMemoryTerminalState: true);
                         }
                     }
                 }
@@ -461,6 +463,54 @@ namespace OmniMixPlayer.Backend.Audio
                     RegisterPlaybackFailure(track);
                 }
             }
+        }
+
+        private async Task WaitForClientDrainAsync(Track track, int sampleRate, int generation, CancellationToken ct)
+        {
+            if (_sharedMemory == null) return;
+
+            var toleranceFrames = Math.Max(256, Math.Max(1, sampleRate) / 20);
+            var startedAt = Environment.TickCount64;
+            while (!ct.IsCancellationRequested && generation == _playbackGeneration)
+            {
+                if (_sharedMemory.IsClientDrained(toleranceFrames))
+                {
+                    _logger.LogInformation("Track {Uuid} PCM drained by client", track.Uuid);
+                    return;
+                }
+
+                if (Environment.TickCount64 - startedAt >= DrainTimeout.TotalMilliseconds)
+                {
+                    _logger.LogWarning(
+                        "Track {Uuid} PCM drain timed out after {TimeoutMs} ms: read={ReadCursor}, audible={AudibleCursor}, final={FinalCursor}",
+                        track.Uuid,
+                        (long)DrainTimeout.TotalMilliseconds,
+                        _sharedMemory.GetReadCursor(),
+                        _sharedMemory.GetAudibleCursor(),
+                        _sharedMemory.ReadI64(SDK.Ipc.SharedMemoryProtocol.FinalWriteCursor));
+                    return;
+                }
+
+                await Task.Delay(10, ct).ConfigureAwait(false);
+            }
+        }
+
+        private void HandlePlaybackFailureInternal(Track track)
+        {
+            _eventBus.Publish(new PlayEndedEvent { Music = track, Reason = PlayEndReason.Failed });
+            RegisterPlaybackFailure(track);
+
+            if (ServerControlledPlayback)
+            {
+                var result = _timeline.NaturalEnd(Id);
+                if (!string.IsNullOrWhiteSpace(result.CurrentUuid))
+                {
+                    PlayTimelineResult(result, PlaySource.AutoNext);
+                    return;
+                }
+            }
+
+            StopInternal(clearTimeline: false, preserveSharedMemoryTerminalState: true);
         }
 
         private void RegisterPlaybackFailure(Track track)

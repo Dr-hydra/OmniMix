@@ -23,6 +23,7 @@
 #define OMNI_PCM_SHARED_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <wchar.h>
 
 #ifdef __cplusplus
@@ -30,17 +31,23 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
+    #define OMNI_PCM_CALL __cdecl
     #ifdef BUILDING_OMNI_PCM_SHARED
         #define OMNI_PCM_API __declspec(dllexport)
     #else
         #define OMNI_PCM_API __declspec(dllimport)
     #endif
 #else
+    #define OMNI_PCM_CALL
     #define OMNI_PCM_API
 #endif
 
 #define OMNI_PCM_DEFAULT_MAP_NAME L"Global\\OmniMixPlayer_PCM"
+#define OMNI_PCM_INSTANCE_MAP_PREFIX_UTF8 "Global\\OmniMixPlayer_PCM_"
 #define OMNI_PCM_MAGIC 0x4D43504C4C494843ULL
+#define OMNI_PCM_ABI_VERSION_MAJOR 2u
+#define OMNI_PCM_ABI_VERSION_MINOR 0u
+#define OMNI_PCM_ABI_VERSION ((OMNI_PCM_ABI_VERSION_MAJOR << 16) | OMNI_PCM_ABI_VERSION_MINOR)
 #define OMNI_PCM_VERSION_1 1u
 #define OMNI_PCM_VERSION_2 2u
 #define OMNI_PCM_UUID_BYTES 64
@@ -117,6 +124,64 @@ typedef struct OmniPcmSnapshot {
     int32_t format_generation;
     char current_uuid[OMNI_PCM_UUID_BYTES];
 } OmniPcmSnapshot;
+
+typedef enum OmniPcmSampleFormat {
+    OMNI_PCM_SAMPLE_FORMAT_UNKNOWN = 0,
+    OMNI_PCM_SAMPLE_FORMAT_FLOAT32_INTERLEAVED = 1
+} OmniPcmSampleFormat;
+
+typedef struct OmniPcmAbiInfo {
+    uint32_t size;
+    uint32_t abi_version;
+    uint32_t abi_major;
+    uint32_t abi_minor;
+    uint32_t min_shared_protocol;
+    uint32_t max_shared_protocol;
+    uint32_t sample_format_mask;
+    uint32_t reserved;
+} OmniPcmAbiInfo;
+
+typedef struct OmniPcmStreamDescriptionV2 {
+    uint32_t size;
+    uint32_t abi_version;
+    uint32_t shared_protocol_version;
+    int32_t sample_format;
+    int32_t sample_rate;
+    int32_t channels;
+    int32_t bytes_per_frame;
+    int32_t buffer_frames;
+    int64_t stream_id;
+    int32_t format_generation;
+    int32_t reserved;
+} OmniPcmStreamDescriptionV2;
+
+typedef struct OmniPcmSnapshotV2 {
+    uint32_t size;
+    uint32_t abi_version;
+    uint32_t shared_protocol_version;
+    int32_t sample_format;
+    int32_t sample_rate;
+    int32_t channels;
+    int32_t bytes_per_frame;
+    int32_t buffer_frames;
+    int32_t legacy_play_state;
+    uint32_t flags;
+    int64_t write_cursor;
+    int64_t read_cursor;
+    int64_t stream_id;
+    int32_t state;
+    int32_t error_code;
+    int64_t total_frames_hint;
+    int64_t decoded_total_frames;
+    int64_t final_write_cursor;
+    int64_t audible_cursor;
+    int64_t seek_frame;
+    int64_t seek_generation;
+    int64_t heartbeat_monotonic_ms;
+    int32_t format_generation;
+    int32_t reserved;
+    char current_uuid[OMNI_PCM_UUID_BYTES];
+} OmniPcmSnapshotV2;
 
 typedef void* OmniPcmHandle;
 typedef void* OmniPcmClientHandle;
@@ -360,187 +425,194 @@ typedef struct OmniPcmEventInfo {
 
 typedef void (*OmniPcmEventCallback)(const OmniPcmEventInfo* event_info, void* user_data);
 
-OMNI_PCM_API OmniPcmHandle OmniPcm_Open(const wchar_t* map_name);
-OMNI_PCM_API OmniPcmHandle OmniPcm_OpenUtf8(const char* map_name_utf8);
-OMNI_PCM_API void OmniPcm_Close(OmniPcmHandle handle);
+OMNI_PCM_API uint32_t OMNI_PCM_CALL OmniPcm_GetAbiVersion(void);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetAbiInfo(OmniPcmAbiInfo* out_info);
+OMNI_PCM_API OmniPcmHandle OMNI_PCM_CALL OmniPcm_OpenInstanceUtf8(const char* instance_id_utf8);
+OMNI_PCM_API OmniPcmHandle OMNI_PCM_CALL OmniPcm_Open(const wchar_t* map_name);
+OMNI_PCM_API OmniPcmHandle OMNI_PCM_CALL OmniPcm_OpenUtf8(const char* map_name_utf8);
+OMNI_PCM_API void OMNI_PCM_CALL OmniPcm_Close(OmniPcmHandle handle);
 
-OMNI_PCM_API int OmniPcm_IsOpen(OmniPcmHandle handle);
-OMNI_PCM_API uint32_t OmniPcm_GetVersion(OmniPcmHandle handle);
-OMNI_PCM_API const char* OmniPcm_GetLastError(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_IsOpen(OmniPcmHandle handle);
+OMNI_PCM_API uint32_t OMNI_PCM_CALL OmniPcm_GetVersion(OmniPcmHandle handle);
+OMNI_PCM_API const char* OMNI_PCM_CALL OmniPcm_GetLastError(OmniPcmHandle handle);
 
-OMNI_PCM_API int OmniPcm_GetSnapshot(OmniPcmHandle handle, OmniPcmSnapshot* out_snapshot);
-OMNI_PCM_API int OmniPcm_GetInfo(OmniPcmHandle handle, OmniPcmInfo* out_info);
-OMNI_PCM_API const char* OmniPcm_GetCurrentUuid(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetSnapshot(OmniPcmHandle handle, OmniPcmSnapshot* out_snapshot);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetInfo(OmniPcmHandle handle, OmniPcmInfo* out_info);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetSnapshotV2(OmniPcmHandle handle, OmniPcmSnapshotV2* out_snapshot);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetStreamDescriptionV2(OmniPcmHandle handle, OmniPcmStreamDescriptionV2* out_description);
+OMNI_PCM_API int64_t OMNI_PCM_CALL OmniPcm_GetHeartbeatAgeMs(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_IsHeartbeatAlive(OmniPcmHandle handle, int64_t timeout_ms);
+OMNI_PCM_API const char* OMNI_PCM_CALL OmniPcm_GetCurrentUuid(OmniPcmHandle handle);
 
-OMNI_PCM_API int OmniPcm_BindCurrentStream(OmniPcmHandle handle);
-OMNI_PCM_API int OmniPcm_BindStream(OmniPcmHandle handle, const char* uuid);
-OMNI_PCM_API int64_t OmniPcm_GetBoundStreamId(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_BindCurrentStream(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_BindStream(OmniPcmHandle handle, const char* uuid);
+OMNI_PCM_API int64_t OMNI_PCM_CALL OmniPcm_GetBoundStreamId(OmniPcmHandle handle);
 
-OMNI_PCM_API int OmniPcm_IsFormatReady(OmniPcmHandle handle);
-OMNI_PCM_API int OmniPcm_WaitForFormatReady(OmniPcmHandle handle, const char* uuid, int timeout_ms);
-OMNI_PCM_API int OmniPcm_HasDecoderEof(OmniPcmHandle handle);
-OMNI_PCM_API int OmniPcm_IsPlaybackComplete(OmniPcmHandle handle, int64_t tolerance_frames);
-OMNI_PCM_API int OmniPcm_HasError(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_IsFormatReady(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_WaitForFormatReady(OmniPcmHandle handle, const char* uuid, int timeout_ms);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_HasDecoderEof(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_IsPlaybackComplete(OmniPcmHandle handle, int64_t tolerance_frames);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_HasError(OmniPcmHandle handle);
 
-OMNI_PCM_API int64_t OmniPcm_ReadFrames(OmniPcmHandle handle, float* buffer, int32_t frames_to_read);
-OMNI_PCM_API int OmniPcm_RequestSeek(OmniPcmHandle handle, int64_t frame);
-OMNI_PCM_API int OmniPcm_CancelPendingSeek(OmniPcmHandle handle);
-OMNI_PCM_API int OmniPcm_SetAudibleCursor(OmniPcmHandle handle, int64_t frame, int allow_backward);
-OMNI_PCM_API int OmniPcm_ReportAudioSourcePosition(OmniPcmHandle handle, int32_t time_samples);
+OMNI_PCM_API int64_t OMNI_PCM_CALL OmniPcm_ReadFrames(OmniPcmHandle handle, float* buffer, int32_t frames_to_read);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_RequestSeek(OmniPcmHandle handle, int64_t frame);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_CancelPendingSeek(OmniPcmHandle handle);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_SetAudibleCursor(OmniPcmHandle handle, int64_t frame, int allow_backward);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_ReportAudioSourcePosition(OmniPcmHandle handle, int32_t time_samples);
 
-OMNI_PCM_API OmniPcmClientHandle OmniPcmClient_Create(const OmniPcmClientConfig* config);
-OMNI_PCM_API void OmniPcmClient_Destroy(OmniPcmClientHandle client);
-OMNI_PCM_API const char* OmniPcmClient_GetLastError(OmniPcmClientHandle client);
-OMNI_PCM_API int32_t OmniPcmClient_GetPort(OmniPcmClientHandle client);
+OMNI_PCM_API OmniPcmClientHandle OMNI_PCM_CALL OmniPcmClient_Create(const OmniPcmClientConfig* config);
+OMNI_PCM_API void OMNI_PCM_CALL OmniPcmClient_Destroy(OmniPcmClientHandle client);
+OMNI_PCM_API const char* OMNI_PCM_CALL OmniPcmClient_GetLastError(OmniPcmClientHandle client);
+OMNI_PCM_API int32_t OMNI_PCM_CALL OmniPcmClient_GetPort(OmniPcmClientHandle client);
 
-OMNI_PCM_API int OmniPcmClient_ConnectInstance(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ConnectInstance(
     OmniPcmClientHandle client,
     const OmniPcmConnectOptions* options,
     OmniPcmConnectionInfo* out_info);
-OMNI_PCM_API int OmniPcmClient_Heartbeat(OmniPcmClientHandle client, const char* instance_id, int* out_alive);
-OMNI_PCM_API int OmniPcmClient_DisconnectInstance(OmniPcmClientHandle client, const char* instance_id);
-OMNI_PCM_API int OmniPcmClient_DeleteInstance(OmniPcmClientHandle client, const char* instance_id, int* out_deleted);
-OMNI_PCM_API int OmniPcmClient_ListInstances(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_Heartbeat(OmniPcmClientHandle client, const char* instance_id, int* out_alive);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_DisconnectInstance(OmniPcmClientHandle client, const char* instance_id);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_DeleteInstance(OmniPcmClientHandle client, const char* instance_id, int* out_deleted);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ListInstances(
     OmniPcmClientHandle client,
     OmniPcmInstanceSummaryInfo* out_instances,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_GetProfile(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetProfile(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmInstanceProfileInfo* out_profile);
-OMNI_PCM_API int OmniPcmClient_UpdateProfile(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_UpdateProfile(
     OmniPcmClientHandle client,
     const OmniPcmInstanceProfileInfo* profile,
     int* out_saved);
-OMNI_PCM_API int OmniPcmClient_ArchiveInstance(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ArchiveInstance(
     OmniPcmClientHandle client,
     const char* instance_id,
     const char* label,
     OmniPcmInstanceProfileInfo* out_archive);
-OMNI_PCM_API int OmniPcmClient_ListArchives(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ListArchives(
     OmniPcmClientHandle client,
     OmniPcmInstanceProfileInfo* out_archives,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_GetArchive(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetArchive(
     OmniPcmClientHandle client,
     const char* archive_id,
     OmniPcmInstanceProfileInfo* out_archive);
-OMNI_PCM_API int OmniPcmClient_DeleteArchive(OmniPcmClientHandle client, const char* archive_id, int* out_deleted);
-OMNI_PCM_API int OmniPcmClient_InheritFromArchive(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_DeleteArchive(OmniPcmClientHandle client, const char* archive_id, int* out_deleted);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_InheritFromArchive(
     OmniPcmClientHandle client,
     const char* new_instance_id,
     const char* archive_id,
     OmniPcmInstanceProfileInfo* out_profile);
-OMNI_PCM_API int OmniPcmClient_GetStatus(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetStatus(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmPlaybackStatusInfo* out_status);
-OMNI_PCM_API int OmniPcmClient_PlaybackCommand(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_PlaybackCommand(
     OmniPcmClientHandle client,
     const char* instance_id,
     int32_t command);
-OMNI_PCM_API int OmniPcmClient_Play(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_Play(
     OmniPcmClientHandle client,
     const char* instance_id,
     const char* track_uuid);
-OMNI_PCM_API int OmniPcmClient_Seek(OmniPcmClientHandle client, const char* instance_id, float position_seconds);
-OMNI_PCM_API int OmniPcmClient_SetVolume(OmniPcmClientHandle client, const char* instance_id, float volume);
-OMNI_PCM_API int OmniPcmClient_GetVolume(OmniPcmClientHandle client, const char* instance_id, float* out_volume);
-OMNI_PCM_API int OmniPcmClient_SetTargetLatency(OmniPcmClientHandle client, const char* instance_id, float latency);
-OMNI_PCM_API int OmniPcmClient_GetTargetLatency(OmniPcmClientHandle client, const char* instance_id, float* out_latency);
-OMNI_PCM_API int OmniPcmClient_SetShuffle(OmniPcmClientHandle client, const char* instance_id, int enabled);
-OMNI_PCM_API int OmniPcmClient_SetRepeatMode(OmniPcmClientHandle client, const char* instance_id, int32_t repeat_mode);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_Seek(OmniPcmClientHandle client, const char* instance_id, float position_seconds);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetVolume(OmniPcmClientHandle client, const char* instance_id, float volume);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetVolume(OmniPcmClientHandle client, const char* instance_id, float* out_volume);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetTargetLatency(OmniPcmClientHandle client, const char* instance_id, float latency);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetTargetLatency(OmniPcmClientHandle client, const char* instance_id, float* out_latency);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetShuffle(OmniPcmClientHandle client, const char* instance_id, int enabled);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetRepeatMode(OmniPcmClientHandle client, const char* instance_id, int32_t repeat_mode);
 
-OMNI_PCM_API int OmniPcmClient_GetQueue(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetQueue(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmQueueTrackInfo* out_tracks,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_AddToQueue(OmniPcmClientHandle client, const char* instance_id, const char* uuid);
-OMNI_PCM_API int OmniPcmClient_InsertIntoQueue(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_AddToQueue(OmniPcmClientHandle client, const char* instance_id, const char* uuid);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_InsertIntoQueue(
     OmniPcmClientHandle client,
     const char* instance_id,
     const char* const* uuids,
     int32_t uuid_count,
     int32_t index);
-OMNI_PCM_API int OmniPcmClient_SetQueue(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetQueue(
     OmniPcmClientHandle client,
     const char* instance_id,
     const char* const* uuids,
     int32_t uuid_count);
-OMNI_PCM_API int OmniPcmClient_RemoveFromQueueIndex(OmniPcmClientHandle client, const char* instance_id, int32_t index);
-OMNI_PCM_API int OmniPcmClient_RemoveFromQueueUuid(OmniPcmClientHandle client, const char* instance_id, const char* uuid);
-OMNI_PCM_API int OmniPcmClient_MoveInQueue(OmniPcmClientHandle client, const char* instance_id, int32_t from_index, int32_t to_index);
-OMNI_PCM_API int OmniPcmClient_ClearQueue(OmniPcmClientHandle client, const char* instance_id);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_RemoveFromQueueIndex(OmniPcmClientHandle client, const char* instance_id, int32_t index);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_RemoveFromQueueUuid(OmniPcmClientHandle client, const char* instance_id, const char* uuid);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_MoveInQueue(OmniPcmClientHandle client, const char* instance_id, int32_t from_index, int32_t to_index);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ClearQueue(OmniPcmClientHandle client, const char* instance_id);
 
-OMNI_PCM_API int OmniPcmClient_GetHistory(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetHistory(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmQueueTrackInfo* out_tracks,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_RemoveFromHistory(OmniPcmClientHandle client, const char* instance_id, int32_t index);
-OMNI_PCM_API int OmniPcmClient_MoveInHistory(OmniPcmClientHandle client, const char* instance_id, int32_t from_index, int32_t to_index);
-OMNI_PCM_API int OmniPcmClient_ClearHistory(OmniPcmClientHandle client, const char* instance_id);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_RemoveFromHistory(OmniPcmClientHandle client, const char* instance_id, int32_t index);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_MoveInHistory(OmniPcmClientHandle client, const char* instance_id, int32_t from_index, int32_t to_index);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_ClearHistory(OmniPcmClientHandle client, const char* instance_id);
 
-OMNI_PCM_API int OmniPcmClient_GetPlaylistSources(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetPlaylistSources(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmPlaylistSourceInfo* out_sources,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_SetPlaylistSources(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetPlaylistSources(
     OmniPcmClientHandle client,
     const char* instance_id,
     const OmniPcmPlaylistSourceSpec* sources,
     int32_t source_count);
 
-OMNI_PCM_API int OmniPcmClient_GetEqualizer(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetEqualizer(
     OmniPcmClientHandle client,
     const char* instance_id,
     OmniPcmEqualizerStateInfo* out_state,
     OmniPcmEqualizerPointInfo* out_points,
     int32_t* inout_point_count);
-OMNI_PCM_API int OmniPcmClient_SetEqualizer(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetEqualizer(
     OmniPcmClientHandle client,
     const char* instance_id,
     const OmniPcmEqualizerStateInfo* state,
     const OmniPcmEqualizerPointInfo* points,
     int32_t point_count);
 
-OMNI_PCM_API int OmniPcmClient_GetBackendInfo(OmniPcmClientHandle client, OmniPcmBackendInfo* out_info);
-OMNI_PCM_API int OmniPcmClient_StopBackend(OmniPcmClientHandle client);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetBackendInfo(OmniPcmClientHandle client, OmniPcmBackendInfo* out_info);
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_StopBackend(OmniPcmClientHandle client);
 
-OMNI_PCM_API int OmniPcmClient_StartEvents(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_StartEvents(
     OmniPcmClientHandle client,
     OmniPcmEventCallback callback,
     void* user_data);
-OMNI_PCM_API void OmniPcmClient_StopEvents(OmniPcmClientHandle client);
+OMNI_PCM_API void OMNI_PCM_CALL OmniPcmClient_StopEvents(OmniPcmClientHandle client);
 
 /* ── Library queries ── */
-OMNI_PCM_API int OmniPcmClient_QueryTracks(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_QueryTracks(
     OmniPcmClientHandle client,
     const OmniPcmTrackQuery* query,
     OmniPcmTrackInfo* out_tracks,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_QueryAlbums(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_QueryAlbums(
     OmniPcmClientHandle client,
     const OmniPcmLibraryQuery* query,
     OmniPcmAlbumInfo* out_albums,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_QueryTags(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_QueryTags(
     OmniPcmClientHandle client,
     const OmniPcmLibraryQuery* query,
     OmniPcmTagInfo* out_tags,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_QueryPlaylists(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_QueryPlaylists(
     OmniPcmClientHandle client,
     const OmniPcmLibraryQuery* query,
     OmniPcmPlaylistInfo* out_playlists,
     int32_t* inout_count);
-OMNI_PCM_API int OmniPcmClient_GetTrack(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_GetTrack(
     OmniPcmClientHandle client,
     const char* uuid,
     OmniPcmTrackInfo* out_track);
-OMNI_PCM_API int OmniPcmClient_SetTrackExcluded(
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcmClient_SetTrackExcluded(
     OmniPcmClientHandle client,
     const char* uuid,
     int32_t excluded);

@@ -44,6 +44,7 @@ Public Class PageOmniMixRight
     Private IsDraggingEqualizerPoint As Boolean = False
     Private IsEqualizerDragChanged As Boolean = False
     Private DeploymentLogs As List(Of String) = New List(Of String)
+    Private BetterEndfieldRegistrationStatus As OmniMixBetterEndfieldRegistration = Nothing
     Private ReadOnly WsClient As New OmniMixWsClient()
     Private ReadOnly ExpandedLibraryAlbums As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Private ReadOnly PlaybackAutoRefreshTimer As New System.Windows.Threading.DispatcherTimer With {.Interval = TimeSpan.FromSeconds(1)}
@@ -1577,7 +1578,7 @@ Public Class PageOmniMixRight
         Using Writer As New StreamWriter(Entry.Open(), New System.Text.UTF8Encoding(False))
             Writer.WriteLine("OmniMix feedback diagnostics")
             Writer.WriteLine("GeneratedAt=" & Date.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"))
-            Writer.WriteLine("GuiVersion=4.3.2")
+            Writer.WriteLine("GuiVersion=4.4.0")
             Writer.WriteLine("ExePath=" & PathExe)
             Writer.WriteLine("ExeFolder=" & PathExeFolder)
             Writer.WriteLine("AppData=" & PathAppdata)
@@ -3347,6 +3348,11 @@ Public Class PageOmniMixRight
     Private Sub RenderGameIntegrationDetail(Game As OmniMixGameDeclaration)
         PanModuleUi.Children.Clear()
 
+        If String.Equals(Game.Id, OmniMixBetterEndfieldIntegrationService.GameId, StringComparison.OrdinalIgnoreCase) Then
+            RenderBetterEndfieldIntegrationDetail(Game)
+            Return
+        End If
+
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         Dim IsValidPath = OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game)
         Dim ModInfo = OmniMixModDeploymentService.GetPrimaryMod(Game)
@@ -3468,29 +3474,34 @@ Public Class PageOmniMixRight
     Private Async Sub GamePathSelectButton_Click(sender As Object, e As EventArgs)
         Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
         If Game Is Nothing Then Return
+        Dim IsBetterEndfield = String.Equals(Game.Id, OmniMixBetterEndfieldIntegrationService.GameId, StringComparison.OrdinalIgnoreCase)
 
         Using Dialog As New System.Windows.Forms.FolderBrowserDialog()
-            Dialog.Description = "选择 " & Game.Name & " 的游戏根目录"
+            Dialog.Description = If(IsBetterEndfield,
+                                    "选择 Better Endfield 安装目录（包含 BetterEndfield.exe、runtime 和 modules）",
+                                    "选择 " & Game.Name & " 的游戏根目录")
             Dialog.ShowNewFolderButton = False
             Dim OldPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
             If Directory.Exists(OldPath) Then Dialog.SelectedPath = OldPath
             If Dialog.ShowDialog() <> System.Windows.Forms.DialogResult.OK Then Return
             OmniMixModDeploymentService.SaveGamePath(Game.Id, Dialog.SelectedPath)
-            If OmniMixModDeploymentService.VerifyGameDirectory(Dialog.SelectedPath, Game) Then
-                If Not String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
+            Dim IsValid = If(IsBetterEndfield,
+                             OmniMixBetterEndfieldIntegrationService.IsValidInstallDirectory(Dialog.SelectedPath),
+                             OmniMixModDeploymentService.VerifyGameDirectory(Dialog.SelectedPath, Game))
+            If IsValid Then
+                If Not IsBetterEndfield AndAlso Not String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
                     Await OmniMixApiClient.AddPortFileDirAsync(CurrentBaseUrl, Dialog.SelectedPath)
                 End If
-                Hint("已保存游戏目录：" & Game.Name, HintType.Green)
+                If IsBetterEndfield Then BetterEndfieldRegistrationStatus = Nothing
+                Hint(If(IsBetterEndfield, "已保存 Better Endfield 安装目录。", "已保存游戏目录：" & Game.Name), HintType.Green)
             Else
-                Hint("目录已保存，但未通过游戏签名校验。", HintType.Red)
+                Hint(If(IsBetterEndfield,
+                        "目录已保存，但未找到 BetterEndfield.exe、runtime\BetterEndfield.Host.dll 或 modules。",
+                        "目录已保存，但未通过游戏签名校验。"), HintType.Red)
             End If
         End Using
 
-        If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
-            RenderGameIntegration(New OmniMixInstanceStatsInfo, New List(Of OmniMixPlaybackInstanceInfo))
-        Else
-            Await RefreshModulesAsync(CurrentBaseUrl)
-        End If
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
     Private Sub GamePathOpenButton_Click(sender As Object, e As EventArgs)
@@ -4297,6 +4308,198 @@ Public Class PageOmniMixRight
         LibrarySearchDebounceTimer.Stop()
         LibrarySearchDebounceTimer.Start()
     End Sub
+
+    Private Sub RenderBetterEndfieldIntegrationDetail(Game As OmniMixGameDeclaration, Optional RefreshStatus As Boolean = True)
+        PanModuleUi.Children.Clear()
+        Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        Dim IsValidPath = OmniMixBetterEndfieldIntegrationService.IsValidInstallDirectory(InstallPath)
+        Dim BackendPath = OmniMixBackendManager.FindBackendExe()
+        Dim Status = BetterEndfieldRegistrationStatus
+
+        Dim StatusText = If(IsValidPath, "安装目录有效", If(String.IsNullOrWhiteSpace(InstallPath), "尚未选择安装目录", "安装目录无效"))
+        If Status IsNot Nothing Then
+            If Not Status.CommandSucceeded Then
+                StatusText &= " · 查询失败：" & If(Status.Reason, "unknown")
+            ElseIf Not Status.Registered Then
+                StatusText &= " · 未注册"
+            ElseIf Status.Valid Then
+                StatusText &= " · 注册有效"
+            Else
+                StatusText &= " · 注册失效：" & Status.Reason
+            End If
+        End If
+
+        LabModuleUiSummary.Text = StatusText
+        PanModuleUi.Children.Add(New MyListItem With {
+            .Title = "Better Endfield",
+            .Info = StatusText,
+            .Height = 58,
+            .PaddingLeft = 8,
+            .Margin = New Thickness(0, 0, 0, 10),
+            .Logo = Logo.IconButtonSetup,
+            .LogoScale = 0.86,
+            .IsScaleAnimationEnabled = False,
+            .Type = MyListItem.CheckType.Clickable
+        })
+
+        AddGameDetailAction(PanModuleUi, "选择 Better Endfield 安装目录", "目录必须包含 BetterEndfield.exe、runtime 和 modules。", Logo.IconButtonOpen, "选择安装目录", Game.Id, AddressOf GamePathSelectButton_Click)
+        AddGameDetailAction(PanModuleUi, "自动定位", "从常用安装位置和 Windows 卸载注册信息查找。", Logo.IconButtonList, "自动定位", Game.Id, AddressOf BetterEndfieldAutoLocateButton_Click)
+        If IsValidPath Then
+            AddGameDetailAction(PanModuleUi, "打开安装目录", InstallPath, Logo.IconButtonList, "打开安装目录", InstallPath, AddressOf GamePathOpenButton_Click)
+        End If
+
+        PanModuleUi.Children.Add(New MyListItem With {
+            .Title = "当前 OmniMix 后端",
+            .Info = If(String.IsNullOrWhiteSpace(BackendPath), "未找到 OmniMixPlayer.Backend.exe", BackendPath),
+            .Height = 52,
+            .PaddingLeft = 8,
+            .Margin = New Thickness(0, 0, 0, 5),
+            .IsScaleAnimationEnabled = False,
+            .Type = MyListItem.CheckType.Clickable
+        })
+
+        Dim CanRegister = IsValidPath AndAlso Not String.IsNullOrWhiteSpace(BackendPath)
+        AddGameDetailAction(PanModuleUi, "注册", "将当前后端绝对路径注册给 Better Endfield。", Logo.IconButtonSave, "注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
+        AddGameDetailAction(PanModuleUi, "修复注册", "重新注册当前后端路径并保留 Better Endfield 客户端标识。", Logo.IconButtonReset, "修复注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
+        AddGameDetailAction(PanModuleUi, "刷新状态", "通过 BetterEndfield.exe 查询实时注册状态。", Logo.IconButtonRefresh, "刷新状态", Game.Id, AddressOf BetterEndfieldRefreshButton_Click, IsValidPath)
+        AddGameDetailAction(PanModuleUi, "解除注册", "仅清除 Better Endfield 保存的 OmniMix 注册信息。", Logo.IconButtonDelete, "解除注册", Game.Id, AddressOf BetterEndfieldUnregisterButton_Click, IsValidPath AndAlso Status IsNot Nothing AndAlso Status.Registered, MyIconButton.Themes.Red)
+
+        PanModuleUi.Children.Add(New MyListItem With {
+            .Title = "音乐替换设置",
+            .Info = "登录、主界面和游戏内音乐替换范围请在 Better Endfield 中配置。",
+            .Height = 52,
+            .PaddingLeft = 8,
+            .Margin = New Thickness(0, 0, 0, 5),
+            .IsScaleAnimationEnabled = False,
+            .Type = MyListItem.CheckType.Clickable
+        })
+
+        If RefreshStatus AndAlso IsValidPath Then
+            Dim RequestSerial = ModuleUiRequestSerial
+            Dim IgnoredRefreshTask = RefreshBetterEndfieldRegistrationAsync(Game, InstallPath, RequestSerial)
+        End If
+    End Sub
+
+    Private Async Function RefreshBetterEndfieldRegistrationAsync(Game As OmniMixGameDeclaration, InstallPath As String, RequestSerial As Integer) As Task
+        Dim Status = Await OmniMixBetterEndfieldIntegrationService.QueryAsync(InstallPath)
+        If RequestSerial <> ModuleUiRequestSerial OrElse CurrentDetailKind <> "game" OrElse
+           Not String.Equals(CurrentGameDetailId, Game.Id, StringComparison.OrdinalIgnoreCase) Then Return
+        BetterEndfieldRegistrationStatus = Status
+        RenderBetterEndfieldIntegrationDetail(Game, False)
+    End Function
+
+    Private Async Sub BetterEndfieldAutoLocateButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+
+        Dim Candidates = Await Task.Run(Function() OmniMixBetterEndfieldIntegrationService.FindInstallDirectories())
+        If Candidates.Count = 0 Then
+            Hint("未自动找到 Better Endfield，请手动选择安装目录。", HintType.Red)
+            Return
+        End If
+
+        Dim SelectedPath = Candidates(0)
+        If Candidates.Count > 1 Then
+            SelectedPath = SelectBetterEndfieldInstallCandidate(Candidates)
+            If String.IsNullOrWhiteSpace(SelectedPath) Then Return
+        End If
+
+        OmniMixModDeploymentService.SaveGamePath(Game.Id, SelectedPath)
+        BetterEndfieldRegistrationStatus = Nothing
+        Hint("已定位 Better Endfield：" & SelectedPath, HintType.Green)
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Function SelectBetterEndfieldInstallCandidate(Candidates As IReadOnlyList(Of String)) As String
+        Using Picker As New System.Windows.Forms.Form With {
+            .Text = "选择 Better Endfield 安装目录",
+            .StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen,
+            .Width = 720,
+            .Height = 320,
+            .MinimizeBox = False,
+            .MaximizeBox = False,
+            .ShowIcon = False
+        }
+            Dim CandidateList As New System.Windows.Forms.ListBox With {
+                .Dock = System.Windows.Forms.DockStyle.Fill,
+                .HorizontalScrollbar = True
+            }
+            CandidateList.Items.AddRange(Candidates.Cast(Of Object).ToArray())
+            CandidateList.SelectedIndex = 0
+
+            Dim Buttons As New System.Windows.Forms.FlowLayoutPanel With {
+                .Dock = System.Windows.Forms.DockStyle.Bottom,
+                .Height = 48,
+                .FlowDirection = System.Windows.Forms.FlowDirection.RightToLeft,
+                .Padding = New System.Windows.Forms.Padding(8)
+            }
+            Dim ConfirmButton As New System.Windows.Forms.Button With {
+                .Text = "选择",
+                .DialogResult = System.Windows.Forms.DialogResult.OK,
+                .AutoSize = True
+            }
+            Dim CancelButton As New System.Windows.Forms.Button With {
+                .Text = "取消",
+                .DialogResult = System.Windows.Forms.DialogResult.Cancel,
+                .AutoSize = True
+            }
+            Buttons.Controls.Add(ConfirmButton)
+            Buttons.Controls.Add(CancelButton)
+            Picker.Controls.Add(CandidateList)
+            Picker.Controls.Add(Buttons)
+            Picker.AcceptButton = ConfirmButton
+            Picker.CancelButton = CancelButton
+
+            If Picker.ShowDialog() <> System.Windows.Forms.DialogResult.OK Then Return ""
+            Return TryCast(CandidateList.SelectedItem, String)
+        End Using
+    End Function
+
+    Private Async Sub BetterEndfieldRegisterButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+        Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        Dim BackendPath = OmniMixBackendManager.FindBackendExe()
+
+        BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.RegisterAsync(InstallPath, BackendPath)
+        Dim Success = BetterEndfieldRegistrationStatus.CommandSucceeded AndAlso
+                      BetterEndfieldRegistrationStatus.Registered AndAlso BetterEndfieldRegistrationStatus.Valid
+        Hint(If(Success, "Better Endfield 注册完成。", "Better Endfield 注册失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
+             If(Success, HintType.Green, HintType.Red))
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Async Sub BetterEndfieldRefreshButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+        Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.QueryAsync(InstallPath)
+        If Not BetterEndfieldRegistrationStatus.CommandSucceeded Then
+            Hint("Better Endfield 状态查询失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus), HintType.Red)
+        End If
+        RenderBetterEndfieldIntegrationDetail(Game, False)
+    End Sub
+
+    Private Async Sub BetterEndfieldUnregisterButton_Click(sender As Object, e As EventArgs)
+        Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
+        If Game Is Nothing Then Return
+        If MyMsgBox("确定要解除 Better Endfield 的 OmniMix 后端注册吗？这不会删除任何程序或用户文件。",
+                    "解除 Better Endfield 注册", "解除注册", "取消", IsWarn:=True) <> 1 Then Return
+
+        Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
+        BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.UnregisterAsync(InstallPath)
+        Dim Success = BetterEndfieldRegistrationStatus.CommandSucceeded AndAlso Not BetterEndfieldRegistrationStatus.Registered
+        Hint(If(Success, "Better Endfield 注册已解除。", "解除注册失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
+             If(Success, HintType.Green, HintType.Red))
+        Await RefreshGameIntegrationAfterOperationAsync(Game)
+    End Sub
+
+    Private Function GetBetterEndfieldStatusError(Status As OmniMixBetterEndfieldRegistration) As String
+        If Status Is Nothing Then Return "unknown"
+        If Not String.IsNullOrWhiteSpace(Status.ErrorMessage) Then Return Status.ErrorMessage
+        If Not String.IsNullOrWhiteSpace(Status.Reason) Then Return Status.Reason
+        Return "exit_code_" & Status.ExitCode.ToString(CultureInfo.InvariantCulture)
+    End Function
 
     Private Sub LibrarySearchDebounceTimer_Tick(sender As Object, e As EventArgs)
         LibrarySearchDebounceTimer.Stop()

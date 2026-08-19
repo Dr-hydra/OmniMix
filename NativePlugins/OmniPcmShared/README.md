@@ -2,6 +2,10 @@
 
 OmniPcmShared 是面向游戏/应用开发者的**原生 C ABI SDK**。它封装了与 OmniMixPlayer 后端通信的全部复杂性——共享内存 PCM 读取、gRPC-Web 控制面、WebSocket 事件——暴露为一组纯 C 函数，可从 **C、C++、C# (P/Invoke)、Rust、Unity、Unreal、Godot** 等任意语言/引擎调用。
 
+当前独立 ABI SDK 版本为 `2.0.0`。Windows x64 DLL 使用 `/MT` 静态 MSVC
+运行时和显式 `__cdecl`。客户端必须先调用 `OmniPcm_GetAbiVersion()`，只在主版本
+为 2 时继续；不兼容时应恢复原游戏音频，而不是阻止游戏启动。
+
 > 📌 **这是 C ABI 嵌入层**。如果你在开发 C# 音乐源模块，应使用 [OmniMixPlayer.SDK](../../OmniMixPlayer/OmniMixPlayer.SDK/README.md)。OmniPcmShared 面向的是**消费端**——把 OmniMixPlayer 的音频流嵌入你的游戏或应用中。
 
 ---
@@ -55,6 +59,9 @@ bin/native/x64/OmniPcmShared.dll
 bin/native/x86/OmniPcmShared.dll
 ```
 
+播放器构建还会生成 `release/OmniPcmSharedSDK-2.0.0.zip`，其中包含 x64 DLL、
+双头文件、版本、SHA-256 清单、发行 README 和 48 kHz 双声道测试 WAV。
+
 ### 依赖
 
 - **CMake** 3.20+
@@ -67,11 +74,15 @@ bin/native/x86/OmniPcmShared.dll
 
 这组 API 从 OmniMixPlayer.Backend 创建的 Windows 命名共享内存中**零拷贝**读取解码后的 float PCM 音频帧。
 
+规范实例映射名是 `Global\OmniMixPlayer_PCM_<instance_id>`。普通桌面进程无权创建
+全局映射时，后端使用同后缀 `Local\` 映射，`OmniPcm_OpenInstanceUtf8` 会透明回退。
+
 ### 生命周期
 
 ```c
-// 1. 打开共享内存
-OmniPcmHandle h = OmniPcm_Open(L"Global\\OmniMixPlayer_PCM");
+// 1. 校验 ABI 并按实例打开共享内存
+if ((OmniPcm_GetAbiVersion() >> 16) != 2) { /* 恢复原游戏音乐 */ }
+OmniPcmHandle h = OmniPcm_OpenInstanceUtf8("stable-instance-id");
 if (!OmniPcm_IsOpen(h)) { /* 后端未运行或共享内存未创建 */ }
 
 // 2. 等待格式就绪（知道采样率/声道数后才能创建音频对象）
@@ -108,9 +119,12 @@ OmniPcm_Close(h);
 | ------------------------------ | --------------------------------------------------- |
 | `OmniPcm_Open(wchar_t* name)`  | 打开命名共享内存，默认名 `Global\OmniMixPlayer_PCM` |
 | `OmniPcm_OpenUtf8(char* name)` | UTF-8 版本                                          |
+| `OmniPcm_OpenInstanceUtf8(id)` | 打开 `Global\OmniMixPlayer_PCM_<instance_id>`       |
 | `OmniPcm_Close(handle)`        | 关闭句柄                                            |
 | `OmniPcm_IsOpen(handle)`       | 检查共享内存是否可访问                              |
 | `OmniPcm_GetVersion(handle)`   | 获取协议版本（1 或 2）                              |
+| `OmniPcm_GetAbiVersion()`      | 获取独立 ABI 版本，高 16 位为主版本                 |
+| `OmniPcm_GetAbiInfo(&info)`    | 获取结构尺寸、协议范围和样本格式能力                |
 
 #### 格式与状态
 
@@ -118,6 +132,9 @@ OmniPcm_Close(h);
 | ----------------------------------------------------- | ------------------------------------------ |
 | `OmniPcm_GetInfo(handle, &info)`                      | 获取音频格式：采样率、声道数、帧数         |
 | `OmniPcm_GetSnapshot(handle, &snap)`                  | 获取共享内存完整快照（游标、状态、错误码） |
+| `OmniPcm_GetSnapshotV2(handle, &snap)`                | 获取带 size/ABI/心跳字段的 V2 快照         |
+| `OmniPcm_GetStreamDescriptionV2(handle, &desc)`       | 获取格式、stream_id 和格式 generation      |
+| `OmniPcm_GetHeartbeatAgeMs(handle)`                   | 获取单调心跳年龄                           |
 | `OmniPcm_GetCurrentUuid(handle)`                      | 当前播放曲目的 UUID                        |
 | `OmniPcm_IsFormatReady(handle)`                       | 格式信息是否已就绪                         |
 | `OmniPcm_WaitForFormatReady(handle, uuid, timeoutMs)` | 阻塞等待指定 UUID 的格式就绪               |
@@ -426,6 +443,11 @@ PublicDelayLoadDLLs.Add("OmniPcmShared.dll");
 ---
 
 ## EOF 语义
+
+后端自然结束顺序固定为：`MarkDecoderEof` → 等待 `readCursor` 到达最终写入游标 →
+等待 `audibleCursor` 接近最终写入游标 → `MarkEnded` → 推进播放队列。等待有 8 秒
+故障超时，并按约 50ms 音频帧设置可闻游标容差。Seek、Next、Previous、Stop 和
+重新选曲不会等待旧流排空，而是增加 `stream_id` 并立即丢弃旧 generation。
 
 对于 v2 协议流，播放结束的条件：
 

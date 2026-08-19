@@ -11,7 +11,7 @@ from build_config import (
     VGMSTREAM_NOTICE, VGMSTREAM_ARCHIVE_SHA256, VGMSTREAM_RUNTIME_DIR,
     VGMSTREAM_RUNTIME_FILES,
     PLAYER_WEB_DIR, PLAYER_WEB_BUILD, PLAYER_WWWROOT, MEDIA_GEN_PROJ, MEDIA_GEN_PUBLISH,
-    OMNI_PCM_DLL, ROOT, FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP,
+    OMNI_PCM_DLL, OMNI_PCM_SDK_ASSET, ROOT, FH6_DIR, FH6_BIN, FH6_STAGE, FH6_ZIP,
     FH6_PLAYER_ASSET, MOD_DIR, MOD_PLAYER_ASSET, NATIVE_PLUGINS_DIR,
 )
 from .base import TaskNode, TaskStatus
@@ -32,12 +32,13 @@ def create_player_tasks(full: bool = False) -> TaskNode:
 
     # ── Native Plugins ──
     native_g = root.create_group("Native Plugins", "原生 C++ 插件编译")
-    from .native import create_native_tasks, create_stage_omni_pcm
+    from .native import create_native_tasks, create_stage_omni_pcm, create_package_omni_pcm_sdk
     create_native_tasks(native_g, [
         "OmniAudioDecoder", "OmniPcmShared", "SpotifyLibrespotBridge",
         "EsbuildBridge", "SmtcBridge",
     ])
     create_stage_omni_pcm(root)
+    create_package_omni_pcm_sdk(root)
 
     # ── WebUI ──
     fw = root.create_group("WebUI", "构建 TypeScript WebUI → wwwroot/")
@@ -241,7 +242,7 @@ def _copy_player_assets_to_build():
         return
     dst = PLAYER_BUILD / "OmniMixAssets"
     dst.mkdir(parents=True, exist_ok=True)
-    for name in ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip", "version_info.json"]:
+    for name in ["BepInEx_win_x64_5.4.23.5.zip", "ChillPatcher.zip", "FH6OmniBridge.zip", OMNI_PCM_SDK_ASSET.name, "version_info.json"]:
         src = PLAYER_ASSETS_DIR / name
         if src.exists():
             copy_file(src, dst)

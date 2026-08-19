@@ -19,10 +19,14 @@ namespace ChillPatcher.SDK.Native
     public sealed class OmniPcmShared : IDisposable
     {
         private const string DllName = "OmniPcmShared";
+        private const uint RequiredAbiMajor = 2;
         private IntPtr _handle;
 
         public OmniPcmShared(string mapName = null)
         {
+            var abiVersion = OmniPcm_GetAbiVersion();
+            if ((abiVersion >> 16) != RequiredAbiMajor)
+                throw new NotSupportedException($"OmniPcmShared ABI {RequiredAbiMajor}.x is required (found 0x{abiVersion:X8}).");
             _handle = OmniPcm_Open(mapName);
             if (_handle == IntPtr.Zero || !IsOpen)
                 throw new InvalidOperationException(GetLastError());
@@ -161,6 +165,9 @@ namespace ChillPatcher.SDK.Native
 
         [DllImport(DllName, EntryPoint = "OmniPcm_Open", ExactSpelling = true, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr OmniPcm_Open(string mapName);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern uint OmniPcm_GetAbiVersion();
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         private static extern void OmniPcm_Close(IntPtr handle);

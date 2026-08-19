@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
-project(OmniPcmShared VERSION 1.0.0 LANGUAGES C CXX)
+project(OmniPcmShared VERSION 2.0.0 LANGUAGES C CXX)
+
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -61,7 +63,19 @@ if(WIN32)
         set_property(TARGET OmniPcmShared PROPERTY
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
         target_compile_options(OmniPcmShared PRIVATE /wd4100)
+        target_compile_options(OmniPcmShared PRIVATE /Gd)
     endif()
+endif()
+
+if(BUILD_TESTING)
+    add_executable(OmniPcmSharedAbiTests tests/abi_smoke.cpp)
+    target_include_directories(OmniPcmSharedAbiTests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(OmniPcmSharedAbiTests PRIVATE OmniPcmShared)
+    if(MSVC)
+        set_property(TARGET OmniPcmSharedAbiTests PROPERTY
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+    add_test(NAME OmniPcmShared.AbiV2 COMMAND OmniPcmSharedAbiTests)
 endif()
 
 set(NATIVE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/../../bin/native")

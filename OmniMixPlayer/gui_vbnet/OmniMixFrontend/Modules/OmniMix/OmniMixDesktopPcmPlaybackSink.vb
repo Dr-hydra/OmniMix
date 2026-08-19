@@ -37,6 +37,7 @@ Public Class OmniMixDesktopPcmPlaybackSink
 
         Private Const DefaultSampleRate As Integer = 44100
         Private Const DefaultChannels As Integer = 2
+        Private Const RequiredAbiMajor As UInteger = 2UI
         Private ReadOnly MapName As String
         Private Handle As IntPtr = IntPtr.Zero
         Private ReadOnly BufferLock As New Object()
@@ -97,6 +98,13 @@ Public Class OmniMixDesktopPcmPlaybackSink
                 If Not TryLoadNativeLibrary() Then
                     LastOpenFailureTick = NowTick
                     LogThrottled("OmniMix 桌面播放器未找到 OmniPcmShared.dll。")
+                    Return False
+                End If
+
+                Dim AbiVersion = OmniPcm_GetAbiVersion()
+                If AbiVersion >> 16 <> RequiredAbiMajor Then
+                    LastOpenFailureTick = NowTick
+                    LogThrottled($"OmniMix 桌面播放器需要 OmniPcmShared ABI {RequiredAbiMajor}.x。")
                     Return False
                 End If
 
@@ -183,6 +191,10 @@ Public Class OmniMixDesktopPcmPlaybackSink
 
         <DllImport("OmniPcmShared", CallingConvention:=CallingConvention.Cdecl)>
         Private Shared Function OmniPcm_ReportAudioSourcePosition(Handle As IntPtr, TimeSamples As Integer) As Integer
+        End Function
+
+        <DllImport("OmniPcmShared", CallingConvention:=CallingConvention.Cdecl)>
+        Private Shared Function OmniPcm_GetAbiVersion() As UInteger
         End Function
     End Class
 

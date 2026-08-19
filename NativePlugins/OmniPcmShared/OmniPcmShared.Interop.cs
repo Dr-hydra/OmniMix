@@ -60,6 +60,12 @@ namespace OmniPcmShared.Interop
         FormatInvalid = 4
     }
 
+    public enum OmniPcmSampleFormat
+    {
+        Unknown = 0,
+        Float32Interleaved = 1
+    }
+
     public enum OmniPcmPlaybackCommand
     {
         Play = 1,
@@ -147,6 +153,66 @@ namespace OmniPcmShared.Interop
         public long SeekGeneration;
         public long LastUpdateTick;
         public int FormatGeneration;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+        public string CurrentUuid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct OmniPcmAbiInfo
+    {
+        public uint Size;
+        public uint AbiVersion;
+        public uint AbiMajor;
+        public uint AbiMinor;
+        public uint MinSharedProtocol;
+        public uint MaxSharedProtocol;
+        public uint SampleFormatMask;
+        public uint Reserved;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct OmniPcmStreamDescriptionV2
+    {
+        public uint Size;
+        public uint AbiVersion;
+        public uint SharedProtocolVersion;
+        public int SampleFormat;
+        public int SampleRate;
+        public int Channels;
+        public int BytesPerFrame;
+        public int BufferFrames;
+        public long StreamId;
+        public int FormatGeneration;
+        public int Reserved;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct OmniPcmSnapshotV2
+    {
+        public uint Size;
+        public uint AbiVersion;
+        public uint SharedProtocolVersion;
+        public int SampleFormat;
+        public int SampleRate;
+        public int Channels;
+        public int BytesPerFrame;
+        public int BufferFrames;
+        public int LegacyPlayState;
+        public uint Flags;
+        public long WriteCursor;
+        public long ReadCursor;
+        public long StreamId;
+        public int State;
+        public int ErrorCode;
+        public long TotalFramesHint;
+        public long DecodedTotalFrames;
+        public long FinalWriteCursor;
+        public long AudibleCursor;
+        public long SeekFrame;
+        public long SeekGeneration;
+        public long HeartbeatMonotonicMs;
+        public int FormatGeneration;
+        public int Reserved;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
         public string CurrentUuid;
     }
@@ -396,10 +462,12 @@ namespace OmniPcmShared.Interop
     public sealed class OmniPcmShared : IDisposable
     {
         private const string DllName = "OmniPcmShared";
+        public const uint RequiredAbiMajor = 2;
         private IntPtr _handle;
 
         public OmniPcmShared(string mapName = null)
         {
+            EnsureCompatibleAbi();
             _handle = OmniPcm_Open(mapName);
             if (_handle == IntPtr.Zero || !IsOpen)
                 throw new InvalidOperationException(GetLastError());
@@ -407,6 +475,7 @@ namespace OmniPcmShared.Interop
 
         public static OmniPcmShared OpenUtf8(string mapNameUtf8 = null)
         {
+            EnsureCompatibleAbi();
             var handle = OmniPcm_OpenUtf8(mapNameUtf8);
             if (handle == IntPtr.Zero)
                 throw new InvalidOperationException("OmniPcm_OpenUtf8 returned null");
@@ -416,14 +485,51 @@ namespace OmniPcmShared.Interop
             return result;
         }
 
+        public static OmniPcmShared OpenInstance(string instanceId)
+        {
+            if (string.IsNullOrWhiteSpace(instanceId))
+                throw new ArgumentException("Instance ID is required", nameof(instanceId));
+            EnsureCompatibleAbi();
+            var handle = OmniPcm_OpenInstanceUtf8(instanceId);
+            if (handle == IntPtr.Zero)
+                throw new InvalidOperationException("OmniPcm_OpenInstanceUtf8 returned null");
+            var result = new OmniPcmShared { _handle = handle };
+            if (!result.IsOpen)
+                throw new InvalidOperationException(result.GetLastError());
+            return result;
+        }
+
         private OmniPcmShared() { }
 
         public bool IsOpen => _handle != IntPtr.Zero && OmniPcm_IsOpen(_handle) != 0;
+        public static uint AbiVersion => OmniPcm_GetAbiVersion();
+        public static uint AbiMajor => AbiVersion >> 16;
         public uint Version => _handle != IntPtr.Zero ? OmniPcm_GetVersion(_handle) : 0;
         public long BoundStreamId => _handle != IntPtr.Zero ? OmniPcm_GetBoundStreamId(_handle) : 0;
 
         public OmniPcmSnapshot Snapshot { get { ThrowIfDisposed(); OmniPcm_GetSnapshot(_handle, out var s); return s; } }
         public OmniPcmInfo Info { get { ThrowIfDisposed(); OmniPcm_GetInfo(_handle, out var i); return i; } }
+        public OmniPcmSnapshotV2 SnapshotV2
+        {
+            get
+            {
+                ThrowIfDisposed();
+                var value = new OmniPcmSnapshotV2 { Size = (uint)Marshal.SizeOf<OmniPcmSnapshotV2>() };
+                Check(OmniPcm_GetSnapshotV2(_handle, ref value));
+                return value;
+            }
+        }
+        public OmniPcmStreamDescriptionV2 StreamDescriptionV2
+        {
+            get
+            {
+                ThrowIfDisposed();
+                var value = new OmniPcmStreamDescriptionV2 { Size = (uint)Marshal.SizeOf<OmniPcmStreamDescriptionV2>() };
+                Check(OmniPcm_GetStreamDescriptionV2(_handle, ref value));
+                return value;
+            }
+        }
+        public long HeartbeatAgeMs { get { ThrowIfDisposed(); return OmniPcm_GetHeartbeatAgeMs(_handle); } }
         public string CurrentUuid { get { ThrowIfDisposed(); return Marshal.PtrToStringAnsi(OmniPcm_GetCurrentUuid(_handle)) ?? ""; } }
 
         public void BindCurrentStream() { ThrowIfDisposed(); Check(OmniPcm_BindCurrentStream(_handle)); }
@@ -433,6 +539,23 @@ namespace OmniPcmShared.Interop
         public bool HasDecoderEof() { ThrowIfDisposed(); return OmniPcm_HasDecoderEof(_handle) != 0; }
         public bool IsPlaybackComplete(long toleranceFrames) { ThrowIfDisposed(); return OmniPcm_IsPlaybackComplete(_handle, toleranceFrames) != 0; }
         public bool HasError() { ThrowIfDisposed(); return OmniPcm_HasError(_handle) != 0; }
+        public bool IsHeartbeatAlive(long timeoutMs) { ThrowIfDisposed(); return OmniPcm_IsHeartbeatAlive(_handle, timeoutMs) == 1; }
+
+        public static OmniPcmAbiInfo GetAbiInfo()
+        {
+            var value = new OmniPcmAbiInfo { Size = (uint)Marshal.SizeOf<OmniPcmAbiInfo>() };
+            var result = OmniPcm_GetAbiInfo(ref value);
+            if (result < 0) throw new InvalidOperationException($"OmniPcm_GetAbiInfo failed: {result}");
+            return value;
+        }
+
+        public static void EnsureCompatibleAbi()
+        {
+            var version = OmniPcm_GetAbiVersion();
+            var major = version >> 16;
+            if (major != RequiredAbiMajor)
+                throw new NotSupportedException($"OmniPcmShared ABI {major}.{version & 0xffff} is incompatible; ABI 2.x is required.");
+        }
 
         public long ReadFrames(float[] buffer, int framesToRead)
         {
@@ -464,6 +587,15 @@ namespace OmniPcmShared.Interop
 
         // ── P/Invoke ──────────────────────────────────────────────
 
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern uint OmniPcm_GetAbiVersion();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int OmniPcm_GetAbiInfo(ref OmniPcmAbiInfo info);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr OmniPcm_OpenInstanceUtf8([MarshalAs(UnmanagedType.LPStr)] string instanceIdUtf8);
+
         [DllImport(DllName, EntryPoint = "OmniPcm_Open", ExactSpelling = true, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr OmniPcm_Open(string mapName);
 
@@ -484,6 +616,18 @@ namespace OmniPcmShared.Interop
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         private static extern int OmniPcm_GetSnapshot(IntPtr handle, out OmniPcmSnapshot snapshot);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int OmniPcm_GetSnapshotV2(IntPtr handle, ref OmniPcmSnapshotV2 snapshot);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int OmniPcm_GetStreamDescriptionV2(IntPtr handle, ref OmniPcmStreamDescriptionV2 description);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern long OmniPcm_GetHeartbeatAgeMs(IntPtr handle);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int OmniPcm_IsHeartbeatAlive(IntPtr handle, long timeoutMs);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         private static extern int OmniPcm_GetInfo(IntPtr handle, out OmniPcmInfo info);

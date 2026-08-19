@@ -8,7 +8,7 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.3.2`
+Current version: `4.4.0`
 
 Primary local artifact:
 
@@ -35,6 +35,7 @@ Since `3.0.7`, Releases no longer publish the VB.NET frontend executable as a st
 - Supports equalizer and instance configuration.
 - Installs game integration bridges and repairs instance IDs and port files.
 - Supports FH6 integration with both Steam and Xbox directory layouts.
+- Registers the Endfield music backend through the official Better Endfield CLI without copying files into its installation or game directories.
 - Provides personalization options, including background, opacity, theme colors, and HSL controls.
 
 The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT), a reusable WPF UI kit extracted from this frontend work.
@@ -66,6 +67,18 @@ Open the "Plugins - Game Integration" page:
 2. Choose the game directory.
 3. Install the matching game integration bridge.
 4. Prefer starting OmniMix before the game so it can refresh port files and instance bindings.
+
+Better Endfield uses registration rather than Mod deployment. Select or auto-detect an
+installation containing `BetterEndfield.exe`, `runtime/BetterEndfield.Host.dll`, and
+`modules/`, then use Register or Repair Registration. Live state comes from the Better
+Endfield JSON CLI. Login, main-menu, and in-game replacement scopes remain Better
+Endfield settings. OmniMix never writes port files, Mods, or configuration into that
+directory, and unregistering does not delete programs or user files.
+
+This PCM ABI upgrade intentionally requires new game bridges. FH6 Bridge `4.0.0` and
+ChillPatcher `2.0.0` require OmniPcmShared ABI 2. The integration page offers an update
+when it detects an older bridge. An incompatible old bridge safely disables custom
+audio instead of preventing game startup; update it when prompted.
 
 FH6 layout detection:
 
@@ -118,6 +131,7 @@ python scripts/build_all.py player --full --dry-run
 - `chill-gen-media.exe`
 - `OmniMixAssets/ChillPatcher.zip`
 - `OmniMixAssets/FH6OmniBridge.zip`
+- `OmniMixAssets/OmniPcmSharedSDK-2.0.0.zip`
 - `tools/vgmstream/vgmstream-cli.exe` with the official Windows x64 runtime, license, and source notice
 - `modules/`
 - `native/x64/`
@@ -125,16 +139,22 @@ python scripts/build_all.py player --full --dry-run
 
 Offline FH6 DJ voice preparation uses a pinned `vgmstream` release. The build verifies the SHA256 of the official archive under `OmniMixPlayer/assets/tools/vgmstream/` before staging it into `playerbuild/tools/vgmstream/`. Release packages do not include original game voices or local cache data.
 
+`OmniPcmSharedSDK-2.0.0.zip` is the independently versioned Windows x64 C ABI package.
+It contains the static-MSVC-runtime DLL, headers, `VERSION`, `SHA256SUMS`, a README,
+and a library-independent 48 kHz stereo test stream. The canonical instance mapping is
+`Global\OmniMixPlayer_PCM_<instance_id>`. When an unelevated process cannot create a
+global mapping, the backend and SDK transparently use the same suffix under `Local\`.
+
 Create release zip packages:
 
 ```powershell
-python scripts/package_release.py 4.3.2
+python scripts/package_release.py 4.4.0
 ```
 
 Create the Windows installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.3.2
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.0
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:

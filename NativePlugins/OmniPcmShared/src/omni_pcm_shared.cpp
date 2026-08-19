@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cwchar>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -72,11 +73,13 @@ void write_value(uint8_t* base, int offset, T value) {
     std::memcpy(base + offset, &value, sizeof(T));
 }
 
-int64_t utc_ticks_now() {
+int64_t monotonic_ms_now() {
+#ifdef _WIN32
+    return static_cast<int64_t>(GetTickCount64());
+#else
     using namespace std::chrono;
-    constexpr int64_t ticks_at_unix_epoch = 621355968000000000LL;
-    auto now = system_clock::now().time_since_epoch();
-    return ticks_at_unix_epoch + duration_cast<duration<int64_t, std::ratio<1, 10000000>>>(now).count();
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+#endif
 }
 
 struct OmniPcmContext {
@@ -156,7 +159,7 @@ void set_flag(OmniPcmContext* c, uint32_t flag, bool enabled) {
         old_value = *target;
         new_value = enabled ? (old_value | static_cast<long>(flag)) : (old_value & ~static_cast<long>(flag));
     } while (InterlockedCompareExchange(target, new_value, old_value) != old_value);
-    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, utc_ticks_now());
+    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, monotonic_ms_now());
 }
 
 std::wstring utf8_to_wide(const char* text) {
@@ -174,11 +177,42 @@ std::wstring utf8_to_wide(const char* text) {
 
 } // namespace
 
+OMNI_PCM_API uint32_t OMNI_PCM_CALL OmniPcm_GetAbiVersion(void) {
+    return OMNI_PCM_ABI_VERSION;
+}
+
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetAbiInfo(OmniPcmAbiInfo* out_info) {
+    if (!out_info || out_info->size < sizeof(uint32_t) * 2) return OMNI_PCM_BAD_ARGUMENT;
+    const uint32_t capacity = out_info->size;
+    OmniPcmAbiInfo value{};
+    value.size = sizeof(value);
+    value.abi_version = OMNI_PCM_ABI_VERSION;
+    value.abi_major = OMNI_PCM_ABI_VERSION_MAJOR;
+    value.abi_minor = OMNI_PCM_ABI_VERSION_MINOR;
+    value.min_shared_protocol = OMNI_PCM_VERSION_2;
+    value.max_shared_protocol = OMNI_PCM_VERSION_2;
+    value.sample_format_mask = 1u << OMNI_PCM_SAMPLE_FORMAT_FLOAT32_INTERLEAVED;
+    std::memcpy(out_info, &value, std::min<size_t>(capacity, sizeof(value)));
+    return OMNI_PCM_OK;
+}
+
+OMNI_PCM_API OmniPcmHandle OMNI_PCM_CALL OmniPcm_OpenInstanceUtf8(const char* instance_id_utf8) {
+    if (!instance_id_utf8 || !*instance_id_utf8) return nullptr;
+    std::string map_name = OMNI_PCM_INSTANCE_MAP_PREFIX_UTF8;
+    map_name += instance_id_utf8;
+    return OmniPcm_OpenUtf8(map_name.c_str());
+}
+
 OMNI_PCM_API OmniPcmHandle OmniPcm_Open(const wchar_t* map_name) {
     auto* c = new OmniPcmContext();
 #ifdef _WIN32
     const wchar_t* name = (map_name && *map_name) ? map_name : OMNI_PCM_DEFAULT_MAP_NAME;
     c->mapping = OpenFileMappingW(FILE_MAP_WRITE, FALSE, name);
+    if (!c->mapping && std::wcsncmp(name, L"Global\\", 7) == 0) {
+        std::wstring local_name = L"Local\\";
+        local_name += name + 7;
+        c->mapping = OpenFileMappingW(FILE_MAP_WRITE, FALSE, local_name.c_str());
+    }
     if (!c->mapping) {
         std::wstring prefixed = L"AppContainerNamedObjects\\";
         prefixed += name;
@@ -235,6 +269,79 @@ OMNI_PCM_API const char* OmniPcm_GetLastError(OmniPcmHandle handle) {
 
 OMNI_PCM_API int OmniPcm_GetSnapshot(OmniPcmHandle handle, OmniPcmSnapshot* out_snapshot) {
     return snapshot_internal(ctx(handle), out_snapshot);
+}
+
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetSnapshotV2(OmniPcmHandle handle, OmniPcmSnapshotV2* out_snapshot) {
+    if (!out_snapshot || out_snapshot->size < sizeof(uint32_t) * 2) return OMNI_PCM_BAD_ARGUMENT;
+    OmniPcmSnapshot legacy{};
+    const int result = snapshot_internal(ctx(handle), &legacy);
+    if (result != OMNI_PCM_OK) return result;
+
+    const uint32_t capacity = out_snapshot->size;
+    OmniPcmSnapshotV2 value{};
+    value.size = sizeof(value);
+    value.abi_version = OMNI_PCM_ABI_VERSION;
+    value.shared_protocol_version = legacy.version;
+    value.sample_format = OMNI_PCM_SAMPLE_FORMAT_FLOAT32_INTERLEAVED;
+    value.sample_rate = legacy.sample_rate;
+    value.channels = legacy.channels;
+    value.bytes_per_frame = legacy.bytes_per_frame;
+    value.buffer_frames = legacy.buffer_frames;
+    value.legacy_play_state = legacy.legacy_play_state;
+    value.flags = legacy.flags;
+    value.write_cursor = legacy.write_cursor;
+    value.read_cursor = legacy.read_cursor;
+    value.stream_id = legacy.stream_id;
+    value.state = legacy.state;
+    value.error_code = legacy.error_code;
+    value.total_frames_hint = legacy.total_frames_hint;
+    value.decoded_total_frames = legacy.decoded_total_frames;
+    value.final_write_cursor = legacy.final_write_cursor;
+    value.audible_cursor = legacy.audible_cursor;
+    value.seek_frame = legacy.seek_frame;
+    value.seek_generation = legacy.seek_generation;
+    value.heartbeat_monotonic_ms = legacy.last_update_tick;
+    value.format_generation = legacy.format_generation;
+    std::memcpy(value.current_uuid, legacy.current_uuid, OMNI_PCM_UUID_BYTES);
+    std::memcpy(out_snapshot, &value, std::min<size_t>(capacity, sizeof(value)));
+    return OMNI_PCM_OK;
+}
+
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_GetStreamDescriptionV2(
+    OmniPcmHandle handle,
+    OmniPcmStreamDescriptionV2* out_description) {
+    if (!out_description || out_description->size < sizeof(uint32_t) * 2) return OMNI_PCM_BAD_ARGUMENT;
+    OmniPcmSnapshot snapshot{};
+    const int result = snapshot_internal(ctx(handle), &snapshot);
+    if (result != OMNI_PCM_OK) return result;
+
+    const uint32_t capacity = out_description->size;
+    OmniPcmStreamDescriptionV2 value{};
+    value.size = sizeof(value);
+    value.abi_version = OMNI_PCM_ABI_VERSION;
+    value.shared_protocol_version = snapshot.version;
+    value.sample_format = OMNI_PCM_SAMPLE_FORMAT_FLOAT32_INTERLEAVED;
+    value.sample_rate = snapshot.sample_rate;
+    value.channels = snapshot.channels;
+    value.bytes_per_frame = snapshot.bytes_per_frame;
+    value.buffer_frames = snapshot.buffer_frames;
+    value.stream_id = snapshot.stream_id;
+    value.format_generation = snapshot.format_generation;
+    std::memcpy(out_description, &value, std::min<size_t>(capacity, sizeof(value)));
+    return OMNI_PCM_OK;
+}
+
+OMNI_PCM_API int64_t OMNI_PCM_CALL OmniPcm_GetHeartbeatAgeMs(OmniPcmHandle handle) {
+    auto* c = ctx(handle);
+    if (!validate(c)) return OMNI_PCM_BAD_ARGUMENT;
+    const int64_t heartbeat = read_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK);
+    return std::max<int64_t>(0, monotonic_ms_now() - heartbeat);
+}
+
+OMNI_PCM_API int OMNI_PCM_CALL OmniPcm_IsHeartbeatAlive(OmniPcmHandle handle, int64_t timeout_ms) {
+    if (timeout_ms <= 0) return OMNI_PCM_BAD_ARGUMENT;
+    const int64_t age = OmniPcm_GetHeartbeatAgeMs(handle);
+    return age >= 0 && age <= timeout_ms ? 1 : 0;
 }
 
 OMNI_PCM_API int OmniPcm_GetInfo(OmniPcmHandle handle, OmniPcmInfo* out_info) {
@@ -374,7 +481,7 @@ OMNI_PCM_API int64_t OmniPcm_ReadFrames(OmniPcmHandle handle, float* buffer, int
     }
 
     write_value<int64_t>(c->ptr, OFF_READ_CURSOR, s.read_cursor + frames_to_copy);
-    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, utc_ticks_now());
+    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, monotonic_ms_now());
     return frames_to_copy;
 }
 
@@ -408,7 +515,7 @@ OMNI_PCM_API int OmniPcm_SetAudibleCursor(OmniPcmHandle handle, int64_t frame, i
     bool can_move_backward = allow_backward != 0 || (f & (OMNI_PCM_FLAG_SEEK_PENDING | OMNI_PCM_FLAG_DISCONTINUITY)) != 0;
     if (frame < current && !can_move_backward) return OMNI_PCM_OK;
     write_value<int64_t>(c->ptr, OFF_AUDIBLE_CURSOR, frame);
-    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, utc_ticks_now());
+    write_value<int64_t>(c->ptr, OFF_LAST_UPDATE_TICK, monotonic_ms_now());
     return OMNI_PCM_OK;
 }
 

@@ -80,7 +80,7 @@
 - 当前 WebUI：`OmniMixPlayer/gui_web/`
 - 技术栈：Vite + Svelte + TypeScript，构建产物复制到 `OmniMixPlayer/OmniMixPlayer.Backend/wwwroot/`。
 - WebUI 定位为后端内嵌远程控制台，优先覆盖后端状态、模块管理、模块 RawNode UI、配置摘要、事件推送等能力。
-- 播放器安装/游戏集成资产统一放在 `OmniMixPlayer/assets/`。游戏集成压缩包复制到 `playerbuild/OmniMixAssets/`；固定版本的第三方运行时压缩包经哈希和成员校验后解压到对应运行目录，例如 `playerbuild/tools/vgmstream/`。
+- 播放器安装/游戏集成资产统一放在 `OmniMixPlayer/assets/`。游戏集成压缩包和版本化 `OmniPcmSharedSDK-{version}.zip` 复制到 `playerbuild/OmniMixAssets/`；固定版本的第三方运行时压缩包经哈希和成员校验后解压到对应运行目录，例如 `playerbuild/tools/vgmstream/`。
 
 ### 模块与原生组件
 
@@ -99,6 +99,7 @@
 - FH6 Omni PCM 源：`mods/ForzaHorizon6OmniBridge/src/sources/omni_pcm_source.cpp`
 - FH6 通用电台实验/参考实现：`NativePlugins/fh6-universal-radio/`
 - Chill With You / BepInEx Mod：`mods/chillPatcher/`
+- Better Endfield 注册桥：`OmniMixPlayer/gui_vbnet/OmniMixFrontend/Modules/OmniMix/OmniMixBetterEndfieldIntegrationService.vb`
 - 游戏集成前端入口主要在 `PageOmniMixRight.xaml.vb` 的“游戏集成”区域，安装逻辑在 `OmniMixModDeploymentService.vb`。
 
 ### 构建与发布脚本
@@ -123,6 +124,8 @@
 - 桌面 GUI、游戏集成桥、游戏 Mod 都是 OmniMix 后端模型的客户端。
 - 它们可以控制相似端点并观察相似状态，主要区别在于用户界面和音频输出角色。
 - 保持模块 UI、播放状态、队列控制、游戏桥文件、端口文件、实例 ID 与当前 OmniMix 约定兼容。
+- Better Endfield 仅通过其 JSON CLI 注册、查询和解除注册；不得向 Better Endfield 或终末地游戏目录写入端口文件、Mod 或配置。
+- OmniPcmShared ABI 2 使用 `Global\OmniMixPlayer_PCM_<instance_id>`，普通用户权限不足时由后端和 SDK 透明回退到同后缀 `Local\` 映射；桥必须在加载时校验 ABI 主版本。
 - FH6 集成需要识别不同发行版目录结构：
   - Steam：`fh6/forzahorizon6.exe` 与 `fh6/media`
   - Xbox：`fh6/Content/forzahorizon6.exe` 与 `fh6/media`

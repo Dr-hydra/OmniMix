@@ -145,6 +145,10 @@ def _player_assets(full: bool) -> TaskNode:
 
     g.children.append(_chillpatcher_asset(full))
     g.children.append(_fh6_asset(full))
+    from tasks.native import package_omni_pcm_sdk
+    g.create_leaf(f"OmniPcmShared SDK {C.OMNI_PCM_SDK_VERSION}",
+                  "打包版本化 ABI SDK 与 48 kHz 双声道测试流",
+                  run_fn=package_omni_pcm_sdk)
     g.create_leaf("Version Info", "写入 version_info.json → assets/",
                   run_fn=_write_version_assets)
     return g

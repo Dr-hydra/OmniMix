@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -47,7 +48,15 @@ namespace OmniMixPlayer.Backend
 
         public static async Task Main(string[] args)
         {
+            using var singleInstance = TryCreateSingleInstance();
+            if (singleInstance == null)
+            {
+                Console.Error.WriteLine("An OmniMix backend instance is already running.");
+                return;
+            }
+
             Console.OutputEncoding = System.Text.Encoding.UTF8;
+            var launchOptions = BackendLaunchOptions.Parse(args);
             var applicationDirectory = RuntimePaths.ApplicationDirectory;
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
@@ -157,7 +166,6 @@ namespace OmniMixPlayer.Backend
                 else
                 {
                     options.Listen(IPAddress.Loopback, IpcPort);
-                    options.Listen(IPAddress.Any, 17890);
                 }
 
                 // Unix Domain Socket (fallback for filesystem-based discovery)
@@ -250,6 +258,36 @@ namespace OmniMixPlayer.Backend
                 instanceRegistry,
                 timelineStore,
                 djAssets);
+
+            if (launchOptions.PcmShared && !string.IsNullOrWhiteSpace(launchOptions.ClientId))
+            {
+                var startupRequest = new SDK.Protos.Models.InstanceConnectRequest
+                {
+                    ClientId = launchOptions.ClientId,
+                    ModId = "better_endfield",
+                    GameName = "Better Endfield",
+                    DisplayName = "Better Endfield",
+                    Kind = SDK.Protos.Models.InstanceKind.GameMod,
+                    Capabilities = new SDK.Protos.Models.InstanceCapabilities
+                    {
+                        ServerControlledPlayback = true,
+                        QueueManagement = true,
+                        PlaylistManagement = true,
+                        Shuffle = true,
+                        Repeat = true,
+                        Seek = true,
+                        VolumeControl = true,
+                        Equalizer = true,
+                        AudioPlayback = true
+                    }
+                };
+                var startupProfile = instanceRegistry.ConnectOrCreate(startupRequest, out _);
+                sessionManager.Attach(startupProfile);
+                logger.LogInformation(
+                    "Pre-created PCM session {InstanceId} for launch client {ClientId}",
+                    startupProfile.Id,
+                    launchOptions.ClientId);
+            }
             globalConfig.OnConfigSaved += djAssets.NotifyConfigurationChanged;
             globalConfig.OnConfigSaved += sessionManager.NotifyGlobalConfigurationChanged;
             djAssets.NotifyConfigurationChanged();
@@ -337,6 +375,52 @@ namespace OmniMixPlayer.Backend
             logger.LogInformation("OmniMixPlayer API: tcp://127.0.0.1:{IpcPort} (REST/WS/gRPC-Web), unix://{SocketPath} (fallback), http://0.0.0.0:17890 (remote)",
                 IpcPort, SocketPath);
             await app.RunAsync();
+        }
+
+        private static Mutex TryCreateSingleInstance()
+        {
+            try
+            {
+                var mutex = new Mutex(false, @"Global\OmniMixPlayer.Backend", out var createdNew);
+                if (createdNew) return mutex;
+                mutex.Dispose();
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                var mutex = new Mutex(false, @"Local\OmniMixPlayer.Backend", out var createdNew);
+                if (createdNew) return mutex;
+                mutex.Dispose();
+                return null;
+            }
+        }
+
+        private sealed class BackendLaunchOptions
+        {
+            public bool PcmShared { get; private set; }
+            public string ClientId { get; private set; } = string.Empty;
+
+            public static BackendLaunchOptions Parse(string[] args)
+            {
+                var result = new BackendLaunchOptions();
+                for (var i = 0; i < args.Length; i++)
+                {
+                    var argument = args[i] ?? string.Empty;
+                    if (argument.Equals("--pcm-shared", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.PcmShared = true;
+                    }
+                    else if (argument.StartsWith("--client-id=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.ClientId = argument.Substring("--client-id=".Length).Trim();
+                    }
+                    else if (argument.Equals("--client-id", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                    {
+                        result.ClientId = args[++i].Trim();
+                    }
+                }
+                return result;
+            }
         }
 
         private static void DeleteStaleSocket(string path)
