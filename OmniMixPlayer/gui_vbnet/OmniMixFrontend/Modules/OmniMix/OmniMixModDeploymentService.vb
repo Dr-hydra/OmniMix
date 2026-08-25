@@ -1186,7 +1186,7 @@ Public Module OmniMixModDeploymentService
             If String.IsNullOrWhiteSpace(ConfigPath) Then Return False
 
             AddLog(Logs, "正在生成修改后的电台媒体资源...")
-            Dim Arguments = $"-c {Quote(ConfigPath)} -g {Quote(MediaRoot)} -o {Quote(TempOutputDir)} -r {Quote(PngPath)}"
+            Dim Arguments = $"-c {Quote(ConfigPath)} -g {Quote(MediaRoot)} -o {Quote(TempOutputDir)} -r {Quote(PngPath)} --skip-banks"
             Using Proc = New Process()
                 Proc.StartInfo = New ProcessStartInfo With {
                     .FileName = MediaGenPath,

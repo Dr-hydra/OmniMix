@@ -1302,7 +1302,7 @@
                                                 Margin="0,0,10,8" />
                         </WrapPanel>
                         <local:MyListItem Title="当前组件"
-                                          Info="桌面前端 4.4.0；FH6 Omni Bridge 4.0.0；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
+                                          Info="桌面前端 4.4.1；FH6 Omni Bridge 4.0.0；网易云、QQ音乐、酷我模块 2.0.0，酷狗模块 2.0.1。"
                                           IsHitTestVisible="False"
                                           Margin="-5,0,0,2" />
                         <local:MyListItem Title="社区与交流"

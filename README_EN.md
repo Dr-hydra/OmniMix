@@ -8,7 +8,7 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.4.0`
+Current version: `4.4.1`
 
 Primary local artifact:
 
@@ -148,13 +148,13 @@ global mapping, the backend and SDK transparently use the same suffix under `Loc
 Create release zip packages:
 
 ```powershell
-python scripts/package_release.py 4.4.0
+python scripts/package_release.py 4.4.1
 ```
 
 Create the Windows installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.0
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.1
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:

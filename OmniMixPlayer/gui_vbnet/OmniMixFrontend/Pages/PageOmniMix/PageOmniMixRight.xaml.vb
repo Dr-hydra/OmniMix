@@ -1578,7 +1578,7 @@ Public Class PageOmniMixRight
         Using Writer As New StreamWriter(Entry.Open(), New System.Text.UTF8Encoding(False))
             Writer.WriteLine("OmniMix feedback diagnostics")
             Writer.WriteLine("GeneratedAt=" & Date.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"))
-            Writer.WriteLine("GuiVersion=4.4.0")
+            Writer.WriteLine("GuiVersion=4.4.1")
             Writer.WriteLine("ExePath=" & PathExe)
             Writer.WriteLine("ExeFolder=" & PathExeFolder)
             Writer.WriteLine("AppData=" & PathAppdata)

@@ -78,13 +78,13 @@ static class RadioInfoModifier
             AddMarker(xml, sample, "DJSegment", "-1");
             AddMarker(xml, sample, "PostDrop", "-1");
             AddMarker(xml, sample, "PostRaceLoopStart", "0");
-            AddMarker(xml, sample, "PostRaceLoopEnd", "-1");
+            AddMarker(xml, sample, "PostRaceLoopEnd", totalSamples.ToString());
             AddMarker(xml, sample, "StingerStart", totalSamples.ToString());
             AddMarker(xml, sample, "DJStart", (totalSamples + 1000).ToString());
             AddMarker(xml, sample, "End", totalSamples.ToString());
             for (int j = 1; j <= 5; j++) { AddMarker(xml, sample, $"Loop{j}Start", "-1"); AddMarker(xml, sample, $"Loop{j}End", "-1"); }
             for (int j = 1; j <= 5; j++) AddMarker(xml, sample, $"Section{j}", "-1");
-            AddMarker(xml, sample, "BinkTransition", "-1");
+            AddMarker(xml, sample, "BinkTransition", "0");
 
             // Loops
             AddLoop(xml, sample, "TrackMain", "TrackLoopStart", "TrackLoopEnd");
@@ -99,15 +99,15 @@ static class RadioInfoModifier
 
             trackList.AppendChild(sample);
 
-            // Clear DJ, Stinger, StingerLFE lists (no DJ chatter for custom station)
-            ClearSampleList(targetStation, "DJ");
-            ClearSampleList(targetStation, "Stinger");
-            ClearSampleList(targetStation, "TrackLFE");
+            // IMPORTANT: Do NOT wipe Stinger, DJ, or TrackLFE lists!
+            // FH6's race transition state machine requires valid Stinger samples when entering
+            // a race. Clearing them causes the game engine to crash with access violations.
+            // Runtime audio injection is safely handled by FMOD DSP bridge in memory.
 
             // Preserve original PlayLists — mod's DSP handles playback at runtime,
             // but the game UI needs the PlayList entries for "Now Playing" display.
             // fh6-universal-radio keeps them intact, so do we.
-            Console.WriteLine($"[xml]  PlayLists preserved as-is for {locale}");
+            Console.WriteLine($"[xml]  PlayLists and Stingers preserved as-is for {locale}");
 
             var outFile = Path.Combine(outAudioDir, $"RadioInfo_{locale}.xml");
             xml.Save(outFile);
@@ -130,12 +130,5 @@ static class RadioInfoModifier
         l.SetAttribute("StartMarker", startMarker);
         l.SetAttribute("EndMarker", endMarker);
         parent.AppendChild(l);
-    }
-
-    static void ClearSampleList(XmlElement station, string type)
-    {
-        var list = station.SelectSingleNode($"SampleList[@Type='{type}']") as XmlElement;
-        if (list != null)
-            while (list.HasChildNodes) list.RemoveChild(list.FirstChild!);
     }
 }

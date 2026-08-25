@@ -9,6 +9,7 @@ namespace OmniMixPlayer.Backend.Http
     public class GlobalConfigManager
     {
         private readonly string _configPath;
+        private readonly object _lock = new();
         private Dictionary<string, JsonElement> _config;
 
         /// <summary>
@@ -26,40 +27,48 @@ namespace OmniMixPlayer.Backend.Http
 
         private void Load()
         {
-            try
+            lock (_lock)
             {
-                if (File.Exists(_configPath))
+                try
                 {
-                    if (!StorageVersion.JsonHasCurrentVersion(_configPath))
+                    if (File.Exists(_configPath))
                     {
-                        File.Delete(_configPath);
-                        _config.Clear();
-                        return;
-                    }
+                        if (!StorageVersion.JsonHasCurrentVersion(_configPath))
+                        {
+                            File.Delete(_configPath);
+                            _config.Clear();
+                            return;
+                        }
 
-                    var json = File.ReadAllText(_configPath);
-                    var doc = JsonDocument.Parse(json);
-                    _config = new Dictionary<string, JsonElement>();
-                    foreach (var prop in doc.RootElement.EnumerateObject())
-                    {
-                        _config[prop.Name] = prop.Value.Clone();
+                        var json = File.ReadAllText(_configPath);
+                        var doc = JsonDocument.Parse(json);
+                        _config = new Dictionary<string, JsonElement>();
+                        foreach (var prop in doc.RootElement.EnumerateObject())
+                        {
+                            _config[prop.Name] = prop.Value.Clone();
+                        }
                     }
                 }
+                catch { }
             }
-            catch { }
         }
 
         public void Save()
         {
             try
             {
-                var dict = new Dictionary<string, object>();
-                foreach (var kv in _config)
+                string json;
+                lock (_lock)
                 {
-                    dict[kv.Key] = ConvertElement(kv.Value);
+                    var dict = new Dictionary<string, object>();
+                    foreach (var kv in _config)
+                    {
+                        dict[kv.Key] = ConvertElement(kv.Value);
+                    }
+                    dict[StorageVersion.JsonKey] = StorageVersion.Current;
+                    json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
                 }
-                dict[StorageVersion.JsonKey] = StorageVersion.Current;
-                var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+
                 var dir = Path.GetDirectoryName(_configPath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     Directory.CreateDirectory(dir);
@@ -86,13 +95,16 @@ namespace OmniMixPlayer.Backend.Http
 
         public T GetValue<T>(string key, T defaultValue = default)
         {
-            if (_config.TryGetValue(key, out var elem))
+            lock (_lock)
             {
-                try
+                if (_config.TryGetValue(key, out var elem))
                 {
-                    return JsonSerializer.Deserialize<T>(elem.GetRawText());
+                    try
+                    {
+                        return JsonSerializer.Deserialize<T>(elem.GetRawText());
+                    }
+                    catch { }
                 }
-                catch { }
             }
             return defaultValue;
         }
@@ -101,12 +113,19 @@ namespace OmniMixPlayer.Backend.Http
         {
             var json = JsonSerializer.Serialize(value);
             var doc = JsonDocument.Parse(json);
-            _config[key] = doc.RootElement.Clone();
+            var cloned = doc.RootElement.Clone();
+            lock (_lock)
+            {
+                _config[key] = cloned;
+            }
         }
 
         public string GetRawJson()
         {
-            return JsonSerializer.Serialize(_config);
+            lock (_lock)
+            {
+                return JsonSerializer.Serialize(_config);
+            }
         }
 
         public void UpdateFromJson(string json)
@@ -115,18 +134,34 @@ namespace OmniMixPlayer.Backend.Http
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 throw new InvalidDataException("Config update must be a JSON object.");
 
+            var updates = new Dictionary<string, JsonElement>();
             foreach (var prop in doc.RootElement.EnumerateObject())
-                _config[prop.Name] = prop.Value.Clone();
+                updates[prop.Name] = prop.Value.Clone();
+
+            lock (_lock)
+            {
+                foreach (var kv in updates)
+                    _config[kv.Key] = kv.Value;
+            }
         }
 
-        public bool HasKey(string key) => _config.ContainsKey(key);
+        public bool HasKey(string key)
+        {
+            lock (_lock)
+            {
+                return _config.ContainsKey(key);
+            }
+        }
 
         public Dictionary<string, object> GetAll()
         {
             var result = new Dictionary<string, object>();
-            foreach (var kv in _config)
+            lock (_lock)
             {
-                result[kv.Key] = ConvertElement(kv.Value);
+                foreach (var kv in _config)
+                {
+                    result[kv.Key] = ConvertElement(kv.Value);
+                }
             }
             return result;
         }

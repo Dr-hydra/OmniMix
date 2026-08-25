@@ -5,7 +5,7 @@
 
 #define MyAppName "OmniMixPlayer"
 #ifndef MyAppVersion
-  #define MyAppVersion "4.4.0"
+  #define MyAppVersion "4.4.1"
 #endif
 #define MyAppPublisher "Dr-hydra"
 #define MyAppURL "https://github.com/Dr-hydra/OmniMix"
@@ -136,6 +136,7 @@ var
   ConfirmedCleanupSignature: string;
   CleanupFailure: string;
   ApprovedOldInstallDir: string;
+  DetectedInstallDir: string;
 
 const
   ServiceRegistryPath = 'SYSTEM\CurrentControlSet\Services\{#MyServiceName}';
@@ -380,7 +381,6 @@ end;
 procedure InitializeWizard();
 var
   PageSubCaption: string;
-  DetectedInstallDir: string;
 begin
   ConfirmedCleanupSignature := '';
   CleanupFailure := '';
@@ -431,6 +431,16 @@ begin
   CleanupPage.Add(CustomMessage('CleanupPreviousInstallDir'));
   CleanupPage.Add(CustomMessage('CleanupLoginData'));
   CleanupPage.Add(CustomMessage('CleanupIntegrationData'));
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if (PageID = OldInstallDirPage.ID) or (PageID = CleanupPage.ID) then
+  begin
+    // 如果没有检测到旧安装目录，直接跳过清理功能
+    Result := (DetectedInstallDir = '');
+  end;
 end;
 
 function GetCleanupSignature(): string;

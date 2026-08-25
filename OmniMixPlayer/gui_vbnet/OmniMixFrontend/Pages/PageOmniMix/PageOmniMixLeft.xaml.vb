@@ -1,4 +1,4 @@
-Imports System.Globalization
+﻿Imports System.Globalization
 Imports System.Text.Json
 
 Public Class PageOmniMixLeft
@@ -377,11 +377,25 @@ Public Class PageOmniMixLeft
     Private Shared Function CreateFrozenBitmap(Bytes As Byte()) As BitmapSource
         If Bytes Is Nothing OrElse Bytes.Length = 0 Then Throw New InvalidDataException("图片数据为空。")
         Using Stream As New MemoryStream(Bytes)
-            Dim Decoder = BitmapDecoder.Create(Stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad)
-            If Decoder.Frames.Count = 0 Then Throw New InvalidDataException("图片不包含可解码的帧。")
-            Dim Bitmap As New WriteableBitmap(Decoder.Frames(0))
-            Bitmap.Freeze()
-            Return Bitmap
+            Try
+                Dim Decoder = BitmapDecoder.Create(Stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad)
+                If Decoder.Frames.Count > 0 Then
+                    Dim Bitmap As New WriteableBitmap(Decoder.Frames(0))
+                    Bitmap.Freeze()
+                    Return Bitmap
+                End If
+            Catch
+            End Try
+
+            Stream.Position = 0
+            Dim Bmp As New BitmapImage()
+            Bmp.BeginInit()
+            Bmp.CacheOption = BitmapCacheOption.OnLoad
+            Bmp.CreateOptions = BitmapCreateOptions.None
+            Bmp.StreamSource = Stream
+            Bmp.EndInit()
+            Bmp.Freeze()
+            Return Bmp
         End Using
     End Function
 
