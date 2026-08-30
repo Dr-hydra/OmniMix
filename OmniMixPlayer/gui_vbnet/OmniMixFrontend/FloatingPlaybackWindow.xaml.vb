@@ -67,6 +67,7 @@ Public Class FloatingPlaybackWindow
     End Sub
 
     Private Sub FloatingPlaybackWindow_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        TranslateVisualTree(Me)
         ApplyAppearance()
         If Not RestoreWindowPosition() Then MoveToDefaultPosition()
         IsWindowPositionInitialized = True

@@ -14,6 +14,7 @@ Public Class Settings
         New Setting("ToolDownloadThread", 63, Source:=Sources.Registry),
         New Setting("ToolDownloadSpeed", 42, Source:=Sources.Registry, OnChanged:=AddressOf ModNet.UpdateNetTaskSpeedLimitHigh),
         New Setting("UiLauncherTransparent", 100, OnChanged:=Sub(Value As Integer) If FrmMain IsNot Nothing Then FrmMain.UpdateWindowOpacity()),
+        New Setting("UiLanguage", "auto", Source:=Sources.Registry),
         New Setting("UiLauncherLogo", False),
         New Setting("UiLauncherTheme", 5, OnChanged:=AddressOf ThemeRefresh),
         New Setting("UiLauncherThemeHue", 210),

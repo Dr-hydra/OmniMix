@@ -23,7 +23,7 @@ Public Module OmniMixRawNodeRenderer
             Case "list"
                 Return RenderList(Node, BaseUrl, OnEvent)
             Case Else
-                Return RenderText(New OmniMixRawNodeData With {.Text = If(String.IsNullOrWhiteSpace(Node.Text), "暂不支持的节点：" & Node.NodeType, Node.Text)})
+                Return RenderText(New OmniMixRawNodeData With {.Text = If(String.IsNullOrWhiteSpace(Node.Text), If(IsEnglish, "Unsupported node: ", "暂不支持的节点：") & Node.NodeType, Node.Text)})
         End Select
     End Function
 
@@ -105,7 +105,7 @@ Public Module OmniMixRawNodeRenderer
         InputPanel.Children.Add(TextBox)
 
         Dim CommitButton As New MyButton With {
-            .Text = "确定",
+            .Text = TrSource("确定"),
             .Width = 54,
             .Height = 30,
             .Margin = New Thickness(8, 0, 0, 0),
@@ -123,7 +123,7 @@ Public Module OmniMixRawNodeRenderer
 
     Private Function RenderButton(Node As OmniMixRawNodeData, OnEvent As RawNodeEventHandler) As FrameworkElement
         Dim Button As New MyButton With {
-            .Text = If(String.IsNullOrWhiteSpace(Node.Text), "按钮", Node.Text),
+            .Text = If(String.IsNullOrWhiteSpace(Node.Text), TrSource("按钮"), Node.Text),
             .Padding = New Thickness(13, 0, 13, 0),
             .MinWidth = 120,
             .Height = 34,

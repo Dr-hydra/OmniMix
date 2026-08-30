@@ -8,6 +8,7 @@ Public Class Application
     Private Sub Application_Startup(sender As Object, e As StartupEventArgs) Handles Me.Startup
         Try
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)
+            LocalizationManager.Initialize()
             '提升主线程优先级
             Thread.CurrentThread.Priority = ThreadPriority.Highest
             '执行开发版测试

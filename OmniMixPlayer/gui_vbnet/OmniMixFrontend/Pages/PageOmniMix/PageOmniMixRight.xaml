@@ -515,6 +515,28 @@
                                 Margin="0,0,0,18"
                                 Visibility="Collapsed"
                                 Grid.IsSharedSizeScope="True">
+                        <local:MyCard Title="{DynamicResource Loc.Language.Name}" Margin="0,0,0,15">
+                            <Grid Margin="25,40,25,17">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Loc.Language.Description}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource ColorBrushGray3}"
+                                           Margin="0,0,24,0" />
+                                <local:MyComboBox x:Name="ComboUiLanguage"
+                                                  Grid.Column="1"
+                                                  Width="190"
+                                                  Height="32">
+                                    <local:MyComboBoxItem Content="{DynamicResource Loc.Language.Automatic}" Tag="auto" />
+                                    <local:MyComboBoxItem Content="{DynamicResource Loc.Language.Chinese}" Tag="zh-CN" />
+                                    <local:MyComboBoxItem Content="{DynamicResource Loc.Language.English}" Tag="en-US" />
+                                </local:MyComboBox>
+                            </Grid>
+                        </local:MyCard>
+
                         <local:MyCard Title="窗口与背景" Margin="0,0,0,15">
                             <Grid Margin="25,40,25,17">
                                 <Grid.ColumnDefinitions>

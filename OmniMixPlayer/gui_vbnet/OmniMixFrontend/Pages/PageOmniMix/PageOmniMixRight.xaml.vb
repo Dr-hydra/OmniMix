@@ -7,6 +7,8 @@ Imports Microsoft.Win32
 
 Public Class PageOmniMixRight
 
+    Private IsInitializingLanguageSelection As Boolean
+
     Private PageKey As String = "Home"
     Private InitialStatusText As String = ""
     Private HasCheckedBackend As Boolean = False
@@ -286,6 +288,8 @@ Public Class PageOmniMixRight
     End Sub
 
     Private Async Sub PageOmniMixRight_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        TranslateVisualTree(Me)
+        RefreshLanguageSelection()
         BtnBackendPathBrowse.Logo = Logo.IconButtonOpen
         BtnBackendPathReset.Logo = Logo.IconButtonRefresh
         CheckCloseBackendWithGui.Checked = Settings.Get(Of Boolean)("OmniMixCloseBackendWithGui")
@@ -311,6 +315,36 @@ Public Class PageOmniMixRight
 
     Private Sub CheckCloseBackendWithGui_Change(sender As Object, user As Boolean)
         If user Then Settings.Set("OmniMixCloseBackendWithGui", CheckCloseBackendWithGui.Checked)
+    End Sub
+
+    Private Sub RefreshLanguageSelection()
+        If ComboUiLanguage Is Nothing Then Return
+        IsInitializingLanguageSelection = True
+        Try
+            Dim ConfiguredLanguage = Settings.Get(Of String)("UiLanguage")
+            ComboUiLanguage.SelectedItem = ComboUiLanguage.Items.OfType(Of MyComboBoxItem)().FirstOrDefault(
+                Function(Item) String.Equals(If(Item.Tag, "").ToString(), ConfiguredLanguage, StringComparison.OrdinalIgnoreCase))
+            If ComboUiLanguage.SelectedItem Is Nothing Then ComboUiLanguage.SelectedIndex = 0
+        Finally
+            IsInitializingLanguageSelection = False
+        End Try
+    End Sub
+
+    Private Sub ComboUiLanguage_SelectionChanged(sender As Object, e As SelectionChangedEventArgs) Handles ComboUiLanguage.SelectionChanged
+        If IsInitializingLanguageSelection OrElse Not IsLoaded Then Return
+        Dim SelectedItem = TryCast(ComboUiLanguage.SelectedItem, MyComboBoxItem)
+        Dim SelectedLanguage = If(SelectedItem?.Tag, AutomaticLanguage).ToString()
+        If String.Equals(Settings.Get(Of String)("UiLanguage"), SelectedLanguage, StringComparison.OrdinalIgnoreCase) Then Return
+
+        Settings.Set("UiLanguage", SelectedLanguage)
+        If MyMsgBox(Tr("Language.RestartPrompt"), Tr("Language.RestartTitle"), Tr("Common.RestartNow"), Tr("Common.RestartLater")) <> 1 Then Return
+
+        Try
+            Process.Start(New ProcessStartInfo(PathExe, "--wait") With {.UseShellExecute = True})
+            FrmMain.EndProgram(False)
+        Catch Ex As Exception
+            Logger.Error(Ex, "重启 OmniMix GUI 以应用语言设置失败", LogBehavior.Toast)
+        End Try
     End Sub
 
     Private Sub CheckDesktopPlayerEnabled_Change(sender As Object, user As Boolean)
@@ -695,8 +729,10 @@ Public Class PageOmniMixRight
 
     Private Sub BtnBackendPathBrowse_Click(sender As Object, e As EventArgs) Handles BtnBackendPathBrowse.Click
         Using Dialog As New System.Windows.Forms.OpenFileDialog()
-            Dialog.Title = "选择 OmniMixPlayer.Backend.exe"
-            Dialog.Filter = "OmniMixPlayer.Backend.exe|OmniMixPlayer.Backend.exe|可执行文件|*.exe|所有文件|*.*"
+            Dialog.Title = TrSource("选择 OmniMixPlayer.Backend.exe")
+            Dialog.Filter = If(IsEnglish,
+                               "OmniMixPlayer.Backend.exe|OmniMixPlayer.Backend.exe|Executable files|*.exe|All files|*.*",
+                               "OmniMixPlayer.Backend.exe|OmniMixPlayer.Backend.exe|可执行文件|*.exe|所有文件|*.*")
             Dialog.CheckFileExists = True
             Dim CurrentPath = TxtBackendPath.Text.Trim()
             If File.Exists(CurrentPath) Then
@@ -757,7 +793,7 @@ Public Class PageOmniMixRight
 
     Private Sub BtnBrowseCachePath_Click(sender As Object, e As EventArgs) Handles BtnBrowseCachePath.Click
         Using Dialog As New System.Windows.Forms.FolderBrowserDialog()
-            Dialog.Description = "选择 OmniMix 全局缓存文件夹"
+            Dialog.Description = TrSource("选择 OmniMix 全局缓存文件夹")
             Dialog.ShowNewFolderButton = True
             Dim CurrentPath = TxtCachePath.Text.Trim()
             If Directory.Exists(CurrentPath) Then Dialog.SelectedPath = CurrentPath
@@ -950,8 +986,10 @@ Public Class PageOmniMixRight
 
     Private Sub BtnSelectBackgroundImage_Click(sender As Object, e As EventArgs) Handles BtnSelectBackgroundImage.Click
         Dim Dialog As New OpenFileDialog With {
-            .Filter = "图像文件 (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|所有文件 (*.*)|*.*",
-            .Title = "选择背景图片"
+            .Filter = If(IsEnglish,
+                         "Image files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All files (*.*)|*.*",
+                         "图像文件 (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|所有文件 (*.*)|*.*"),
+            .Title = TrSource("选择背景图片")
         }
         If Dialog.ShowDialog() = True Then
             Settings.Set("UiBackgroundImagePath", Dialog.FileName)
@@ -3607,8 +3645,8 @@ Public Class PageOmniMixRight
         End If
 
         Dim Dialog As New Microsoft.Win32.OpenFileDialog() With {
-            .Filter = "PNG 图片 (*.png)|*.png",
-            .Title = "选择用于替换电台徽标的 PNG 图片"
+            .Filter = If(IsEnglish, "PNG images (*.png)|*.png", "PNG 图片 (*.png)|*.png"),
+            .Title = TrSource("选择用于替换电台徽标的 PNG 图片")
         }
         If Dialog.ShowDialog() <> True Then Return
 
@@ -4412,7 +4450,7 @@ Public Class PageOmniMixRight
 
     Private Function SelectBetterEndfieldInstallCandidate(Candidates As IReadOnlyList(Of String)) As String
         Using Picker As New System.Windows.Forms.Form With {
-            .Text = "选择 Better Endfield 安装目录",
+            .Text = TrSource("选择 Better Endfield 安装目录"),
             .StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen,
             .Width = 720,
             .Height = 320,
@@ -4434,12 +4472,12 @@ Public Class PageOmniMixRight
                 .Padding = New System.Windows.Forms.Padding(8)
             }
             Dim ConfirmButton As New System.Windows.Forms.Button With {
-                .Text = "选择",
+                .Text = TrSource("选择"),
                 .DialogResult = System.Windows.Forms.DialogResult.OK,
                 .AutoSize = True
             }
             Dim CancelButton As New System.Windows.Forms.Button With {
-                .Text = "取消",
+                .Text = TrSource("取消"),
                 .DialogResult = System.Windows.Forms.DialogResult.Cancel,
                 .AutoSize = True
             }

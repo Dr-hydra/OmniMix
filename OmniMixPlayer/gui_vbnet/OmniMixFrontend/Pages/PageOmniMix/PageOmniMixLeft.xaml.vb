@@ -84,6 +84,7 @@ Public Class PageOmniMixLeft
     End Sub
 
     Private Sub PageOmniMixLeft_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
+        TranslateVisualTree(Me)
         RemoveHandler PlayerAutoRefreshTimer.Tick, AddressOf PlayerAutoRefreshTimer_Tick
         AddHandler PlayerAutoRefreshTimer.Tick, AddressOf PlayerAutoRefreshTimer_Tick
         RemoveHandler SeekDebounceTimer.Tick, AddressOf SeekDebounceTimer_Tick

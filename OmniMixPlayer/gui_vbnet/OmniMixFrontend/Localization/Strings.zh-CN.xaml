@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <sys:String x:Key="Loc.Language.Name">界面语言</sys:String>
+    <sys:String x:Key="Loc.Language.Description">选择 OmniMix GUI 使用的语言。更改后需要重启 GUI。</sys:String>
+    <sys:String x:Key="Loc.Language.Automatic">跟随系统</sys:String>
+    <sys:String x:Key="Loc.Language.Chinese">简体中文</sys:String>
+    <sys:String x:Key="Loc.Language.English">English</sys:String>
+    <sys:String x:Key="Loc.Language.RestartTitle">语言设置已保存</sys:String>
+    <sys:String x:Key="Loc.Language.RestartPrompt">新的界面语言将在下次启动 OmniMix GUI 时生效。</sys:String>
+    <sys:String x:Key="Loc.Common.OK">确定</sys:String>
+    <sys:String x:Key="Loc.Common.Cancel">取消</sys:String>
+    <sys:String x:Key="Loc.Common.RestartNow">立即重启</sys:String>
+    <sys:String x:Key="Loc.Common.RestartLater">稍后重启</sys:String>
+    <sys:String x:Key="Loc.Pattern.CollectionEmpty">{0}为空。</sys:String>
+    <sys:String x:Key="Loc.Pattern.CollectionCount">{0}中有 {1} 首曲目。</sys:String>
+    <sys:String x:Key="Loc.Pattern.InstanceCount">已读取 {0} 个播放实例；在线 {1} 个，可由后端控制 {2} 个。</sys:String>
+    <sys:String x:Key="Loc.Pattern.ArchiveCount">归档：{0} 个已保存实例归档。</sys:String>
+    <sys:String x:Key="Loc.Pattern.ModuleCount">已读取 {0} 个模块；当前已加载 {1} 个，配置为启用 {2} 个。</sys:String>
+    <sys:String x:Key="Loc.Pattern.LaunchpadCount">启动台：{0} 个模块快捷入口。</sys:String>
+    <sys:String x:Key="Loc.Pattern.LibraryCount">{0} 组，{1} 首歌曲。</sys:String>
+    <sys:String x:Key="Loc.Pattern.SearchCount">搜索“{0}”：{1} 组，{2} 首歌曲。</sys:String>
+</ResourceDictionary>

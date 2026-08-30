@@ -37,6 +37,7 @@ Since `3.0.7`, Releases no longer publish the VB.NET frontend executable as a st
 - Supports FH6 integration with both Steam and Xbox directory layouts.
 - Registers the Endfield music backend through the official Better Endfield CLI without copying files into its installation or game directories.
 - Provides personalization options, including background, opacity, theme colors, and HSL controls.
+- Supports system-language detection, Simplified Chinese, and English in the desktop GUI; language changes apply after restarting the GUI.
 
 The VB.NET UI layer is maintained alongside [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT), a reusable WPF UI kit extracted from this frontend work.
 
@@ -58,6 +59,13 @@ Installer:
 1. Run `OmniMixPlayer_V{version}_VBNet_installer.exe`.
 2. Complete the setup wizard.
 3. Start OmniMix from the Start menu or install directory.
+
+### Display Language
+
+Open Settings - Appearance - Display language and choose Use system language,
+Simplified Chinese, or English. The preference is stored for the current user and is
+applied after restarting the OmniMix GUI. Text supplied by a source module's RawNode
+page is controlled by that module and may not follow the GUI language.
 
 ### Game Integration
 

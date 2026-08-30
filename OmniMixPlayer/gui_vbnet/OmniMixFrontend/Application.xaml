@@ -10,6 +10,9 @@
     ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Localization/Strings.zh-CN.xaml" />
+            </ResourceDictionary.MergedDictionaries>
             
             <!-- Converter -->
             <corewpf:AdditionConverter x:Key="AdditionConverter"/>

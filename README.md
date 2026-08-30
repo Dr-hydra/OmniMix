@@ -29,6 +29,7 @@ English version: [README_EN.md](README_EN.md)
 - 支持 FH6 游戏集成，包括 Steam 与 Xbox 不同目录结构识别。
 - 支持通过 Better Endfield 官方 CLI 注册终末地音乐替换后端，不向其安装目录或游戏目录复制文件。
 - 提供个性化界面设置，包括背景、不透明度、主题色和 HSL 自定义。
+- 桌面 GUI 支持跟随系统语言、简体中文和 English；语言切换在重启 GUI 后生效。
 
 VB.NET 界面层与 [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT) 同步维护；QING.UIKIT 是从PCL2中整理出的可复用 WPF UI Kit。
 
@@ -48,6 +49,12 @@ VB.NET 界面层与 [QING.UIKIT](https://github.com/Dr-hydra/QING.UIKIT) 同步�
 1. 运行 `OmniMixPlayer_V{version}_VBNet_installer.exe`。
 2. 按向导完成安装。
 3. 从开始菜单或安装目录启动 OmniMix。
+
+### 界面语言
+
+进入“设置 - 个性化 - 界面语言”，可选择“跟随系统”“简体中文”或“English”。
+语言设置保存在当前用户配置中，并在重启 OmniMix GUI 后应用。音源模块自行返回的
+RawNode 页面文案由对应模块决定，可能不随 GUI 语言变化。
 
 ### 游戏集成
 

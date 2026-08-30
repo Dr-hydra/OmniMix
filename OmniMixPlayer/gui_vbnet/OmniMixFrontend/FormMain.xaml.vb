@@ -105,6 +105,7 @@ Public Class FormMain
 
     Private Sub FormMain_Loaded(sender As Object, e As RoutedEventArgs) Handles Me.Loaded
         ApplicationStartTick = GetTimeMs()
+        TranslateVisualTree(Me)
         Handle = New WindowInteropHelper(Me).Handle
         UpdateBackgroundAndTitleBar()
 
@@ -277,11 +278,11 @@ Public Class FormMain
     Private Sub EnsureOmniMixTrayIcon()
         If OmniMixTrayIcon IsNot Nothing Then Return
         OmniMixTrayMenu = New System.Windows.Forms.ContextMenuStrip()
-        Dim ShowItem = New System.Windows.Forms.ToolStripMenuItem("显示主窗口")
+        Dim ShowItem = New System.Windows.Forms.ToolStripMenuItem(TrSource("显示主窗口"))
         AddHandler ShowItem.Click, Sub() ShowOmniMixFromTray()
-        Dim FloatingItem = New System.Windows.Forms.ToolStripMenuItem("显示播放悬浮窗")
+        Dim FloatingItem = New System.Windows.Forms.ToolStripMenuItem(TrSource("显示播放悬浮窗"))
         AddHandler FloatingItem.Click, Sub() ToggleOmniMixFloatingPlaybackWindow()
-        Dim ExitItem = New System.Windows.Forms.ToolStripMenuItem("退出 OmniMix")
+        Dim ExitItem = New System.Windows.Forms.ToolStripMenuItem(TrSource("退出 OmniMix"))
         AddHandler ExitItem.Click, Sub() EndProgram(True)
         OmniMixTrayMenu.Items.Add(ShowItem)
         OmniMixTrayMenu.Items.Add(FloatingItem)
