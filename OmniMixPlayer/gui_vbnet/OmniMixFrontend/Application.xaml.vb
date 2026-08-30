@@ -1,4 +1,4 @@
-﻿Imports System.Reflection
+Imports System.Reflection
 Imports System.Windows.Threading
 Imports Microsoft.Win32
 
@@ -72,9 +72,9 @@ RetryCacheCheck:
                 CheckPermissionWithException(PathTemp)
             Catch ex As Exception
                 If String.Equals(PathTemp, Path.Combine(GetDefaultOmniMixCacheRoot(), "Frontend").TrimEnd("\"c) & "\", StringComparison.OrdinalIgnoreCase) Then
-                    MyMsgBox("OmniMix Player 无法访问缓存文件夹，可能导致程序出错或无法正常使用！" & vbCrLf & vbCrLf & "错误原因：" & ex.GetDisplay(True), "缓存文件夹不可用")
+                    MyMsgBox(TrSource("OmniMix Player 无法访问缓存文件夹，可能导致程序出错或无法正常使用！") & vbCrLf & vbCrLf & TrSource("错误原因：") & ex.GetDisplay(True), TrSource("缓存文件夹不可用"))
                 Else
-                    MyMsgBox("手动设置的缓存文件夹不可用，OmniMix Player 将使用默认缓存文件夹。" & vbCrLf & vbCrLf & "错误原因：" & ex.GetDisplay(True), "缓存文件夹不可用")
+                    MyMsgBox(TrSource("手动设置的缓存文件夹不可用，OmniMix Player 将使用默认缓存文件夹。") & vbCrLf & vbCrLf & TrSource("错误原因：") & ex.GetDisplay(True), TrSource("缓存文件夹不可用"))
                     Settings.Set("SystemSystemCache", "")
                     PathTemp = Path.Combine(GetDefaultOmniMixCacheRoot(), "Frontend").TrimEnd("\"c) & "\"
                     GoTo RetryCacheCheck
@@ -121,11 +121,11 @@ RetryCacheCheck:
             Logger.Info($"管理员权限：{SystemUtils.HasAdminRole()}")
             '检测异常环境
             If PathExeFolder.Contains(Path.GetTempPath()) OrElse PathExeFolder.Contains("AppData\Local\Temp\") Then
-                MyMsgBox("请将 OmniMix Player 从压缩包中解压后再使用！" & vbCrLf & "如果不会解压，可以在网上寻找教程。", "需要解压！", "我知道了", IsWarn:=True, ForceWait:=True)
+                MyMsgBox(TrSource("请将 OmniMix Player 从压缩包中解压后再使用！") & vbCrLf & TrSource("如果不会解压，可以在网上寻找教程。"), TrSource("需要解压！"), TrSource("我知道了"), IsWarn:=True, ForceWait:=True)
                 FormMain.EndProgramForce(ProcessReturnValues.Cancel)
             End If
             If Is32BitSystem Then
-                MyMsgBox("OmniMix Player 不再支持 32 位系统，部分功能将无法使用。" & vbCrLf & "非常建议重装为 64 位系统后再使用！", "环境警告", "我知道了", IsWarn:=True)
+                MyMsgBox(TrSource("OmniMix Player 不再支持 32 位系统，部分功能将无法使用。") & vbCrLf & TrSource("非常建议重装为 64 位系统后再使用！"), TrSource("环境警告"), TrSource("我知道了"), IsWarn:=True)
             End If
             '计时
             Logger.Info($"第一阶段加载用时：{GetTimeMs() - ApplicationStartTick} ms")

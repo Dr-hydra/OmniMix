@@ -802,7 +802,7 @@ namespace OmniMixPlayer.Module.Spotify
         {
             return new List<ModuleLinkEntry>
             {
-                new ModuleLinkEntry("devices", "选择设备", "speaker",
+                new ModuleLinkEntry("devices", "Select Device", "speaker",
                     "#1db954", "#ffffff",
                     svg: "spotify_icon.png")
             };
@@ -819,15 +819,15 @@ namespace OmniMixPlayer.Module.Spotify
             // 状态 2: 未登录
             if (!_bridge?.IsLoggedIn ?? true)
             {
-                var statusText = _isLoggingIn ? "正在准备 Spotify 授权..." : "点击下方按钮登录 Spotify";
+                var statusText = _isLoggingIn ? "Preparing Spotify authorization..." : "Click the button below to log in to Spotify";
                 var column = SlintUi.Column(spacing: 16, padding: 20)
                     .AddChild(SlintUi.Text("Spotify", fontSize: 18))
-                    .AddChild(SlintUi.Text("未登录", fontSize: 14))
+                    .AddChild(SlintUi.Text("Not Logged In", fontSize: 14))
                     .AddChild(SlintUi.Text(statusText, fontSize: 12, color: "#94a3b8"));
 
                 if (!_isLoggingIn)
                 {
-                    column.AddChild(SlintUi.Button("login_btn", "登录 Spotify", variant: "primary"));
+                    column.AddChild(SlintUi.Button("login_btn", "Log in to Spotify", variant: "primary"));
                 }
                 else if (!string.IsNullOrEmpty(_authorizationUrl))
                 {
@@ -836,13 +836,13 @@ namespace OmniMixPlayer.Module.Spotify
                         {
                             Id = "spotify_auth_url",
                             NodeType = "ExternalLink",
-                            Text = "打开 Spotify 授权页面",
+                            Text = "Open Spotify Authorization Page",
                             Value = _authorizationUrl,
                             ButtonVariant = "primary"
                         })
-                        .AddChild(SlintUi.Text("如果按钮无效，请复制下面的授权 URL 到浏览器。", fontSize: 11, color: "#94a3b8"))
-                        .AddChild(SlintUi.Input("spotify_auth_url_copy", "授权 URL", _authorizationUrl, inputType: "text"))
-                        .AddChild(SlintUi.Button("cancel_login_btn", "取消登录", variant: null));
+                        .AddChild(SlintUi.Text("If the button does not work, copy the authorization URL below into your browser.", fontSize: 11, color: "#94a3b8"))
+                        .AddChild(SlintUi.Input("spotify_auth_url_copy", "Authorization URL", _authorizationUrl, inputType: "text"))
+                        .AddChild(SlintUi.Button("cancel_login_btn", "Cancel Login", variant: null));
                 }
 
                 return column;
@@ -945,7 +945,7 @@ namespace OmniMixPlayer.Module.Spotify
             var devices = _cachedDevices ?? new List<SpotifyDevice>();
             if (index < 0 || index >= devices.Count)
             {
-                _deviceStatusText = "设备列表已过期，请刷新后重试。";
+                _deviceStatusText = "Device list expired. Please refresh and try again.";
                 PushUI?.Invoke(BuildDeviceListUI());
                 return;
             }
@@ -953,7 +953,7 @@ namespace OmniMixPlayer.Module.Spotify
             var device = devices[index];
             if (device.IsRestricted || string.IsNullOrEmpty(device.Id))
             {
-                _deviceStatusText = $"无法切换到 {device.Name ?? "Unknown"}：Spotify 标记该设备为受限。";
+                _deviceStatusText = $"Cannot switch to {device.Name ?? "Unknown"}: Spotify marked this device as restricted.";
                 PushUI?.Invoke(BuildDeviceListUI());
                 return;
             }
@@ -962,7 +962,7 @@ namespace OmniMixPlayer.Module.Spotify
             {
                 _activeDeviceId = device.Id;
                 _activeDeviceName = device.Name;
-                _deviceStatusText = $"{device.Name ?? "Unknown"} 已经是当前设备。";
+                _deviceStatusText = $"{device.Name ?? "Unknown"} is already the current device.";
                 await RefreshDevicesAndPushUI();
                 return;
             }
@@ -974,17 +974,17 @@ namespace OmniMixPlayer.Module.Spotify
                 {
                     _activeDeviceId = device.Id;
                     _activeDeviceName = device.Name;
-                    _deviceStatusText = $"已切换到 {device.Name ?? "Unknown"}。";
+                    _deviceStatusText = $"Switched to {device.Name ?? "Unknown"}.";
                     _logger.LogInformation("[Spotify] Transferred playback to device: {DeviceName}", device.Name);
                 }
                 else
                 {
-                    _deviceStatusText = $"切换到 {device.Name ?? "Unknown"} 失败，请确认账号为 Premium 且设备可用。";
+                    _deviceStatusText = $"Failed to switch to {device.Name ?? "Unknown"}. Ensure your account is Premium and the device is available.";
                 }
             }
             catch (Exception ex)
             {
-                _deviceStatusText = $"切换设备失败：{ex.Message}";
+                _deviceStatusText = $"Failed to switch device: {ex.Message}";
                 _logger.LogWarning("[Spotify] Failed to transfer playback to device {DeviceName}: {Message}", device.Name, ex.Message);
             }
 
@@ -995,23 +995,23 @@ namespace OmniMixPlayer.Module.Spotify
         {
             return SlintUi.Column(spacing: 16, padding: 20)
                 .AddChild(SlintUi.Text("Spotify", fontSize: 18))
-                .AddChild(SlintUi.Text("需要配置", fontSize: 14))
-                .AddChild(SlintUi.Text("请在下方输入您的 Spotify Client ID", fontSize: 12, color: "#94a3b8"))
+                .AddChild(SlintUi.Text("Configuration Required", fontSize: 14))
+                .AddChild(SlintUi.Text("Please enter your Spotify Client ID below", fontSize: 12, color: "#94a3b8"))
                 .AddChild(
-                    SlintUi.Input("config_client_id", "输入 Client ID...", inputType: "text")
+                    SlintUi.Input("config_client_id", "Enter Client ID...", inputType: "text")
                 )
-                .AddChild(SlintUi.Text("1. 访问 developer.spotify.com/dashboard 创建应用", fontSize: 10, color: "#94a3b8"))
-                .AddChild(SlintUi.Text("2. 复制 Client ID 并粘贴到上方", fontSize: 10, color: "#94a3b8"))
-                .AddChild(SlintUi.Text("3. 添加 Redirect URI 端口池:", fontSize: 10, color: "#94a3b8"))
+                .AddChild(SlintUi.Text("1. Visit developer.spotify.com/dashboard to create an app", fontSize: 10, color: "#94a3b8"))
+                .AddChild(SlintUi.Text("2. Copy Client ID and paste it above", fontSize: 10, color: "#94a3b8"))
+                .AddChild(SlintUi.Text("3. Add Redirect URIs:", fontSize: 10, color: "#94a3b8"))
                 .AddChild(SlintUi.Text(OAuthManager.DashboardRedirectUris, fontSize: 10, color: "#94a3b8"));
         }
 
         private SlintNode BuildUIWithStatus(string statusText = null)
         {
-            var displayName = _bridge?.Session?.DisplayName ?? "Spotify 用户";
+            var displayName = _bridge?.Session?.DisplayName ?? "Spotify User";
             var accountType = _bridge?.Session?.Product ?? "";
             var isPremium = _bridge?.Session?.IsPremium ?? false;
-            var deviceName = _activeDeviceName ?? "正在启动本地 Spotify Connect 设备...";
+            var deviceName = _activeDeviceName ?? "Starting local Spotify Connect device...";
 
             var column = SlintUi.Column(spacing: 16, padding: 20)
                 .AddChild(
@@ -1019,26 +1019,26 @@ namespace OmniMixPlayer.Module.Spotify
                         .AddChild(
                             SlintUi.Column(spacing: 4)
                                 .AddChild(SlintUi.Text("Spotify", fontSize: 18))
-                                .AddChild(SlintUi.Text("已登录", fontSize: 12, color: "#1db954"))
+                                .AddChild(SlintUi.Text("Logged In", fontSize: 12, color: "#1db954"))
                         )
                 )
-                .AddChild(SlintUi.Text("账户", fontSize: 16))
+                .AddChild(SlintUi.Text("Account", fontSize: 16))
                 .AddChild(
                     SlintUi.Column(spacing: 4)
                         .AddChild(SlintUi.Text(displayName, fontSize: 14))
                         .AddChild(SlintUi.Text(
-                            isPremium ? "Premium" : "Free (需要 Premium 才能控制播放)",
+                            isPremium ? "Premium" : "Free (Premium required for playback control)",
                             fontSize: 11,
                             color: isPremium ? "#1db954" : "#f59e0b"))
                 )
-                .AddChild(SlintUi.Text("本地 Spotify Connect 设备", fontSize: 16))
+                .AddChild(SlintUi.Text("Local Spotify Connect Device", fontSize: 16))
                 .AddChild(
                     SlintUi.Row(spacing: 8)
                         .AddChild(SlintUi.Text(deviceName, fontSize: 14))
-                        .AddChild(SlintUi.Button("open_devices", "查看状态 →", variant: null))
+                        .AddChild(SlintUi.Button("open_devices", "View Status →", variant: null))
                 )
                 .AddChild(
-                    SlintUi.Button("logout_btn", "退出登录", variant: "danger")
+                    SlintUi.Button("logout_btn", "Log Out", variant: "danger")
                 );
 
             if (!string.IsNullOrEmpty(statusText))
@@ -1072,13 +1072,13 @@ namespace OmniMixPlayer.Module.Spotify
                 ImageHeight = 64,
                 ImageFit = "contain"
             });
-            topSection.Children.Add(SlintUi.Text("本地 Spotify Connect PCM 设备", fontSize: 12, color: "#b3b3b3"));
+            topSection.Children.Add(SlintUi.Text("Local Spotify Connect PCM Device", fontSize: 12, color: "#b3b3b3"));
             topSection.Children.Add(SlintUi.Text("", fontSize: 4, color: "#000000")); // 间距
             topSection.Children.Add(SlintUi.Text(_activeDeviceName ?? "OmniMixPlayer", fontSize: 18, color: "#ffffff"));
             topSection.Children.Add(SlintUi.Text(
                 _nativeConnectReader?.IsReady == true
-                    ? "已连接 Spotify。也可以在手机 Spotify 中选择此设备。"
-                    : "正在连接 Spotify...",
+                    ? "Connected to Spotify. You can also select this device in Spotify on your mobile device."
+                    : "Connecting to Spotify...",
                 fontSize: 11,
                 color: "#b3b3b3"));
             column.Children.Add(topSection);
@@ -1094,7 +1094,7 @@ namespace OmniMixPlayer.Module.Spotify
                 if (devices.Count == 0)
                 {
                     middleSection.Children.Add(
-                        SlintUi.Text("没有发现可用设备，请先打开 Spotify 客户端或刷新。", fontSize: 12, color: "#b3b3b3")
+                        SlintUi.Text("No available devices found. Please open the Spotify client or refresh.", fontSize: 12, color: "#b3b3b3")
                     );
                 }
 
@@ -1108,9 +1108,9 @@ namespace OmniMixPlayer.Module.Spotify
 
                     var details = device.Type ?? "Device";
                     if (device.IsRestricted)
-                        details += " · 受限";
+                        details += " · Restricted";
                     if (isActive)
-                        details += " · 当前";
+                        details += " · Current";
 
                     var deviceRow = SlintUi.Row(spacing: 8, padding: 4);
                     deviceRow.CrossAxisAlignment = "center";
@@ -1136,7 +1136,7 @@ namespace OmniMixPlayer.Module.Spotify
             else
             {
                 middleSection.Children.Add(
-                    SlintUi.Text("请先登录后再使用", fontSize: 14, color: "#ffffff")
+                    SlintUi.Text("Please log in first", fontSize: 14, color: "#ffffff")
                 );
             }
             column.Children.Add(middleSection);
@@ -1151,7 +1151,7 @@ namespace OmniMixPlayer.Module.Spotify
                     {
                         NodeType = "Button",
                         Id = "refresh_devices_link",
-                        Text = "🔄 刷新设备",
+                        Text = "🔄 Refresh Devices",
                         ButtonVariant = "ghost"
                     })
             );

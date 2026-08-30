@@ -74,6 +74,7 @@ english.ServiceUpdateFailed=Failed to update the OmniMixPlayerBackend service pa
 english.InvalidOldInstallDir=The selected previous installation directory is not recognized as an OmniMixPlayer installation:
 english.DeleteOldInstallFailed=Failed to completely delete the previous installation directory. Close programs using this directory and try again:
 english.CleanupPathFailed=Failed to remove selected cleanup data. Close OmniMixPlayer and try again:
+english.InstallingVCRedist=Installing Visual C++ Redistributable...
 chinesesimplified.CleanupPageTitle=可选清理
 chinesesimplified.CleanupPageDescription=选择需要清理的旧版 OmniMixPlayer 数据
 chinesesimplified.CleanupPageSubCaption=所有选项默认不勾选。请只选择你明确需要删除的数据。
@@ -95,6 +96,7 @@ chinesesimplified.ServiceUpdateFailed=OmniMixPlayerBackend 服务路径更新失
 chinesesimplified.InvalidOldInstallDir=所选目录不是可识别的 OmniMixPlayer 安装目录：
 chinesesimplified.DeleteOldInstallFailed=无法完整删除原安装目录。请关闭正在使用该目录的程序后重试：
 chinesesimplified.CleanupPathFailed=无法删除所选清理数据。请关闭 OmniMixPlayer 后重试：
+chinesesimplified.InstallingVCRedist=正在安装 VC++ 运行库...
 
 [Files]
 ; ═══ 完整 VB 前端与上游后端包（VC 运行库单独处理） ═══
@@ -111,7 +113,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 ; VC++ 运行库 — 仅在未安装时运行
 Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/quiet /norestart"; \
-  StatusMsg: "正在安装 VC++ 运行库..."; Flags: waituntilterminated; \
+  StatusMsg: "{cm:InstallingVCRedist}"; Flags: waituntilterminated; \
   Check: ShouldInstallVCRedist
 
 ; 安装后启动 GUI

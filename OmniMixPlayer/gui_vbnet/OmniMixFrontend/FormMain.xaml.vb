@@ -98,8 +98,8 @@ Public Class FormMain
         ConfigureOmniMixLeft(PageType.Launch)
         FrmOmniMixHome.PageState = MyPageRight.PageStates.ContentStay
 
-        If BuildType = BuildTypes.Debug Then Hint("[开发者模式] OmniMix GUI 正在使用迁移版 WPF UI 框架运行。", HintType.Red)
-        If ModeDebug Then Hint("[调试模式] OmniMix GUI 正以调试模式运行，这可能会导致性能下降。")
+        If BuildType = BuildTypes.Debug Then Hint(TrSource("[开发者模式] OmniMix GUI 正在使用迁移版 WPF UI 框架运行。"), HintType.Red)
+        If ModeDebug Then Hint(TrSource("[调试模式] OmniMix GUI 正以调试模式运行，这可能会导致性能下降。"))
         Logger.Info($"第二阶段加载用时：{GetTimeMs() - ApplicationStartTick} ms")
     End Sub
 
@@ -524,11 +524,11 @@ Public Class FormMain
     End Sub
 
     Private Shared Function GetOmniMixInstanceDisplayName(Instance As OmniMixPlaybackInstanceInfo) As String
-        If Instance Is Nothing Then Return "未知实例"
-        If Not String.IsNullOrWhiteSpace(Instance.GameName) Then Return Instance.GameName
+        If Instance Is Nothing Then Return TrSource("未知实例")
+        If Not String.IsNullOrWhiteSpace(Instance.GameName) Then Return TrSource(Instance.GameName)
         If Not String.IsNullOrWhiteSpace(Instance.Id) Then Return Instance.Id
         If Not String.IsNullOrWhiteSpace(Instance.ClientId) Then Return Instance.ClientId
-        Return "未知实例"
+        Return TrSource("未知实例")
     End Function
 
     Private Sub UpdateOmniMixInstanceMenuLabel(Instance As OmniMixPlaybackInstanceInfo)
@@ -539,7 +539,7 @@ Public Class FormMain
         })
         Dim DisplayName = GetOmniMixInstanceDisplayName(Instance)
         LabOmniMixInstanceMenu.Inlines.Add(New Run(" " & DisplayName & " ▾"))
-        LabOmniMixInstanceMenu.ToolTip = DisplayName & If(Instance.Attached, "（在线）", "（离线）")
+        LabOmniMixInstanceMenu.ToolTip = DisplayName & If(Instance.Attached, TrSource("（在线）"), TrSource("（离线）"))
     End Sub
 
     Private Shared Function GetOmniMixGameAbbreviation(DisplayName As String) As String
@@ -574,7 +574,7 @@ Public Class FormMain
                 MenuItem.IsChecked = MenuInstance IsNot Nothing AndAlso String.Equals(MenuInstance.Id, Instance.Id, StringComparison.OrdinalIgnoreCase)
             Next
         Catch Ex As Exception
-            Hint("切换运行实例失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("切换运行实例失败：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -624,7 +624,7 @@ Public Class FormMain
         Dim FirstPath = FilePathList.FirstOrDefault()
         If String.IsNullOrWhiteSpace(FirstPath) Then Return
         Logger.Info("收到文件拖放：" & FirstPath)
-        Hint("当前版本暂未为拖放文件绑定操作。")
+        Hint(TrSource("当前版本暂未为拖放文件绑定操作。"))
     End Sub
 
     Private Function WndProc(hwnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr, ByRef handled As Boolean) As IntPtr
@@ -870,15 +870,15 @@ Public Class FormMain
 
             If ModStatus = OmniMixModInstallStatus.NeedsUpdate Then
                 RunInUi(Sub()
-                            Dim Title = "集成更新提示"
-                            Dim MsgText = $"检测到您的游戏【{Game.Name}】的集成 Mod 有可用更新。{vbCrLf}更新可优化控制体验，是否现在进行一键更新？"
-                            If MyMsgBox(MsgText, Title, "立刻更新", "暂不更新") = 1 Then
+                            Dim Title = TrSource("集成更新提示")
+                            Dim MsgText = String.Format(TrSource("检测到您的游戏【{0}】的集成 Mod 有可用更新。{1}更新可优化控制体验，是否现在进行一键更新？"), Game.Name, vbCrLf)
+                            If MyMsgBox(MsgText, Title, TrSource("立刻更新"), TrSource("暂不更新")) = 1 Then
                                 Task.Run(
                                     Async Sub()
                                         Try
                                             Dim Processes = System.Diagnostics.Process.GetProcessesByName("forzahorizon6")
                                             If Processes.Length > 0 Then
-                                                RunInUi(Sub() Hint("游戏正在运行，请先关闭游戏后再更新集成。", HintType.Red))
+                                                RunInUi(Sub() Hint(TrSource("游戏正在运行，请先关闭游戏后再更新集成。"), HintType.Red))
                                                 Exit Sub
                                             End If
 
@@ -887,16 +887,16 @@ Public Class FormMain
                                             Dim InstanceId = Await Task.Run(Function() OmniMixModDeploymentService.DeployMod(GamePath, ModInfo, BackendPort, Logs))
                                             
                                             If String.IsNullOrWhiteSpace(InstanceId) Then
-                                                RunInUi(Sub() Hint("一键更新失败，请在[游戏集成]页手动重试。", HintType.Red))
+                                                RunInUi(Sub() Hint(TrSource("一键更新失败，请在[游戏集成]页手动重试。"), HintType.Red))
                                             Else
                                                 Dim SavedVal = Settings.Get(Of String)("OmniMixFh6RaceStartPlayback")
                                                 If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
                                                 OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
                                                 
-                                                RunInUi(Sub() Hint("地平线 6 集成已一键更新至最新版本！", HintType.Green))
+                                                RunInUi(Sub() Hint(TrSource("地平线 6 集成已一键更新至最新版本！"), HintType.Green))
                                             End If
                                         Catch Ex As Exception
-                                            RunInUi(Sub() Hint("更新发生异常：" & Ex.Message, HintType.Red))
+                                            RunInUi(Sub() Hint(TrSource("更新发生异常：") & Ex.Message, HintType.Red))
                                         End Try
                                     End Sub)
                             End If

@@ -412,7 +412,7 @@ Public Module OmniMixModDeploymentService
     End Function
 
     Private Function FormatLayoutPath(Layout As OmniMixGameInstallLayout, PathValue As String) As String
-        If Layout Is Nothing OrElse String.IsNullOrWhiteSpace(PathValue) Then Return "未找到"
+        If Layout Is Nothing OrElse String.IsNullOrWhiteSpace(PathValue) Then Return TrSource("未找到")
         Try
             Dim BasePath = If(Not String.IsNullOrWhiteSpace(Layout.SelectedRoot), Layout.SelectedRoot, Layout.RuntimeDir)
             If Not String.IsNullOrWhiteSpace(BasePath) Then
@@ -431,14 +431,14 @@ Public Module OmniMixModDeploymentService
     Public Function GetGameInstallLayoutDescription(GamePath As String, Game As OmniMixGameDeclaration) As String
         Dim Layout = ResolveGameInstallLayout(GamePath, Game)
         If Not Layout.IsValid Then Return ""
-        Dim KindName = "标准结构"
+        Dim KindName = TrSource("标准结构")
         If String.Equals(Layout.Kind, "xbox", StringComparison.OrdinalIgnoreCase) Then
-            KindName = "Xbox 版结构"
+            KindName = TrSource("Xbox 版结构")
         ElseIf String.Equals(Layout.Kind, "steam", StringComparison.OrdinalIgnoreCase) Then
-            KindName = "Steam 版结构"
+            KindName = TrSource("Steam 版结构")
         End If
         If String.Equals(Game?.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
-            Return $"{KindName}（运行目录 {FormatLayoutPath(Layout, Layout.RuntimeDir)}；媒体目录 {FormatLayoutPath(Layout, Layout.MediaDir)}）"
+            Return $"{KindName}（" & TrSource("运行目录") & $" {FormatLayoutPath(Layout, Layout.RuntimeDir)}；" & TrSource("媒体目录") & $" {FormatLayoutPath(Layout, Layout.MediaDir)}）"
         End If
         Return KindName
     End Function

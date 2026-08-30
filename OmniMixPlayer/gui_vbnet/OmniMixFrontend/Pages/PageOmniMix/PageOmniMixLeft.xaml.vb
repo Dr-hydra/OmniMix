@@ -142,7 +142,7 @@ Public Class PageOmniMixLeft
             LabLeftPlaybackTrack.Text = EmptyTrackText
             LabLeftPlaybackMeta.Visibility = Visibility.Collapsed
             OmniMixSmtcService.UpdatePlayback(Nothing)
-            If ShowErrorHint Then Hint("播放状态读取失败：" & Ex.Message, HintType.Red)
+            If ShowErrorHint Then Hint(TrSource("播放状态读取失败：") & Ex.Message, HintType.Red)
         Finally
             IsRefreshingPlayer = False
         End Try
@@ -280,7 +280,7 @@ Public Class PageOmniMixLeft
             Case PlaybackMode.Shuffle
                 Return "随机"
             Case PlaybackMode.RepeatOne
-                Return "单曲循环"
+                Return TrSource("单曲循环")
             Case Else
                 Return "顺序播放"
         End Select
@@ -493,7 +493,7 @@ Public Class PageOmniMixLeft
             Await OmniMixApiClient.SendInstanceCommandAsync(CurrentBaseUrl, ActiveInstanceId, Command)
             RefreshPlayerAsync()
         Catch Ex As Exception
-            Hint("播放控制失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("播放控制失败：") & Ex.Message, HintType.Red)
         End Try
     End Function
 
@@ -531,10 +531,10 @@ Public Class PageOmniMixLeft
                     TaskRepeat = OmniMixApiClient.SetInstanceRepeatModeAsync(CurrentBaseUrl, ActiveInstanceId, "all")
             End Select
             Await System.Threading.Tasks.Task.WhenAll(TaskRepeat, TaskShuffle)
-            Hint("已切换为" & PlaybackModeText(TargetMode) & "。", HintType.Green)
+            Hint(String.Format(TrSource("已切换为{0}。"), PlaybackModeText(TargetMode)), HintType.Green)
             RefreshPlayerAsync()
         Catch Ex As Exception
-            Hint("播放模式切换失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("播放模式切换失败：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -545,18 +545,18 @@ Public Class PageOmniMixLeft
         UpdateDjButton()
 
         If String.IsNullOrWhiteSpace(CurrentBaseUrl) Then
-            Hint(If(ActiveDjEnabled, "DJ 模式已开启；连接后端后自动同步。", "DJ 模式已关闭。"), HintType.Blue)
+            Hint(If(ActiveDjEnabled, TrSource("DJ 模式已开启；连接后端后自动同步。"), TrSource("DJ 模式已关闭。")), HintType.Blue)
             Return
         End If
 
         Try
             Await OmniMixBackendManager.SyncDjSettingsAsync(CurrentBaseUrl)
-            Hint(If(ActiveDjEnabled, "DJ 模式已开启。", "DJ 模式已关闭。"), HintType.Green)
+            Hint(If(ActiveDjEnabled, TrSource("DJ 模式已开启。"), TrSource("DJ 模式已关闭。")), HintType.Green)
         Catch Ex As Exception
             ActiveDjEnabled = PreviousValue
             Settings.Set("OmniMixFh6DjEnabled", PreviousValue)
             UpdateDjButton()
-            Hint("DJ 模式切换失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("DJ 模式切换失败：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -591,7 +591,7 @@ Public Class PageOmniMixLeft
         Try
             Await OmniMixApiClient.SeekInstanceAsync(CurrentBaseUrl, ActiveInstanceId, TargetPosition)
         Catch Ex As Exception
-            Hint("进度调整失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("进度调整失败：") & Ex.Message, HintType.Red)
         Finally
             IsSendingSeek = False
             If PendingSeekPosition >= 0 Then SeekDebounceTimer.Start()
@@ -748,17 +748,17 @@ Public Class PageOmniMixLeft
 
         Select Case If(ModuleId, "").Trim().ToLowerInvariant()
             Case "netease", "chillpatcher.module.netease"
-                Return "网易云音乐"
+                Return TrSource("网易云音乐")
             Case "qqmusic", "qq_music", "chillpatcher.module.qqmusic"
-                Return "QQ音乐"
+                Return TrSource("QQ音乐")
             Case "spotify", "chillpatcher.module.spotify"
                 Return "Spotify"
             Case "localfolder", "local_folder", "chillpatcher.module.localfolder"
-                Return "本地文件夹"
+                Return TrSource("本地文件夹")
             Case "bilibili", "chillpatcher.module.bilibili"
-                Return "哔哩哔哩"
+                Return TrSource("哔哩哔哩")
             Case Else
-                Return NonEmpty(ModuleId, "未知来源")
+                Return NonEmpty(ModuleId, TrSource("未知来源"))
         End Select
     End Function
 

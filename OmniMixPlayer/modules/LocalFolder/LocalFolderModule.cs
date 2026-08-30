@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -445,7 +445,7 @@ namespace OmniMixPlayer.Module.LocalFolder
 
         public string GetDeleteConfirmMessage(string uuid)
         {
-            return "本地文件模块不支持删除操作";
+            return "Deleting is not supported by the local files module.";
         }
 
         #endregion
@@ -490,11 +490,11 @@ namespace OmniMixPlayer.Module.LocalFolder
                         var forceRescan = _context?.ConfigManager?.GetValue("ForceRescan", false) ?? false;
                         _scanner = new FolderScanner(value, forceRescan, _database, _context?.Logger);
 
-                        PushUI?.Invoke(BuildUIWithStatus("路径已更新，点击重新扫描"));
+                        PushUI?.Invoke(BuildUIWithStatus("Path updated, click Rescan to index"));
                     }
                     else if (!string.IsNullOrEmpty(value) && value != _dataPath)
                     {
-                        PushUI?.Invoke(BuildUIWithStatus("路径不存在: " + value));
+                        PushUI?.Invoke(BuildUIWithStatus("Path does not exist: " + value));
                     }
                     break;
             }
@@ -504,32 +504,32 @@ namespace OmniMixPlayer.Module.LocalFolder
         {
             try
             {
-                PushUI?.Invoke(BuildUIWithStatus("正在扫描..."));
+                PushUI?.Invoke(BuildUIWithStatus("Scanning..."));
                 await RefreshAsync();
-                PushUI?.Invoke(BuildUIWithStatus("扫描完成"));
+                PushUI?.Invoke(BuildUIWithStatus("Scan completed"));
             }
             catch (Exception ex)
             {
-                _context?.Logger.LogError(ex, "[{DisplayName}] 扫描失败", DisplayName);
-                PushUI?.Invoke(BuildUIWithStatus("扫描失败: " + ex.Message));
+                _context?.Logger.LogError(ex, "[{DisplayName}] Scan failed", DisplayName);
+                PushUI?.Invoke(BuildUIWithStatus("Scan failed: " + ex.Message));
             }
         }
 
         private SlintNode BuildUIWithStatus(string statusText = null)
         {
-            var rootFolder = _dataPath ?? "未设置";
+            var rootFolder = _dataPath ?? "Not configured";
             var musicCount = _context?.Library?.QueryTracks(new TrackQuery { ModuleId = ModuleId, Limit = 0 })?.Count ?? 0;
             var albumCount = _context?.Library?.QueryAlbums(new AlbumQuery { ModuleId = ModuleId, Limit = 0 })?.Count ?? 0;
 
             var column = SlintUi.Column(spacing: 16, padding: 20)
-                .AddChild(SlintUi.Text("本地文件夹", fontSize: 18))
-                .AddChild(SlintUi.Text("从本地文件夹加载音乐文件", fontSize: 12))
-                .AddChild(SlintUi.Text("设置", fontSize: 16))
+                .AddChild(SlintUi.Text("Local Folder", fontSize: 18))
+                .AddChild(SlintUi.Text("Load music files from local folders", fontSize: 12))
+                .AddChild(SlintUi.Text("Settings", fontSize: 16))
                 .AddChild(
                     SlintUi.Column(spacing: 4)
-                        .AddChild(SlintUi.Text("音乐文件夹", fontSize: 12, color: "#94a3b8"))
+                        .AddChild(SlintUi.Text("Music Folder", fontSize: 12, color: "#94a3b8"))
                         .AddChild(
-                            SlintUi.Input("root_folder", "输入文件夹路径...", rootFolder)
+                            SlintUi.Input("root_folder", "Enter folder path...", rootFolder)
                         )
                 )
                 .AddChild(
@@ -537,16 +537,16 @@ namespace OmniMixPlayer.Module.LocalFolder
                         .AddChild(
                             SlintUi.Column(spacing: 2)
                                 .AddChild(SlintUi.Text(musicCount.ToString(), fontSize: 16))
-                                .AddChild(SlintUi.Text("首歌曲", fontSize: 11, color: "#94a3b8"))
+                                .AddChild(SlintUi.Text(musicCount == 1 ? "track" : "tracks", fontSize: 11, color: "#94a3b8"))
                         )
                         .AddChild(
                             SlintUi.Column(spacing: 2)
                                 .AddChild(SlintUi.Text(albumCount.ToString(), fontSize: 16))
-                                .AddChild(SlintUi.Text("个专辑", fontSize: 11, color: "#94a3b8"))
+                                .AddChild(SlintUi.Text(albumCount == 1 ? "album" : "albums", fontSize: 11, color: "#94a3b8"))
                         )
                 )
                 .AddChild(
-                    SlintUi.Button("rescan_btn", "重新扫描")
+                    SlintUi.Button("rescan_btn", "Rescan")
                 );
 
             if (!string.IsNullOrEmpty(statusText))

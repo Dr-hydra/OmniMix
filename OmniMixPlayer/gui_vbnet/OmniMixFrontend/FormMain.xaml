@@ -136,8 +136,8 @@
                             <TextBlock x:Name="LabTitleLogo" Visibility="Collapsed" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" Foreground="White" FontSize="17" VerticalAlignment="Center" Margin="0,0,12,0" />
                             <StackPanel x:Name="PanOmniMixConnectionStatus" Visibility="Collapsed" Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock x:Name="LabOmniMixConnectionStatus" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" Foreground="White" FontSize="12" Opacity="0.72" VerticalAlignment="Center" />
-                                <Border x:Name="PanOmniMixInstanceMenu" Visibility="Collapsed" Margin="9,0,0,0" Padding="8,2" CornerRadius="4" Cursor="Hand" Background="#20FFFFFF" MouseLeftButtonUp="PanOmniMixInstanceMenu_MouseLeftButtonUp" MinWidth="76" MaxWidth="230">
-                                    <TextBlock x:Name="LabOmniMixInstanceMenu" Text="实例 ▾" Foreground="White" FontSize="12" Opacity="0.82" TextTrimming="CharacterEllipsis" />
+                                <Border x:Name="PanOmniMixInstanceMenu" Visibility="Collapsed" Margin="9,0,0,0" Padding="8,2" CornerRadius="4" Cursor="Hand" Background="#20FFFFFF" MouseLeftButtonUp="PanOmniMixInstanceMenu_MouseLeftButtonUp" MinWidth="50" MaxWidth="120">
+                                    <TextBlock x:Name="LabOmniMixInstanceMenu" Text="实例 ▾" Foreground="White" FontSize="12" Opacity="0.82" TextTrimming="CharacterEllipsis" MaxWidth="104" />
                                 </Border>
                             </StackPanel>
                             <local:MyImage x:Name="ImageTitleLogo" SnapsToDevicePixels="False" UseLayoutRounding="False" IsHitTestVisible="False" Margin="7" VerticalAlignment="Center" Visibility="Collapsed" />

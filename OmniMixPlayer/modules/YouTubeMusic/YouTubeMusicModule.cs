@@ -37,8 +37,8 @@ namespace OmniMixPlayer.Module.YouTubeMusic
         private readonly Dictionary<string, YouTubeMusicEntry> _entriesByUuid = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, (byte[] data, string mimeType)> _coverCache = new(StringComparer.OrdinalIgnoreCase);
         private CancellationTokenSource _refreshCts;
-        private string _statusText = "未导入";
-        private string _toolStatusText = "未检查";
+        private string _statusText = "Not imported";
+        private string _toolStatusText = "Not checked";
         private bool _isReady;
 
         public string ModuleId => ModuleInfo.MODULE_ID;
@@ -109,7 +109,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             {
                 _context.Library.UnregisterModule(ModuleId);
                 _entriesByUuid.Clear();
-                _statusText = "请先填写 YouTube 或 YouTube Music URL";
+                _statusText = "Please enter YouTube or YouTube Music URLs first";
                 PublishLibraryRefresh();
                 return;
             }
@@ -128,7 +128,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
                 foreach (var url in urls)
                 {
                     token.ThrowIfCancellationRequested();
-                    _statusText = $"正在导入 {url}";
+                    _statusText = $"Importing {url}";
                     PushUI?.Invoke(BuildUI());
 
                     var playlist = await _bridge.ImportAsync(
@@ -143,16 +143,16 @@ namespace OmniMixPlayer.Module.YouTubeMusic
                     totalTracks += playlist.Entries.Count;
                 }
 
-                _statusText = $"已导入 {totalPlaylists} 个来源，{totalTracks} 首歌曲";
+                _statusText = $"Imported {totalPlaylists} source(s), {totalTracks} track(s)";
             }
             catch (OperationCanceledException)
             {
-                _statusText = "导入已取消";
+                _statusText = "Import cancelled";
             }
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "[YouTubeMusic] Refresh failed");
-                _statusText = "导入失败：" + ex.Message;
+                _statusText = "Import failed: " + ex.Message;
             }
 
             PublishLibraryRefresh();
@@ -241,12 +241,12 @@ namespace OmniMixPlayer.Module.YouTubeMusic
                 .AddChild(SlintUi.Text("YouTube Music", fontSize: 18))
                 .AddChild(SlintUi.Text(_toolStatusText, fontSize: 12, color: ToolStatusColor()))
                 .AddChild(SlintUi.Text(_statusText, fontSize: 12, color: "#94a3b8"))
-                .AddChild(SlintUi.Text("导入来源", fontSize: 16))
+                .AddChild(SlintUi.Text("Import Sources", fontSize: 16))
                 .AddChild(SlintUi.Input(
                     "playlist_urls",
-                    "每行一个视频、播放列表或 music.youtube.com URL",
+                    "One video, playlist, or music.youtube.com URL per line",
                     urls))
-                .AddChild(SlintUi.Select("max_items", "每个来源最多导入", maxItems.ToString(), new List<SlintOption>
+                .AddChild(SlintUi.Select("max_items", "Max items per source", maxItems.ToString(), new List<SlintOption>
                 {
                     new("25", "25"),
                     new("50", "50"),
@@ -254,15 +254,15 @@ namespace OmniMixPlayer.Module.YouTubeMusic
                     new("200", "200"),
                     new("500", "500")
                 }))
-                .AddChild(SlintUi.Button("refresh_btn", "导入/刷新", variant: "primary"))
-                .AddChild(SlintUi.Text("播放工具", fontSize: 16))
-                .AddChild(SlintUi.Input("yt_dlp_path", "yt-dlp.exe 路径；留空则使用模块目录或 PATH", ytDlpPath))
-                .AddChild(SlintUi.Input("cookies_path", "cookies.txt 路径；公开内容可留空", cookiesPath))
-                .AddChild(SlintUi.Input("format_selector", "yt-dlp 格式选择器", formatSelector))
-                .AddChild(SlintUi.Switch("use_cache_path", "缓存解析后的音频文件", useCachePath))
-                .AddChild(SlintUi.Switch("import_on_startup", "启动后自动导入", importOnStartup))
-                .AddChild(SlintUi.Button("download_tool_btn", "下载/更新 yt-dlp", variant: null))
-                .AddChild(SlintUi.Button("check_tool_btn", "检查 yt-dlp", variant: null));
+                .AddChild(SlintUi.Button("refresh_btn", "Import / Refresh", variant: "primary"))
+                .AddChild(SlintUi.Text("Playback Tools", fontSize: 16))
+                .AddChild(SlintUi.Input("yt_dlp_path", "yt-dlp.exe path; leave empty to use module directory or PATH", ytDlpPath))
+                .AddChild(SlintUi.Input("cookies_path", "cookies.txt path; leave empty for public content", cookiesPath))
+                .AddChild(SlintUi.Input("format_selector", "yt-dlp format selector", formatSelector))
+                .AddChild(SlintUi.Switch("use_cache_path", "Cache resolved audio files", useCachePath))
+                .AddChild(SlintUi.Switch("import_on_startup", "Auto import on startup", importOnStartup))
+                .AddChild(SlintUi.Button("download_tool_btn", "Download / Update yt-dlp", variant: null))
+                .AddChild(SlintUi.Button("check_tool_btn", "Check yt-dlp", variant: null));
         }
 
         public SlintNode BuildSettingsUI() => BuildUI();
@@ -435,7 +435,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
         {
             try
             {
-                _toolStatusText = "正在下载 yt-dlp...";
+                _toolStatusText = "Downloading yt-dlp...";
                 PushUI?.Invoke(BuildUI());
                 await _bridge.DownloadYtDlpAsync(CancellationToken.None).ConfigureAwait(false);
                 await UpdateToolStatusAsync(CancellationToken.None).ConfigureAwait(false);
@@ -443,7 +443,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "[YouTubeMusic] yt-dlp download failed");
-                _toolStatusText = "yt-dlp 下载失败：" + ex.Message;
+                _toolStatusText = "yt-dlp download failed: " + ex.Message;
             }
             PushUI?.Invoke(BuildUI());
         }
@@ -451,7 +451,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
         private async Task UpdateToolStatusAsync(CancellationToken cancellationToken)
         {
             var status = await _bridge.CheckToolAsync(GetYtDlpPath(), cancellationToken).ConfigureAwait(false);
-            _toolStatusText = status.ok ? status.message : "yt-dlp 不可用：" + status.message;
+            _toolStatusText = status.ok ? status.message : "yt-dlp unavailable: " + status.message;
         }
 
         private string GetPlaylistUrls() => _context?.ConfigManager?.GetString(ConfigPlaylistUrls, "") ?? "";
@@ -487,7 +487,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
 
         private string ToolStatusColor()
         {
-            return _toolStatusText.StartsWith("yt-dlp 不可用", StringComparison.OrdinalIgnoreCase)
+            return _toolStatusText.StartsWith("yt-dlp unavailable", StringComparison.OrdinalIgnoreCase)
                 ? "#f97316"
                 : "#4caf50";
         }

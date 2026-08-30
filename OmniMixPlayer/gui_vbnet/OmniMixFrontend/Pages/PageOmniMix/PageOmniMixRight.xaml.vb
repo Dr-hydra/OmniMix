@@ -149,7 +149,7 @@ Public Class PageOmniMixRight
         CurrentLibraryPane = If(Pane, "")
         If PageKey <> "Library" Then Return
 
-        CardLibrary.Title = "音乐库"
+        CardLibrary.Title = TrSource("音乐库")
         LabPlaylistSourcesSummary.Visibility = Visibility.Collapsed
         PanPlaylistSources.Visibility = Visibility.Collapsed
         PanLibraryList.Visibility = Visibility.Visible
@@ -222,19 +222,19 @@ Public Class PageOmniMixRight
         Dim ShowEqualizer = String.Equals(CurrentSettingsPane, "equalizer", StringComparison.OrdinalIgnoreCase)
 
         If ShowInstances Then
-            CardSettings.Title = "设置 - 播放实例"
+            CardSettings.Title = TrSource("设置 - 播放实例")
         ElseIf ShowArchives Then
-            CardSettings.Title = "设置 - 归档"
+            CardSettings.Title = TrSource("设置 - 归档")
         ElseIf ShowEqualizer Then
-            CardSettings.Title = "设置 - 均衡器"
+            CardSettings.Title = TrSource("设置 - 均衡器")
         ElseIf ShowFloating Then
-            CardSettings.Title = "设置 - 悬浮窗"
+            CardSettings.Title = TrSource("设置 - 悬浮窗")
         ElseIf ShowPersonalization Then
-            CardSettings.Title = "设置 - 个性化"
+            CardSettings.Title = TrSource("设置 - 个性化")
         ElseIf ShowMaintenance Then
-            CardSettings.Title = "设置 - 初始化与缓存"
+            CardSettings.Title = TrSource("设置 - 初始化与缓存")
         Else
-            CardSettings.Title = "设置 - 后端配置"
+            CardSettings.Title = TrSource("设置 - 后端配置")
         End If
         LabSettingsSummary.Visibility = If(ShowConfig, Visibility.Visible, Visibility.Collapsed)
         PanSettingsConfig.Visibility = If(ShowConfig, Visibility.Visible, Visibility.Collapsed)
@@ -281,7 +281,7 @@ Public Class PageOmniMixRight
         Dim ShowUsage = String.Equals(CurrentAboutPane, "usage", StringComparison.OrdinalIgnoreCase)
         Dim ShowFeedback = String.Equals(CurrentAboutPane, "feedback", StringComparison.OrdinalIgnoreCase)
 
-        CardAbout.Title = If(ShowFeedback, "关于 - 问题反馈", If(ShowUsage, "关于 - 使用说明", "关于 - 项目介绍"))
+        CardAbout.Title = If(ShowFeedback, TrSource("关于 - 问题反馈"), If(ShowUsage, TrSource("关于 - 使用说明"), TrSource("关于 - 项目介绍")))
         CardAboutOverview.Visibility = If(ShowOverview, Visibility.Visible, Visibility.Collapsed)
         CardAboutUsage.Visibility = If(ShowUsage, Visibility.Visible, Visibility.Collapsed)
         CardAboutFeedback.Visibility = If(ShowFeedback, Visibility.Visible, Visibility.Collapsed)
@@ -452,13 +452,13 @@ Public Class PageOmniMixRight
                 LabQueueSummary.Visibility = Visibility.Collapsed
             End If
             If PageKey = "Settings" Then
-                LabSettingsSummary.Text = "后端未连接，暂时无法读取或保存配置。"
+                LabSettingsSummary.Text = TrSource("后端未连接，暂时无法读取或保存配置。")
                 Await RefreshServiceStatusAsync()
-                LabInstanceStats.Text = "实例统计：--"
+                LabInstanceStats.Text = TrSource("实例统计：--")
                 PanSettingsInstances.Children.Clear()
-                LabArchiveSummary.Text = "归档：后端未连接。"
+                LabArchiveSummary.Text = TrSource("归档：后端未连接。")
                 PanSettingsArchives.Children.Clear()
-                LabEqualizerSummary.Text = "均衡器：后端未连接。"
+                LabEqualizerSummary.Text = TrSource("均衡器：后端未连接。")
                 PanEqualizerPresets.Children.Clear()
                 PanEqualizerPoints.Children.Clear()
                 CurrentEqualizerInstanceId = ""
@@ -472,7 +472,7 @@ Public Class PageOmniMixRight
     Private Async Function RefreshSettingsAsync(BaseUrl As String) As Task
         If PageKey <> "Settings" Then Return
 
-        LabSettingsSummary.Text = "正在读取后端配置..."
+        LabSettingsSummary.Text = TrSource("正在读取后端配置...")
         PanSettingsInstances.Children.Clear()
 
         Try
@@ -481,7 +481,7 @@ Public Class PageOmniMixRight
             TxtBackendBind.Text = ConfigString(Config, "backend_bind", "127.0.0.1")
             Dim ConfiguredBackendPath = OmniMixBackendManager.GetConfiguredBackendPath()
             Dim DefaultBackendPath = OmniMixBackendManager.FindDefaultBackendExe()
-            TxtBackendPath.HintText = If(String.IsNullOrWhiteSpace(DefaultBackendPath), "OmniMixPlayer.Backend.exe", "默认：" & DefaultBackendPath)
+            TxtBackendPath.HintText = If(String.IsNullOrWhiteSpace(DefaultBackendPath), "OmniMixPlayer.Backend.exe", TrSource("默认：") & DefaultBackendPath)
             If Not String.IsNullOrWhiteSpace(ConfiguredBackendPath) AndAlso
                Not OmniMixPlatformService.ArePathsEqual(ConfiguredBackendPath, DefaultBackendPath) Then
                 TxtBackendPath.Text = ConfiguredBackendPath
@@ -500,12 +500,12 @@ Public Class PageOmniMixRight
             Dim Archives = Await OmniMixApiClient.GetArchivesAsync(BaseUrl)
             RenderSettingsStats(Stats, Instances, ConfigString(Config, "active_instance", ""))
             RenderSettingsArchives(Archives, Instances, ConfigString(Config, "active_instance", ""))
-            LabSettingsSummary.Text = "已读取后端配置。保存后会写入全局配置文件；端口和绑定地址通常需要重启后端后生效。"
+            LabSettingsSummary.Text = TrSource("已读取后端配置。保存后会写入全局配置文件；端口和绑定地址通常需要重启后端后生效。")
             SetSettingsPane(CurrentSettingsPane)
         Catch Ex As Exception
-            LabSettingsSummary.Text = "设置读取失败：" & Ex.Message
-            LabInstanceStats.Text = "实例统计：读取失败"
-            LabArchiveSummary.Text = "归档：读取失败"
+            LabSettingsSummary.Text = TrSource("设置读取失败：") & Ex.Message
+            LabInstanceStats.Text = TrSource("实例统计：读取失败")
+            LabArchiveSummary.Text = TrSource("归档：读取失败")
         End Try
     End Function
 
@@ -513,14 +513,13 @@ Public Class PageOmniMixRight
         Stats = If(Stats, New OmniMixInstanceStatsInfo)
         Instances = If(Instances, New List(Of OmniMixPlaybackInstanceInfo))
         FrmMain?.UpdateOmniMixInstanceMenu(Instances, ActiveInstanceConfigId)
-        LabInstanceStats.Text =
-            $"实例统计：{Stats.InstanceCount} 个实例，{Stats.AttachedAudioClients} 个在线音频端，{Stats.ControllerClients} 个控制端，队列合计 {Stats.TotalQueueItems} 首。"
+        LabInstanceStats.Text = String.Format(TrSource("实例统计：{0} 个实例，{1} 个在线音频端，{2} 个控制端，队列合计 {3} 首。"), Stats.InstanceCount, Stats.AttachedAudioClients, Stats.ControllerClients, Stats.TotalQueueItems)
 
         PanSettingsInstances.Children.Clear()
         If Instances.Count = 0 Then
             PanSettingsInstances.Children.Add(New MyListItem With {
-                .Title = "暂无播放实例",
-                .Info = "后端在线，但还没有音频实例连接。",
+                .Title = TrSource("暂无播放实例"),
+                .Info = TrSource("后端在线，但还没有音频实例连接。"),
                 .Height = 50,
                 .PaddingLeft = 8,
                 .Margin = New Thickness(0, 0, 0, 2),
@@ -533,17 +532,17 @@ Public Class PageOmniMixRight
         For Each Instance In Instances.OrderBy(Function(Item) Item.Id)
             Dim IsActive = String.Equals(Instance.Id, ActiveInstanceConfigId, StringComparison.OrdinalIgnoreCase)
             Dim InfoParts As New List(Of String)
-            If IsActive Then InfoParts.Add("当前")
-            InfoParts.Add(If(Instance.Attached, "在线", "离线"))
-            InfoParts.Add(If(Instance.IsServerManaged, "后端控制", "客户端控制"))
-            If Not String.IsNullOrWhiteSpace(Instance.GameName) Then InfoParts.Add(Instance.GameName)
+            If IsActive Then InfoParts.Add(TrSource("当前"))
+            InfoParts.Add(If(Instance.Attached, TrSource("在线"), TrSource("离线")))
+            InfoParts.Add(If(Instance.IsServerManaged, TrSource("后端控制"), TrSource("客户端控制")))
+            If Not String.IsNullOrWhiteSpace(Instance.GameName) Then InfoParts.Add(TrSource(Instance.GameName))
             If Not String.IsNullOrWhiteSpace(Instance.ModId) Then InfoParts.Add("Mod " & Instance.ModId)
-            If Instance.Attached AndAlso Not Instance.SharedMemoryReady Then InfoParts.Add("共享内存未就绪")
-            InfoParts.Add("音量 " & CInt(Math.Round(Instance.Volume * 100)) & "%")
-            InfoParts.Add("队列 " & Instance.QueueCount)
+            If Instance.Attached AndAlso Not Instance.SharedMemoryReady Then InfoParts.Add(TrSource("共享内存未就绪"))
+            InfoParts.Add(String.Format(TrSource("音量 {0}%"), CInt(Math.Round(Instance.Volume * 100))))
+            InfoParts.Add(String.Format(TrSource("队列 {0}"), Instance.QueueCount))
 
             Dim Item As New MyListItem With {
-                .Title = If(IsActive, "✓ ", "") & NonEmpty(Instance.GameName, NonEmpty(Instance.Id, Instance.ClientId)),
+                .Title = If(IsActive, "✓ ", "") & TrSource(NonEmpty(Instance.GameName, NonEmpty(Instance.Id, Instance.ClientId))),
                 .Info = String.Join(" · ", InfoParts),
                 .Height = 42,
                 .PaddingLeft = 8,
@@ -557,7 +556,7 @@ Public Class PageOmniMixRight
             Dim SelectButton As New MyIconButton With {
                 .Logo = Logo.IconButtonOpen,
                 .LogoScale = 1.05,
-                .ToolTip = If(IsActive, "当前实例", "设为当前实例"),
+                .ToolTip = If(IsActive, TrSource("当前实例"), TrSource("设为当前实例")),
                 .Tag = Instance,
                 .IsEnabled = Not IsActive
             }
@@ -567,7 +566,7 @@ Public Class PageOmniMixRight
             Dim EditButton As New MyIconButton With {
                 .Logo = Logo.IconButtonEdit,
                 .LogoScale = 0.95,
-                .ToolTip = "编辑实例元数据",
+                .ToolTip = TrSource("编辑实例元数据"),
                 .Tag = Instance
             }
             AddHandler EditButton.Click, AddressOf SettingsInstanceMetaButton_Click
@@ -576,7 +575,7 @@ Public Class PageOmniMixRight
             Dim ArchiveButton As New MyIconButton With {
                 .Logo = Logo.IconButtonSave,
                 .LogoScale = 0.95,
-                .ToolTip = "保存实例归档",
+                .ToolTip = TrSource("保存实例归档"),
                 .Tag = Instance
             }
             AddHandler ArchiveButton.Click, AddressOf SettingsInstanceArchiveButton_Click
@@ -586,7 +585,7 @@ Public Class PageOmniMixRight
                 Dim DeleteButton As New MyIconButton With {
                     .Logo = Logo.IconButtonDelete,
                     .LogoScale = 0.95,
-                    .ToolTip = "删除离线实例",
+                    .ToolTip = TrSource("删除离线实例"),
                     .Tag = Instance
                 }
                 AddHandler DeleteButton.Click, AddressOf SettingsInstanceDeleteButton_Click
@@ -603,12 +602,12 @@ Public Class PageOmniMixRight
         Instances = If(Instances, New List(Of OmniMixPlaybackInstanceInfo))
 
         PanSettingsArchives.Children.Clear()
-        LabArchiveSummary.Text = $"归档：{Archives.Count} 个已保存实例归档。"
+        LabArchiveSummary.Text = String.Format(TrSource("归档：{0} 个已保存实例归档。"), Archives.Count)
 
         If Archives.Count = 0 Then
             PanSettingsArchives.Children.Add(New MyListItem With {
-                .Title = "暂无归档",
-                .Info = "可在上方实例列表中把当前播放实例保存为归档。",
+                .Title = TrSource("暂无归档"),
+                .Info = TrSource("可在上方实例列表中把当前播放实例保存为归档。"),
                 .Height = 42,
                 .PaddingLeft = 8,
                 .Margin = New Thickness(0, 0, 0, 2),
@@ -623,8 +622,8 @@ Public Class PageOmniMixRight
             Dim InfoParts As New List(Of String)
             If Not String.IsNullOrWhiteSpace(Archive.Mode) Then InfoParts.Add(Archive.Mode)
             If Not String.IsNullOrWhiteSpace(Archive.ModId) Then InfoParts.Add(Archive.ModId)
-            InfoParts.Add("实例 " & NonEmpty(Archive.InstanceId, "--"))
-            If IsOnline Then InfoParts.Add("在线，暂不删除")
+            InfoParts.Add(TrSource("实例 ") & NonEmpty(Archive.InstanceId, "--"))
+            If IsOnline Then InfoParts.Add(TrSource("在线，暂不删除"))
             If Not String.IsNullOrWhiteSpace(Archive.ArchivedAt) Then InfoParts.Add(FormatArchiveTime(Archive.ArchivedAt))
 
             Dim Item As New MyListItem With {
@@ -642,7 +641,7 @@ Public Class PageOmniMixRight
             Dim InheritButton As New MyIconButton With {
                 .Logo = Logo.IconButtonOpen,
                 .LogoScale = 1.05,
-                .ToolTip = "应用到实例",
+                .ToolTip = TrSource("应用到实例"),
                 .Tag = Tuple.Create(Archive, ActiveInstanceConfigId)
             }
             AddHandler InheritButton.Click, AddressOf ArchiveInheritButton_Click
@@ -651,7 +650,7 @@ Public Class PageOmniMixRight
             Dim RenameButton As New MyIconButton With {
                 .Logo = Logo.IconButtonEdit,
                 .LogoScale = 0.95,
-                .ToolTip = "重命名归档",
+                .ToolTip = TrSource("重命名归档"),
                 .Tag = Archive
             }
             AddHandler RenameButton.Click, AddressOf ArchiveRenameButton_Click
@@ -661,7 +660,7 @@ Public Class PageOmniMixRight
                 Dim DeleteButton As New MyIconButton With {
                     .Logo = Logo.IconButtonDelete,
                     .LogoScale = 0.95,
-                    .ToolTip = "删除归档",
+                    .ToolTip = TrSource("删除归档"),
                     .Tag = Archive
                 }
                 AddHandler DeleteButton.Click, AddressOf ArchiveDeleteButton_Click
@@ -687,7 +686,7 @@ Public Class PageOmniMixRight
         Dim Port = TxtBackendPort.Text.Trim()
         Dim ParsedPort As Integer
         If Not Integer.TryParse(Port, ParsedPort) OrElse ParsedPort <= 0 OrElse ParsedPort >= 65536 Then
-            LabSettingsSummary.Text = "端口无效，请输入 1 到 65535 之间的数字。"
+            LabSettingsSummary.Text = TrSource("端口无效，请输入 1 到 65535 之间的数字。")
             Return
         End If
 
@@ -695,16 +694,16 @@ Public Class PageOmniMixRight
         Dim BackendPath = TxtBackendPath.Text.Trim()
         If Not String.IsNullOrWhiteSpace(BackendPath) Then
             If Not File.Exists(BackendPath) Then
-                LabSettingsSummary.Text = "后端程序不存在：" & BackendPath
+                LabSettingsSummary.Text = TrSource("后端程序不存在：") & BackendPath
                 Return
             End If
             If Not String.Equals(System.IO.Path.GetFileName(BackendPath), "OmniMixPlayer.Backend.exe", StringComparison.OrdinalIgnoreCase) Then
-                LabSettingsSummary.Text = "请选择 OmniMixPlayer.Backend.exe。"
+                LabSettingsSummary.Text = TrSource("请选择 OmniMixPlayer.Backend.exe。")
                 Return
             End If
         End If
         If String.IsNullOrWhiteSpace(Bind) Then
-            LabSettingsSummary.Text = "绑定地址不能为空。"
+            LabSettingsSummary.Text = TrSource("绑定地址不能为空。")
             Return
         End If
 
@@ -720,10 +719,10 @@ Public Class PageOmniMixRight
             }
             Await OmniMixApiClient.PutConfigRawAsync(CurrentBaseUrl, Updates)
             Await OmniMixApiClient.SaveConfigAsync(CurrentBaseUrl)
-            LabSettingsSummary.Text = "配置已保存。端口和绑定地址变更会在后端重启后生效。"
-            If ServiceUpdated Then LabSettingsSummary.Text &= vbCrLf & "后端服务路径已同步。"
+            LabSettingsSummary.Text = TrSource("配置已保存。端口和绑定地址变更会在后端重启后生效。")
+            If ServiceUpdated Then LabSettingsSummary.Text &= vbCrLf & TrSource("后端服务路径已同步。")
         Catch Ex As Exception
-            LabSettingsSummary.Text = "配置保存失败：" & Ex.Message
+            LabSettingsSummary.Text = TrSource("配置保存失败：") & Ex.Message
         End Try
     End Sub
 
@@ -748,16 +747,16 @@ Public Class PageOmniMixRight
     End Sub
 
     Private Async Sub BtnClearFrontendCache_Click(sender As Object, e As EventArgs) Handles BtnClearFrontendCache.Click
-        If MyMsgBox("确定要清理 OmniMix 的全部可再生成缓存吗？配置、登录信息、曲库数据库、播放列表和游戏备份不会被删除。正在使用的文件会保留。", "清理缓存", "清理", "取消") <> 1 Then Return
+        If MyMsgBox(TrSource("确定要清理 OmniMix 的全部可再生成缓存吗？配置、登录信息、曲库数据库、播放列表和游戏备份不会被删除。正在使用的文件会保留。"), TrSource("清理缓存"), TrSource("清理"), TrSource("取消")) <> 1 Then Return
 
         BtnClearFrontendCache.IsEnabled = False
         Try
             Await Task.Run(AddressOf ClearGlobalCache)
-            Hint("OmniMix 缓存已清理。", HintType.Green)
+            Hint(TrSource("OmniMix 缓存已清理。"), HintType.Green)
             Await RefreshCacheSizeAsync()
         Catch Ex As Exception
             Logger.Warn(Ex, "清理 OmniMix 缓存失败")
-            Hint("缓存清理失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("缓存清理失败：") & Ex.Message, HintType.Red)
         Finally
             BtnClearFrontendCache.IsEnabled = True
         End Try
@@ -772,7 +771,7 @@ Public Class PageOmniMixRight
         Dim Category = TryCast(Selected?.Tag, String)
         If String.IsNullOrWhiteSpace(Category) Then Return
         Dim DisplayName = If(CacheCategoryDisplayNames.ContainsKey(Category), CacheCategoryDisplayNames(Category), Category)
-        If MyMsgBox("确定要清理“" & DisplayName & "”缓存吗？正在使用的文件会保留。", "清理分类缓存", "清理", "取消") <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要清理「{0}」缓存吗？正在使用的文件会保留。"), DisplayName), TrSource("清理分类缓存"), TrSource("清理"), TrSource("取消")) <> 1 Then Return
 
         BtnClearCacheCategory.IsEnabled = False
         Try
@@ -781,11 +780,11 @@ Public Class PageOmniMixRight
                 Directory.CreateDirectory(System.IO.Path.Combine(PathTemp, "Cache", "Http"))
             End If
             Await RefreshCacheSizeAsync()
-            Dim Suffix = If(Result.SkippedLockedFileCount > 0, $"，保留 {Result.SkippedLockedFileCount} 个占用中文件", "")
-            Hint("已清理 " & DisplayName & " 缓存" & Suffix & "。", HintType.Green)
+            Dim Suffix = If(Result.SkippedLockedFileCount > 0, String.Format(TrSource("，保留 {0} 个占用中文件"), Result.SkippedLockedFileCount), "")
+            Hint(String.Format(TrSource("已清理 {0} 缓存{1}。"), DisplayName, Suffix), HintType.Green)
         Catch Ex As Exception
             Logger.Warn(Ex, "清理分类缓存失败：" & Category)
-            Hint("分类缓存清理失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("分类缓存清理失败：") & Ex.Message, HintType.Red)
         Finally
             BtnClearCacheCategory.IsEnabled = True
         End Try
@@ -808,7 +807,7 @@ Public Class PageOmniMixRight
     Private Async Sub BtnApplyCachePath_Click(sender As Object, e As EventArgs) Handles BtnApplyCachePath.Click
         Dim SelectedPath = TxtCachePath.Text.Trim()
         If String.IsNullOrWhiteSpace(SelectedPath) Then
-            Hint("请选择缓存文件夹，或点击恢复默认。", HintType.Blue)
+            Hint(TrSource("请选择缓存文件夹，或点击恢复默认。"), HintType.Blue)
             Return
         End If
         Try
@@ -827,10 +826,10 @@ Public Class PageOmniMixRight
             Await Task.Run(Sub() EnforceGlobalCacheLimit(SelectedPath, MaxBytes))
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
-            Hint("全局缓存设置已更新。" & DescribeCacheMigration(Migration), HintType.Green)
+            Hint(TrSource("全局缓存设置已更新。") & DescribeCacheMigration(Migration), HintType.Green)
         Catch Ex As Exception
             Logger.Warn(Ex, "更新缓存文件夹失败")
-            Hint("缓存文件夹不可用：" & Ex.Message, HintType.Red)
+            Hint(TrSource("缓存文件夹不可用：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -850,10 +849,10 @@ Public Class PageOmniMixRight
             Await SyncGlobalCacheSettingsAsync()
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
-            Hint("已恢复系统默认缓存文件夹。" & DescribeCacheMigration(Migration), HintType.Green)
+            Hint(TrSource("已恢复系统默认缓存文件夹。") & DescribeCacheMigration(Migration), HintType.Green)
         Catch Ex As Exception
             Logger.Warn(Ex, "恢复默认缓存文件夹失败")
-            Hint("默认缓存文件夹不可用：" & Ex.Message, HintType.Red)
+            Hint(TrSource("默认缓存文件夹不可用：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -903,9 +902,9 @@ Public Class PageOmniMixRight
 
     Private Shared Function DescribeCacheMigration(Result As CacheMigrationSummary) As String
         If Result Is Nothing OrElse Not Result.WasRequired Then Return ""
-        Dim Description = " 已迁移 " & Result.MovedFileCount & " 个缓存文件（" & FormatFileSize(Result.MovedBytes) & "）。"
+        Dim Description = String.Format(TrSource(" 已迁移 {0} 个缓存文件（{1}）。"), Result.MovedFileCount, FormatFileSize(Result.MovedBytes))
         If Result.RetainedFileCount > 0 Then
-            Description &= " 有 " & Result.RetainedFileCount & " 个正在使用或无法访问的旧缓存文件被保留。"
+            Description &= String.Format(TrSource(" 有 {0} 个正在使用或无法访问的旧缓存文件被保留。"), Result.RetainedFileCount)
         End If
         Return Description
     End Function
@@ -918,7 +917,7 @@ Public Class PageOmniMixRight
         If ComboCacheCategory.Items.Count = 0 Then
             For Each Category In OmniMixPlayer.SDK.Caching.CachePaths.KnownCategories
                 Dim DisplayName = If(CacheCategoryDisplayNames.ContainsKey(Category), CacheCategoryDisplayNames(Category), Category)
-                ComboCacheCategory.Items.Add(New MyComboBoxItem With {.Content = DisplayName, .Tag = Category})
+                ComboCacheCategory.Items.Add(New MyComboBoxItem With {.Content = TrSource(DisplayName), .Tag = Category})
             Next
             If ComboCacheCategory.Items.Count > 0 Then ComboCacheCategory.SelectedIndex = 0
         End If
@@ -929,9 +928,9 @@ Public Class PageOmniMixRight
         Dim Text = TxtCacheMaxGb.Text.Trim()
         If Not Double.TryParse(Text, NumberStyles.Float, CultureInfo.CurrentCulture, Value) AndAlso
            Not Double.TryParse(Text, NumberStyles.Float, CultureInfo.InvariantCulture, Value) Then
-            Throw New FormatException("最大总容量必须是有效的 GB 数值。")
+            Throw New FormatException(TrSource("最大总容量必须是有效的 GB 数值。"))
         End If
-        If Value < 0.25 OrElse Value > 1024 Then Throw New ArgumentOutOfRangeException(NameOf(Value), "最大总容量必须在 0.25 GB 到 1024 GB 之间。")
+        If Value < 0.25 OrElse Value > 1024 Then Throw New ArgumentOutOfRangeException(NameOf(Value), TrSource("最大总容量必须在 0.25 GB 到 1024 GB 之间。"))
         Return Math.Max(MinimumCacheBytes, CLng(Value * 1024.0 * 1024.0 * 1024.0))
     End Function
 
@@ -1012,20 +1011,20 @@ Public Class PageOmniMixRight
 
     Private Sub RefreshPersonalizationUi()
         If LabWindowOpacity Is Nothing Then Return
-        LabWindowOpacity.Text = "窗口不透明度：" & CInt(SliderWindowOpacity.Value) & "%"
-        LabControlOpacity.Text = "控件不透明度：" & CInt(SliderControlOpacity.Value) & "%"
-        LabBackgroundOpacity.Text = "背景图不透明度：" & CInt(SliderBackgroundOpacity.Value) & "%"
-        LabBackgroundClarity.Text = "背景清晰度：" & CInt(SliderBackgroundClarity.Value) & "%"
-        LabThemeHue.Text = "色调：" & CInt(SliderThemeHue.Value)
-        LabThemeSat.Text = "饱和度：" & CInt(SliderThemeSat.Value) & "%"
-        LabThemeLight.Text = "亮度微调：" & (CInt(SliderThemeLight.Value) - 20)
+        LabWindowOpacity.Text = TrSource("窗口不透明度：") & CInt(SliderWindowOpacity.Value) & "%"
+        LabControlOpacity.Text = TrSource("控件不透明度：") & CInt(SliderControlOpacity.Value) & "%"
+        LabBackgroundOpacity.Text = TrSource("背景图不透明度：") & CInt(SliderBackgroundOpacity.Value) & "%"
+        LabBackgroundClarity.Text = TrSource("背景清晰度：") & CInt(SliderBackgroundClarity.Value) & "%"
+        LabThemeHue.Text = TrSource("色调：") & CInt(SliderThemeHue.Value)
+        LabThemeSat.Text = TrSource("饱和度：") & CInt(SliderThemeSat.Value) & "%"
+        LabThemeLight.Text = TrSource("亮度微调：") & (CInt(SliderThemeLight.Value) - 20)
         CardCustomTheme.Visibility = If(Settings.Get(Of Integer)("UiLauncherTheme") = 14, Visibility.Visible, Visibility.Collapsed)
 
         Dim ImagePath = Settings.Get(Of String)("UiBackgroundImagePath")
         If String.IsNullOrWhiteSpace(ImagePath) OrElse ImagePath = "__default__" Then
-            LabBackgroundImagePath.Text = "使用默认背景图"
+            LabBackgroundImagePath.Text = TrSource("使用默认背景图")
         ElseIf ImagePath = "__solid__" Then
-            LabBackgroundImagePath.Text = "使用纯色背景"
+            LabBackgroundImagePath.Text = TrSource("使用纯色背景")
         Else
             LabBackgroundImagePath.Text = ImagePath
         End If
@@ -1038,26 +1037,26 @@ Public Class PageOmniMixRight
         Dim InitializeSources = CheckInitializeMusicSources.Checked
         Dim InitializeCache = CheckInitializeCache.Checked
         If Not InitializeSettings AndAlso Not InitializeBackend AndAlso Not InitializeLibrary AndAlso Not InitializeSources AndAlso Not InitializeCache Then
-            Hint("请至少选择一项初始化范围。", HintType.Blue)
+            Hint(TrSource("请至少选择一项初始化范围。"), HintType.Blue)
             Return
         End If
 
         Dim Scope As New List(Of String)
-        If InitializeSettings Then Scope.Add("前端设置")
-        If InitializeBackend Then Scope.Add("后端配置、实例与历史")
-        If InitializeLibrary Then Scope.Add("全部曲库")
-        If InitializeSources Then Scope.Add("音乐源登录与模块数据")
-        If InitializeCache Then Scope.Add("OmniMix 全部缓存")
-        Dim Prompt = "确定要初始化以下内容吗？" & vbCrLf & String.Join("、", Scope) & vbCrLf & vbCrLf &
-                     "此操作不可撤销；游戏集成安装状态会保留。"
-        If MyMsgBox(Prompt, "初始化所选内容", "初始化", "取消", IsWarn:=True) <> 1 Then Return
+        If InitializeSettings Then Scope.Add(TrSource("前端设置"))
+        If InitializeBackend Then Scope.Add(TrSource("后端配置、实例与历史"))
+        If InitializeLibrary Then Scope.Add(TrSource("全部曲库"))
+        If InitializeSources Then Scope.Add(TrSource("音乐源登录与模块数据"))
+        If InitializeCache Then Scope.Add(TrSource("OmniMix 全部缓存"))
+        Dim Prompt = TrSource("确定要初始化以下内容吗？") & vbCrLf & String.Join("、", Scope) & vbCrLf & vbCrLf &
+                     TrSource("此操作不可撤销；游戏集成安装状态会保留。")
+        If MyMsgBox(Prompt, TrSource("初始化所选内容"), TrSource("初始化"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         BtnInitializeSelected.IsEnabled = False
         Try
             Dim BackendRoots = Await GetInitializationBackendRootsAsync()
             Dim CacheRoots = GetInitializationCacheRoots()
             If (InitializeBackend OrElse InitializeLibrary OrElse InitializeSources) AndAlso BackendRoots.Count = 0 Then
-                Throw New DirectoryNotFoundException("未找到有效的 OmniMix 后端目录，无法初始化后端数据。")
+                Throw New DirectoryNotFoundException(TrSource("未找到有效的 OmniMix 后端目录，无法初始化后端数据。"))
             End If
             If InitializeBackend OrElse InitializeLibrary OrElse InitializeSources Then Await StopBackendForInitializationAsync(BackendRoots)
             If InitializeSettings Then
@@ -1078,10 +1077,10 @@ Public Class PageOmniMixRight
             If FrmMain IsNot Nothing Then FrmMain.UpdateBackgroundAndTitleBar()
             RefreshCachePathText()
             Await RefreshCacheSizeAsync()
-            Hint("所选内容已初始化，游戏集成安装状态已保留。", HintType.Green)
+            Hint(TrSource("所选内容已初始化，游戏集成安装状态已保留。"), HintType.Green)
         Catch Ex As Exception
             Logger.Warn(Ex, "初始化所选内容失败")
-            Hint("初始化失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("初始化失败：") & Ex.Message, HintType.Red)
         Finally
             BtnInitializeSelected.IsEnabled = True
         End Try
@@ -1297,18 +1296,18 @@ Public Class PageOmniMixRight
     End Sub
 
     Private Async Function RefreshCacheSizeAsync() As Task
-        LabCacheSummary.Text = "正在统计缓存大小..."
+        LabCacheSummary.Text = TrSource("正在统计缓存大小...")
         Try
             Dim Sizes = Await Task.Run(Function() GetGlobalCacheSizes())
             Dim Total = Sizes.Values.Sum()
             Dim Limit = Settings.Get(Of Long)("OmniMixCacheMaxBytes")
-            LabCacheSummary.Text = "当前 OmniMix 缓存：" & FormatFileSize(Total) & " / " & FormatFileSize(Limit)
+            LabCacheSummary.Text = String.Format(TrSource("当前 OmniMix 缓存：{0} / {1}"), FormatFileSize(Total), FormatFileSize(Limit))
             LabCacheDetails.Text = String.Join(" · ", Sizes.Where(Function(Item) Item.Value > 0).
                 OrderByDescending(Function(Item) Item.Value).
-                Select(Function(Item) Item.Key & " " & FormatFileSize(Item.Value)))
+                Select(Function(Item) TrSource(Item.Key) & " " & FormatFileSize(Item.Value)))
         Catch Ex As Exception
             Logger.Warn(Ex, "统计 OmniMix 缓存大小失败")
-            LabCacheSummary.Text = "缓存大小统计失败：" & Ex.Message
+            LabCacheSummary.Text = TrSource("缓存大小统计失败：") & Ex.Message
             LabCacheDetails.Text = ""
         End Try
     End Function
@@ -1364,11 +1363,11 @@ Public Class PageOmniMixRight
     Private Async Sub BtnBackendPathReset_Click(sender As Object, e As EventArgs) Handles BtnBackendPathReset.Click
         OmniMixBackendManager.SetConfiguredBackendPath("")
         Dim DefaultBackendPath = OmniMixBackendManager.FindDefaultBackendExe()
-        TxtBackendPath.HintText = If(String.IsNullOrWhiteSpace(DefaultBackendPath), "OmniMixPlayer.Backend.exe", "默认：" & DefaultBackendPath)
+        TxtBackendPath.HintText = If(String.IsNullOrWhiteSpace(DefaultBackendPath), "OmniMixPlayer.Backend.exe", TrSource("默认：") & DefaultBackendPath)
         TxtBackendPath.Text = ""
         LabSettingsSummary.Text = "已恢复为默认构建后端。"
         Dim ServiceUpdated = Await OmniMixPlatformService.UpdateServiceBinaryPathAsync(DefaultBackendPath)
-        If ServiceUpdated Then LabSettingsSummary.Text &= vbCrLf & "后端服务路径已同步。"
+        If ServiceUpdated Then LabSettingsSummary.Text &= vbCrLf & TrSource("后端服务路径已同步。")
         Await RefreshServiceStatusAsync()
     End Sub
 
@@ -1382,7 +1381,7 @@ Public Class PageOmniMixRight
             LabSettingsSummary.Text = "后端未连接，无需停止。"
             Return
         End If
-        If MyMsgBox("确定要停止 OmniMix 后端吗？停止后曲库、播放控制和模块 UI 会暂时不可用，可稍后点击「启动/重连」恢复。", "停止后端", "停止", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要停止 OmniMix 后端吗？停止后曲库、播放控制和模块 UI 会暂时不可用，可稍后点击「启动/重连」恢复。"), TrSource("停止后端"), TrSource("停止"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Try
             Dim StoppedUrl = CurrentBaseUrl
@@ -1397,7 +1396,7 @@ Public Class PageOmniMixRight
                 "可在设置页点击「启动/重连」重新启动或发现后端。"
             FrmMain?.SetOmniMixConnectionStatus(False)
             LabSettingsSummary.Text = "后端已停止。"
-            LabInstanceStats.Text = "实例统计：--"
+            LabInstanceStats.Text = TrSource("实例统计：--")
             PanSettingsInstances.Children.Clear()
             LabArchiveSummary.Text = "归档：后端已停止。"
             PanSettingsArchives.Children.Clear()
@@ -1407,10 +1406,10 @@ Public Class PageOmniMixRight
             CurrentEqualizerInstanceId = ""
             CurrentEqualizerState = Nothing
             CurrentEqualizerPresets.Clear()
-            Hint("OmniMix 后端已停止。", HintType.Green)
+            Hint(TrSource("OmniMix 后端已停止。"), HintType.Green)
         Catch Ex As Exception
             LabSettingsSummary.Text = "停止后端失败：" & Ex.Message
-            Hint("停止 OmniMix 后端失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("停止 OmniMix 后端失败：") & Ex.Message, HintType.Red)
         End Try
     End Sub
 
@@ -1461,33 +1460,33 @@ Public Class PageOmniMixRight
             LabServiceSummary.Text = "未找到 OmniMixPlayer.Backend.exe，无法安装服务。"
             Return
         End If
-        If MyMsgBox("将把 OmniMix 后端安装为 Windows 服务。这个操作可能会弹出 UAC 提权窗口。", "安装后端服务", "安装", "取消") <> 1 Then Return
+        If MyMsgBox(TrSource("将把 OmniMix 后端安装为 Windows 服务。这个操作可能会弹出 UAC 提权窗口。"), TrSource("安装后端服务"), TrSource("安装"), TrSource("取消")) <> 1 Then Return
 
         LabServiceSummary.Text = "正在安装后端服务..."
         Dim Success = Await OmniMixPlatformService.InstallServiceAsync()
-        Hint(If(Success, "后端服务已安装。", "后端服务安装失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("后端服务已安装。"), TrSource("后端服务安装失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshServiceStatusAsync()
     End Sub
 
     Private Async Sub BtnServiceUninstall_Click(sender As Object, e As EventArgs) Handles BtnServiceUninstall.Click
-        If MyMsgBox("确定要卸载 OmniMix 后端服务吗？这不会删除后端程序文件，但服务模式将不可用。", "卸载后端服务", "卸载", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要卸载 OmniMix 后端服务吗？这不会删除后端程序文件，但服务模式将不可用。"), TrSource("卸载后端服务"), TrSource("卸载"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         LabServiceSummary.Text = "正在卸载后端服务..."
         Dim Success = Await OmniMixPlatformService.UninstallServiceAsync()
-        Hint(If(Success, "后端服务已卸载。", "后端服务卸载失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("后端服务已卸载。"), TrSource("后端服务卸载失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshServiceStatusAsync()
     End Sub
 
     Private Async Sub BtnServiceStart_Click(sender As Object, e As EventArgs) Handles BtnServiceStart.Click
         LabServiceSummary.Text = "正在启动后端服务..."
         Dim Success = Await OmniMixPlatformService.StartServiceAsync()
-        Hint(If(Success, "后端服务启动命令已发送。", "后端服务启动失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("后端服务启动命令已发送。"), TrSource("后端服务启动失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshServiceStatusAsync()
         If Success Then Await DiscoverBackendAfterServiceStartAsync()
     End Sub
 
     Private Async Sub BtnServiceStop_Click(sender As Object, e As EventArgs) Handles BtnServiceStop.Click
-        If MyMsgBox("确定要停止 OmniMix 后端服务吗？停止后曲库、播放控制和模块 UI 会暂时不可用。", "停止后端服务", "停止", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要停止 OmniMix 后端服务吗？停止后曲库、播放控制和模块 UI 会暂时不可用。"), TrSource("停止后端服务"), TrSource("停止"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         LabServiceSummary.Text = "正在停止后端服务..."
         Dim Success = Await OmniMixPlatformService.StopServiceAsync()
@@ -1495,7 +1494,7 @@ Public Class PageOmniMixRight
             CurrentBaseUrl = ""
             FrmMain?.SetOmniMixConnectionStatus(False)
         End If
-        Hint(If(Success, "后端服务已停止。", "后端服务停止失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("后端服务已停止。"), TrSource("后端服务停止失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshServiceStatusAsync()
     End Sub
 
@@ -1508,7 +1507,7 @@ Public Class PageOmniMixRight
 
         Dim CurrentAutoStart = Await OmniMixPlatformService.IsServiceAutoStartAsync()
         Dim Success = Await OmniMixPlatformService.SetServiceAutoStartAsync(Not CurrentAutoStart)
-        Hint(If(Success, "服务自启动设置已更新。", "服务自启动设置失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("服务自启动设置已更新。"), TrSource("服务自启动设置失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshServiceStatusAsync()
     End Sub
 
@@ -1554,11 +1553,11 @@ Public Class PageOmniMixRight
             LabFeedbackLogStatus.Text = "正在收集并压缩日志..."
             Dim ArchivePath = CreateFeedbackLogArchive()
             LabFeedbackLogStatus.Text = "日志压缩完成：" & ArchivePath
-            Hint("日志压缩完成。", HintType.Green)
+            Hint(TrSource("日志压缩完成。"), HintType.Green)
             OpenExplorer(ArchivePath)
         Catch Ex As Exception
             LabFeedbackLogStatus.Text = "日志压缩失败：" & Ex.Message
-            Hint("日志压缩失败。", HintType.Red)
+            Hint(TrSource("日志压缩失败。"), HintType.Red)
             Logger.Warn(Ex, "压缩反馈日志失败")
         End Try
     End Sub
@@ -1697,11 +1696,11 @@ Public Class PageOmniMixRight
     Private Shared Function GetServiceStateText(State As OmniMixServiceState) As String
         Select Case State
             Case OmniMixServiceState.Running
-                Return "运行中"
+                Return TrSource("运行中")
             Case OmniMixServiceState.Installed
-                Return "已安装，未运行"
+                Return TrSource("已安装，未运行")
             Case Else
-                Return "未安装"
+                Return TrSource("未安装")
         End Select
     End Function
 
@@ -1721,10 +1720,10 @@ Public Class PageOmniMixRight
         Try
             Await OmniMixApiClient.SetActiveInstanceAsync(CurrentBaseUrl, Instance.Id)
             ActiveInstanceId = Instance.Id
-            LabInstanceStats.Text = "已设为当前实例：" & NonEmpty(Instance.GameName, Instance.Id)
+            LabInstanceStats.Text = TrSource("已设为当前实例：") & NonEmpty(Instance.GameName, Instance.Id)
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabInstanceStats.Text = "设置当前实例失败：" & Ex.Message
+            LabInstanceStats.Text = TrSource("设置当前实例失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1735,31 +1734,31 @@ Public Class PageOmniMixRight
 
         Dim GameName = MyMsgBoxInput(
             "编辑实例元数据",
-            "修改实例“" & Instance.Id & "”显示的游戏名称。",
+            String.Format(TrSource("修改实例「{0}」显示的游戏名称。"), Instance.Id),
             NonEmpty(Instance.GameName, Instance.Id),
-            HintText:="游戏名称")
+            HintText:=TrSource("游戏名称"))
         If GameName Is Nothing Then Return
 
         Dim ModId = MyMsgBoxInput(
             "编辑实例元数据",
-            "修改实例绑定的 Mod ID。",
+            TrSource("修改实例绑定的 Mod ID。"),
             If(Instance.ModId, ""),
             HintText:="Mod ID")
         If ModId Is Nothing Then Return
 
         Dim Mode = MyMsgBoxInput(
             "编辑实例元数据",
-            "修改实例模式。通常保持 ServerManaged 或 ClientManaged。",
+            TrSource("修改实例模式。通常保持 ServerManaged 或 ClientManaged。"),
             NonEmpty(Instance.Mode, "ServerManaged"),
             HintText:="ServerManaged / ClientManaged")
         If Mode Is Nothing Then Return
 
         Try
             Await OmniMixApiClient.SetInstanceMetaAsync(CurrentBaseUrl, Instance.Id, ModId.Trim(), GameName.Trim(), Mode.Trim())
-            LabInstanceStats.Text = "实例元数据已保存：" & NonEmpty(GameName, Instance.Id)
+            LabInstanceStats.Text = TrSource("实例元数据已保存：") & NonEmpty(GameName, Instance.Id)
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabInstanceStats.Text = "实例元数据保存失败：" & Ex.Message
+            LabInstanceStats.Text = TrSource("实例元数据保存失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1768,19 +1767,19 @@ Public Class PageOmniMixRight
         Dim Instance = TryCast(Button.Tag, OmniMixPlaybackInstanceInfo)
         If Instance Is Nothing OrElse String.IsNullOrWhiteSpace(CurrentBaseUrl) OrElse String.IsNullOrWhiteSpace(Instance.Id) Then Return
         If Instance.Attached Then
-            LabInstanceStats.Text = "实例仍在线，暂不删除。"
+            LabInstanceStats.Text = TrSource("实例仍在线，暂不删除。")
             Return
         End If
 
-        If MyMsgBox("确定要删除离线实例“" & NonEmpty(Instance.GameName, Instance.Id) & "”吗？此操作会删除该实例的后端记录。", "删除实例", "删除", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要删除离线实例「{0}」吗？此操作会删除该实例的后端记录。"), NonEmpty(Instance.GameName, Instance.Id)), TrSource("删除实例"), TrSource("删除"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Try
             Await OmniMixApiClient.DeleteInstanceAsync(CurrentBaseUrl, Instance.Id)
             If String.Equals(ActiveInstanceId, Instance.Id, StringComparison.OrdinalIgnoreCase) Then ActiveInstanceId = ""
-            LabInstanceStats.Text = "实例已删除：" & Instance.Id
+            LabInstanceStats.Text = TrSource("实例已删除：") & Instance.Id
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabInstanceStats.Text = "删除实例失败：" & Ex.Message
+            LabInstanceStats.Text = TrSource("删除实例失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1791,17 +1790,17 @@ Public Class PageOmniMixRight
 
         Dim Label = MyMsgBoxInput(
             "保存实例归档",
-            "将实例“" & Instance.Id & "”的当前播放列表、队列和均衡器设置保存为归档。",
+            String.Format(TrSource("将实例「{0}」的当前播放列表、队列和均衡器设置保存为归档。"), Instance.Id),
             NonEmpty(Instance.GameName, Instance.Id),
-            HintText:="归档名称")
+            HintText:=TrSource("归档名称"))
         If Label Is Nothing Then Return
 
         Try
             Await OmniMixApiClient.ArchiveInstanceAsync(CurrentBaseUrl, Instance.Id, Label)
-            LabArchiveSummary.Text = "已保存实例归档：" & NonEmpty(Label, Instance.Id)
+            LabArchiveSummary.Text = TrSource("已保存实例归档：") & NonEmpty(Label, Instance.Id)
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabArchiveSummary.Text = "保存实例归档失败：" & Ex.Message
+            LabArchiveSummary.Text = TrSource("保存实例归档失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1812,17 +1811,17 @@ Public Class PageOmniMixRight
 
         Dim Label = MyMsgBoxInput(
             "重命名归档",
-            "修改归档“" & Archive.DisplayName & "”的显示名称。",
+            String.Format(TrSource("修改归档「{0}」的显示名称。"), Archive.DisplayName),
             Archive.Label,
-            HintText:="归档名称")
+            HintText:=TrSource("归档名称"))
         If Label Is Nothing Then Return
 
         Try
             Await OmniMixApiClient.RenameArchiveAsync(CurrentBaseUrl, Archive.InstanceId, Label)
-            LabArchiveSummary.Text = "归档已重命名。"
+            LabArchiveSummary.Text = TrSource("归档已重命名。")
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabArchiveSummary.Text = "重命名归档失败：" & Ex.Message
+            LabArchiveSummary.Text = TrSource("重命名归档失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1845,18 +1844,18 @@ Public Class PageOmniMixRight
         End If
 
         Dim TargetId = MyMsgBoxInput(
-            "应用归档",
-            "输入要继承归档“" & Archive.DisplayName & "”的目标实例 ID。归档未绑定在线实例时可能会被消费；已绑定时会复制设置。",
+            TrSource("应用归档"),
+            String.Format(TrSource("输入要继承归档「{0}」的目标实例 ID。归档未绑定在线实例时可能会被消费；已绑定时会复制设置。"), Archive.DisplayName),
             If(DefaultTargetId, ""),
-            HintText:="目标实例 ID")
+            HintText:=TrSource("目标实例 ID"))
         If TargetId Is Nothing Then Return
         TargetId = TargetId.Trim()
         If String.IsNullOrWhiteSpace(TargetId) Then
-            LabArchiveSummary.Text = "目标实例 ID 不能为空。"
+            LabArchiveSummary.Text = TrSource("目标实例 ID 不能为空。")
             Return
         End If
 
-        If MyMsgBox("确定要把归档“" & Archive.DisplayName & "”应用到实例“" & TargetId & "”吗？", "应用归档", "应用", "取消") <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要把归档「{0}」应用到实例「{1}」吗？"), Archive.DisplayName, TargetId), TrSource(TrSource("应用归档")), TrSource("应用"), TrSource("取消")) <> 1 Then Return
 
         Try
             Dim Result = Await OmniMixApiClient.InheritFromArchiveAsync(CurrentBaseUrl, TargetId, Archive.InstanceId)
@@ -1865,10 +1864,10 @@ Public Class PageOmniMixRight
             If Result IsNot Nothing AndAlso Result.TryGetValue("consumed", ConsumedElement) AndAlso ConsumedElement.ValueKind = JsonValueKind.True Then
                 Consumed = True
             End If
-            LabArchiveSummary.Text = If(Consumed, "归档已消费并继承到实例：", "归档设置已复制到实例：") & TargetId
+            LabArchiveSummary.Text = If(Consumed, TrSource("归档已消费并继承到实例："), TrSource("归档设置已复制到实例：")) & TargetId
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabArchiveSummary.Text = "应用归档失败：" & Ex.Message
+            LabArchiveSummary.Text = TrSource("应用归档失败：") & Ex.Message
         End Try
     End Sub
 
@@ -1877,21 +1876,21 @@ Public Class PageOmniMixRight
         Dim Archive = TryCast(Button.Tag, OmniMixArchiveInfo)
         If Archive Is Nothing OrElse String.IsNullOrWhiteSpace(CurrentBaseUrl) OrElse String.IsNullOrWhiteSpace(Archive.InstanceId) Then Return
 
-        If MyMsgBox("确定要删除归档“" & Archive.DisplayName & "”吗？此操作不可撤销。", "删除归档", "删除", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要删除归档「{0}」吗？此操作不可撤销。"), Archive.DisplayName), TrSource("删除归档"), TrSource("删除"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Try
             Await OmniMixApiClient.DeleteArchiveAsync(CurrentBaseUrl, Archive.InstanceId)
-            LabArchiveSummary.Text = "归档已删除。"
+            LabArchiveSummary.Text = TrSource("归档已删除。")
             Await RefreshSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabArchiveSummary.Text = "删除归档失败：" & Ex.Message
+            LabArchiveSummary.Text = TrSource("删除归档失败：") & Ex.Message
         End Try
     End Sub
 
     Private Async Function RefreshEqualizerAsync(BaseUrl As String) As Task
         If PageKey <> "Settings" OrElse Not String.Equals(CurrentSettingsPane, "equalizer", StringComparison.OrdinalIgnoreCase) Then Return
 
-        LabEqualizerSummary.Text = "正在读取均衡器..."
+        LabEqualizerSummary.Text = TrSource("正在读取均衡器...")
         PanEqualizerPresets.Children.Clear()
         PanEqualizerPoints.Children.Clear()
         SetEqualizerButtonsEnabled(False)
@@ -1902,15 +1901,15 @@ Public Class PageOmniMixRight
                 CurrentEqualizerInstanceId = ""
                 CurrentEqualizerState = Nothing
                 CurrentEqualizerPresets.Clear()
-                LabEqualizerSummary.Text = "均衡器：暂无播放实例。等待游戏或音频端连接后可编辑。"
-                LabEqualizerGraphStatus.Text = "暂无可编辑实例"
+                LabEqualizerSummary.Text = TrSource("均衡器：暂无播放实例。等待游戏或音频端连接后可编辑。")
+                LabEqualizerGraphStatus.Text = TrSource("暂无可编辑实例")
                 LabEqualizerEnabled.Text = "-"
                 LabEqualizerGain.Text = "-"
                 LabEqualizerSoftClip.Text = "-"
                 CanvasEqualizerGraph.Children.Clear()
                 PanEqualizerPoints.Children.Add(New MyListItem With {
-                    .Title = "暂无可编辑实例",
-                    .Info = "后端在线，但还没有播放实例可用于读取均衡器。",
+                    .Title = TrSource("暂无可编辑实例"),
+                    .Info = TrSource("后端在线，但还没有播放实例可用于读取均衡器。"),
                     .Height = 50,
                     .PaddingLeft = 8,
                     .Margin = New Thickness(0, 0, 0, 4),
@@ -1932,7 +1931,7 @@ Public Class PageOmniMixRight
             CurrentEqualizerInstanceId = ""
             CurrentEqualizerState = Nothing
             CurrentEqualizerPresets.Clear()
-            LabEqualizerSummary.Text = "均衡器读取失败：" & Ex.Message
+            LabEqualizerSummary.Text = TrSource("均衡器读取失败：") & Ex.Message
             SetEqualizerButtonsEnabled(False)
         End Try
     End Function
@@ -1942,13 +1941,13 @@ Public Class PageOmniMixRight
         Presets = If(Presets, New Dictionary(Of String, OmniMixEqualizerStateInfo))
 
         SetEqualizerButtonsEnabled(True)
-        BtnEqualizerToggle.Text = If(State.Enabled, "禁用均衡器", "启用均衡器")
-        BtnEqualizerSoftClip.Text = If(State.SoftClipEnabled, "关闭软削波", "开启软削波")
-        LabEqualizerSummary.Text = $"实例 {NonEmpty(Instance.Id, Instance.ClientId)} · {BuildEqualizerStateInfo(State)}"
-        LabEqualizerGraphStatus.Text = NonEmpty(Instance.GameName, NonEmpty(Instance.Id, Instance.ClientId)) & " · " & State.Points.Count & " 个控制点"
-        LabEqualizerEnabled.Text = If(State.Enabled, "已启用", "未启用")
+        BtnEqualizerToggle.Text = If(State.Enabled, TrSource("禁用均衡器"), TrSource("启用均衡器"))
+        BtnEqualizerSoftClip.Text = If(State.SoftClipEnabled, TrSource("关闭软削波"), TrSource("开启软削波"))
+        LabEqualizerSummary.Text = String.Format(TrSource("实例 {0} · {1}"), NonEmpty(Instance.Id, Instance.ClientId), BuildEqualizerStateInfo(State))
+        LabEqualizerGraphStatus.Text = TrSource(NonEmpty(Instance.GameName, NonEmpty(Instance.Id, Instance.ClientId))) & String.Format(TrSource(" · {0} 个控制点"), State.Points.Count)
+        LabEqualizerEnabled.Text = If(State.Enabled, TrSource("已启用"), TrSource("未启用"))
         LabEqualizerGain.Text = FormatDb(State.GlobalGainDb)
-        LabEqualizerSoftClip.Text = If(State.SoftClipEnabled, "开启", "关闭")
+        LabEqualizerSoftClip.Text = If(State.SoftClipEnabled, TrSource("开启"), TrSource("关闭"))
         If Not State.Points.Any(Function(Item) String.Equals(Item.Id, EqualizerSelectedPointId, StringComparison.OrdinalIgnoreCase)) Then
             EqualizerSelectedPointId = If(State.Points.Count = 0, "", State.Points.OrderBy(Function(Item) Item.Frequency).First().Id)
         End If
@@ -1957,8 +1956,8 @@ Public Class PageOmniMixRight
         PanEqualizerPresets.Children.Clear()
         If Presets.Count = 0 Then
             PanEqualizerPresets.Children.Add(New MyListItem With {
-                .Title = "暂无预设",
-                .Info = "后端暂未返回均衡器预设。",
+                .Title = TrSource("暂无预设"),
+                .Info = TrSource("后端暂未返回均衡器预设。"),
                 .Height = 50,
                 .PaddingLeft = 8,
                 .Margin = New Thickness(0, 0, 0, 2),
@@ -1980,7 +1979,7 @@ Public Class PageOmniMixRight
                 Dim ApplyButton As New MyIconButton With {
                     .Logo = Logo.IconButtonOpen,
                     .LogoScale = 1.05,
-                    .ToolTip = "应用预设",
+                    .ToolTip = TrSource("应用预设"),
                     .Tag = Tuple.Create(Preset.Key, Preset.Value)
                 }
                 AddHandler ApplyButton.Click, AddressOf EqualizerPresetApplyButton_Click
@@ -1992,8 +1991,8 @@ Public Class PageOmniMixRight
         PanEqualizerPoints.Children.Clear()
         If State.Points.Count = 0 Then
             PanEqualizerPoints.Children.Add(New MyListItem With {
-                .Title = "暂无控制点",
-                .Info = "当前为平直响应，可添加控制点或应用预设。",
+                .Title = TrSource("暂无控制点"),
+                .Info = TrSource("当前为平直响应，可添加控制点或应用预设。"),
                 .Height = 56,
                 .PaddingLeft = 8,
                 .Margin = New Thickness(0, 0, 0, 4),
@@ -2018,7 +2017,7 @@ Public Class PageOmniMixRight
             Dim EditButton As New MyIconButton With {
                 .Logo = Logo.IconButtonEdit,
                 .LogoScale = 1.0,
-                .ToolTip = "编辑控制点",
+                .ToolTip = TrSource("编辑控制点"),
                 .Tag = Point
             }
             AddHandler EditButton.Click, AddressOf EqualizerPointEditButton_Click
@@ -2026,7 +2025,7 @@ Public Class PageOmniMixRight
             Dim DeleteButton As New MyIconButton With {
                 .Logo = Logo.IconButtonDelete,
                 .LogoScale = 1.0,
-                .ToolTip = "删除控制点",
+                .ToolTip = TrSource("删除控制点"),
                 .Tag = Point
             }
             AddHandler DeleteButton.Click, AddressOf EqualizerPointDeleteButton_Click
@@ -2228,7 +2227,7 @@ Public Class PageOmniMixRight
             }
             State.Points.Add(NewPoint)
             EqualizerSelectedPointId = NewPoint.Id
-            Await SaveEqualizerStateAsync(State, "已添加控制点。")
+            Await SaveEqualizerStateAsync(State, TrSource("已添加控制点。"))
             e.Handled = True
             Return
         End If
@@ -2279,7 +2278,7 @@ Public Class PageOmniMixRight
         CanvasEqualizerGraph.ReleaseMouseCapture()
         If IsEqualizerDragChanged Then
             IsEqualizerDragChanged = False
-            Await SaveEqualizerStateAsync(CloneEqualizerState(CurrentEqualizerState), "已更新控制点。")
+            Await SaveEqualizerStateAsync(CloneEqualizerState(CurrentEqualizerState), TrSource("已更新控制点。"))
         End If
         e.Handled = True
     End Sub
@@ -2404,7 +2403,7 @@ Public Class PageOmniMixRight
             Await RefreshEqualizerAsync(CurrentBaseUrl)
             If Not String.IsNullOrWhiteSpace(Message) Then LabEqualizerSummary.Text = Message & " " & LabEqualizerSummary.Text
         Catch Ex As Exception
-            LabEqualizerSummary.Text = "均衡器保存失败：" & Ex.Message
+            LabEqualizerSummary.Text = TrSource("均衡器保存失败：") & Ex.Message
         End Try
     End Function
 
@@ -2419,22 +2418,22 @@ Public Class PageOmniMixRight
     Private Async Sub BtnEqualizerToggle_Click(sender As Object, e As EventArgs) Handles BtnEqualizerToggle.Click
         Dim State = CloneEqualizerState(CurrentEqualizerState)
         State.Enabled = Not State.Enabled
-        Await SaveEqualizerStateAsync(State, If(State.Enabled, "已启用均衡器。", "已禁用均衡器。"))
+        Await SaveEqualizerStateAsync(State, If(State.Enabled, TrSource("已启用均衡器。"), TrSource("已禁用均衡器。")))
     End Sub
 
     Private Async Sub BtnEqualizerSoftClip_Click(sender As Object, e As EventArgs) Handles BtnEqualizerSoftClip.Click
         Dim State = CloneEqualizerState(CurrentEqualizerState)
         State.SoftClipEnabled = Not State.SoftClipEnabled
-        Await SaveEqualizerStateAsync(State, If(State.SoftClipEnabled, "已开启软削波。", "已关闭软削波。"))
+        Await SaveEqualizerStateAsync(State, If(State.SoftClipEnabled, TrSource("已开启软削波。"), TrSource("已关闭软削波。")))
     End Sub
 
     Private Async Sub BtnEqualizerGlobalGain_Click(sender As Object, e As EventArgs) Handles BtnEqualizerGlobalGain.Click
         Dim Gain As Double
-        If Not PromptEqualizerNumber("全局增益", "输入均衡器全局增益（dB）。", If(CurrentEqualizerState Is Nothing, 0, CurrentEqualizerState.GlobalGainDb), -24, 24, Gain) Then Return
+        If Not PromptEqualizerNumber(TrSource("全局增益"), TrSource("输入均衡器全局增益（dB）。"), If(CurrentEqualizerState Is Nothing, 0, CurrentEqualizerState.GlobalGainDb), -24, 24, Gain) Then Return
 
         Dim State = CloneEqualizerState(CurrentEqualizerState)
         State.GlobalGainDb = Gain
-        Await SaveEqualizerStateAsync(State, "已更新全局增益。")
+        Await SaveEqualizerStateAsync(State, TrSource("已更新全局增益。"))
     End Sub
 
     Private Async Sub BtnEqualizerAddPoint_Click(sender As Object, e As EventArgs) Handles BtnEqualizerAddPoint.Click
@@ -2442,11 +2441,11 @@ Public Class PageOmniMixRight
         If String.IsNullOrWhiteSpace(TypeValue) Then Return
 
         Dim Frequency As Double
-        If Not PromptEqualizerNumber("添加控制点", "输入频率（Hz）。", 1000, 20, 22000, Frequency) Then Return
+        If Not PromptEqualizerNumber(TrSource("添加控制点"), TrSource("输入频率（Hz）。"), 1000, 20, 22000, Frequency) Then Return
         Dim Gain As Double
-        If Not PromptEqualizerNumber("添加控制点", "输入增益（dB）。", 0, -24, 24, Gain) Then Return
+        If Not PromptEqualizerNumber(TrSource("添加控制点"), TrSource("输入增益（dB）。"), 0, -24, 24, Gain) Then Return
         Dim Q As Double
-        If Not PromptEqualizerNumber("添加控制点", "输入 Q 值。", 1, 0.1, 20, Q) Then Return
+        If Not PromptEqualizerNumber(TrSource("添加控制点"), TrSource("输入 Q 值。"), 1, 0.1, 20, Q) Then Return
 
         Dim State = CloneEqualizerState(CurrentEqualizerState)
         State.Points.Add(New OmniMixEqualizerPointInfo With {
@@ -2456,24 +2455,24 @@ Public Class PageOmniMixRight
             .Q = Q,
             .Type = TypeValue
         })
-        Await SaveEqualizerStateAsync(State, "已添加控制点。")
+        Await SaveEqualizerStateAsync(State, TrSource("已添加控制点。"))
     End Sub
 
     Private Async Sub BtnEqualizerReset_Click(sender As Object, e As EventArgs) Handles BtnEqualizerReset.Click
-        If MyMsgBox("确定要把当前实例的均衡器重置为平直响应吗？", "重置均衡器", "重置", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要把当前实例的均衡器重置为平直响应吗？"), TrSource("重置均衡器"), TrSource("重置"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Await SaveEqualizerStateAsync(New OmniMixEqualizerStateInfo With {
             .Enabled = True,
             .GlobalGainDb = 0,
             .SoftClipEnabled = True,
             .Points = New List(Of OmniMixEqualizerPointInfo)
-        }, "已重置为平直响应。")
+        }, TrSource("已重置为平直响应。"))
     End Sub
 
     Private Async Sub EqualizerPresetApplyButton_Click(sender As Object, e As EventArgs)
         Dim Button = CType(sender, MyIconButton)
         Dim Payload = CType(Button.Tag, Tuple(Of String, OmniMixEqualizerStateInfo))
-        Await SaveEqualizerStateAsync(CloneEqualizerState(Payload.Item2), "已应用预设“" & Payload.Item1 & "”。")
+        Await SaveEqualizerStateAsync(CloneEqualizerState(Payload.Item2), String.Format(TrSource("已应用预设「{0}」。"), Payload.Item1))
     End Sub
 
     Private Async Sub EqualizerPointEditButton_Click(sender As Object, e As EventArgs)
@@ -2504,17 +2503,17 @@ Public Class PageOmniMixRight
         Dim Button = CType(sender, MyIconButton)
         Dim Point = TryCast(Button.Tag, OmniMixEqualizerPointInfo)
         If Point Is Nothing Then Return
-        If MyMsgBox("确定要删除控制点“" & FormatFrequency(Point.Frequency) & "”吗？", "删除控制点", "删除", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要删除控制点「{0}」吗？"), FormatFrequency(Point.Frequency)), TrSource("删除控制点"), TrSource("删除"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Dim State = CloneEqualizerState(CurrentEqualizerState)
         State.Points.RemoveAll(Function(Item) String.Equals(Item.Id, Point.Id, StringComparison.OrdinalIgnoreCase))
-        Await SaveEqualizerStateAsync(State, "已删除控制点。")
+        Await SaveEqualizerStateAsync(State, TrSource("已删除控制点。"))
     End Sub
 
     Private Async Function RefreshPlaybackAsync(BaseUrl As String, Optional EnsureController As Boolean = True) As Task
         If PageKey <> "Home" Then Return
 
-        If EnsureController Then LabPlaybackSummary.Text = "正在注册 GUI 控制端并读取播放实例..."
+        If EnsureController Then LabPlaybackSummary.Text = TrSource("正在注册 GUI 控制端并读取播放实例...")
 
         Try
             Dim Instances = Await OmniMixApiClient.GetInstancesAsync(BaseUrl)
@@ -2523,7 +2522,7 @@ Public Class PageOmniMixRight
             ActiveInstanceId = If(ActiveInstance Is Nothing, "", ActiveInstance.Id)
             RenderPlayback(Instances, ActiveInstance)
             If ActiveInstance Is Nothing Then
-                ClearHomeLyrics("暂无歌词")
+                ClearHomeLyrics(TrSource("暂无歌词"))
             Else
                 Await EnsureHomeLyricsForTrackAsync(BaseUrl, ActiveInstance.CurrentTrack)
                 RenderHomeLyrics(ActiveInstance.Position)
@@ -2533,10 +2532,10 @@ Public Class PageOmniMixRight
         Catch Ex As Exception
             ActiveInstanceId = ""
             CanControlActiveInstance = False
-            LabPlaybackSummary.Text = "播放实例加载失败：" & Ex.Message
+            LabPlaybackSummary.Text = TrSource("播放实例加载失败：") & Ex.Message
             LabHomeInstance.Text = "播放实例加载失败：" & Ex.Message
             RenderPlayback(New List(Of OmniMixPlaybackInstanceInfo), Nothing)
-            ClearHomeLyrics("歌词等待中...")
+            ClearHomeLyrics(TrSource("歌词等待中..."))
             RenderQueueItems(New List(Of OmniMixQueueItemInfo), IsShowingHistory)
         End Try
     End Function
@@ -2558,7 +2557,7 @@ Public Class PageOmniMixRight
         FrmMain?.UpdateOmniMixInstanceMenu(Instances, If(ActiveInstance Is Nothing, "", ActiveInstance.Id))
         Dim AttachedCount = Instances.Where(Function(Instance) Instance.Attached).Count()
         Dim ServerCount = Instances.Where(Function(Instance) Instance.IsServerManaged).Count()
-        LabPlaybackSummary.Text = $"已读取 {Instances.Count} 个播放实例；在线 {AttachedCount} 个，可由后端控制 {ServerCount} 个。"
+        LabPlaybackSummary.Text = String.Format(TrSource("已读取 {0} 个播放实例；在线 {1} 个，可由后端控制 {2} 个。"), Instances.Count, AttachedCount, ServerCount)
 
         IsUpdatingPlaybackUi = True
         Try
@@ -2571,10 +2570,10 @@ Public Class PageOmniMixRight
 
             If ActiveInstance Is Nothing Then
                 CanControlActiveInstance = False
-                LabPlaybackTrack.Text = "没有曲目正在播放"
-                LabPlaybackMeta.Text = "后端已连接，但还没有可控制的音频实例。"
-                LabPlaybackInstance.Text = "GUI 控制端已注册；等待音频实例连接。"
-                LabPlaybackPosition.Text = "进度：--"
+                LabPlaybackTrack.Text = TrSource("没有曲目正在播放")
+                LabPlaybackMeta.Text = TrSource("后端已连接，但还没有可控制的音频实例。")
+                LabPlaybackInstance.Text = TrSource("GUI 控制端已注册；等待音频实例连接。")
+                LabPlaybackPosition.Text = TrSource("进度：--")
                 LabHomeTrack.Text = LabPlaybackTrack.Text
                 LabHomeMeta.Text = LabPlaybackMeta.Text
                 LabHomeInstance.Text = LabPlaybackInstance.Text
@@ -2588,33 +2587,33 @@ Public Class PageOmniMixRight
 
             Dim Track = ActiveInstance.CurrentTrack
             If Track Is Nothing OrElse (String.IsNullOrWhiteSpace(Track.Uuid) AndAlso String.IsNullOrWhiteSpace(Track.Title)) Then
-                LabPlaybackTrack.Text = If(ActiveInstance.IsPlaying, "正在播放", "暂无曲目")
-                LabPlaybackMeta.Text = "当前实例还没有曲目信息。"
+                LabPlaybackTrack.Text = If(ActiveInstance.IsPlaying, TrSource("正在播放"), TrSource("暂无曲目"))
+                LabPlaybackMeta.Text = TrSource("当前实例还没有曲目信息。")
             Else
                 LabPlaybackTrack.Text = NonEmpty(Track.Title, Track.Uuid)
                 Dim TrackParts As New List(Of String)
                 If Not String.IsNullOrWhiteSpace(Track.Artist) Then TrackParts.Add(Track.Artist)
                 If Track.Duration > 0 Then TrackParts.Add(FormatDuration(Track.Duration))
-                If Not String.IsNullOrWhiteSpace(Track.ModuleId) Then TrackParts.Add("来源 " & Track.ModuleId)
+                If Not String.IsNullOrWhiteSpace(Track.ModuleId) Then TrackParts.Add(TrSource("来源 ") & Track.ModuleId)
                 LabPlaybackMeta.Text = String.Join(" · ", TrackParts)
             End If
             LabHomeTrack.Text = LabPlaybackTrack.Text
             LabHomeMeta.Text = LabPlaybackMeta.Text
 
             Dim InstanceParts As New List(Of String) From {
-                "实例 " & NonEmpty(ActiveInstance.Id, ActiveInstance.ClientId),
-                If(ActiveInstance.Attached, "在线", "离线"),
-                If(ActiveInstance.IsServerManaged, "后端控制", "客户端控制"),
-                If(ActiveInstance.IsPlaying, "播放中", "已暂停")
+                TrSource("实例 ") & NonEmpty(ActiveInstance.Id, ActiveInstance.ClientId),
+                If(ActiveInstance.Attached, TrSource("在线"), TrSource("离线")),
+                If(ActiveInstance.IsServerManaged, TrSource("后端控制"), TrSource("客户端控制")),
+                If(ActiveInstance.IsPlaying, TrSource("播放中"), TrSource("已暂停"))
             }
-            If ActiveInstance.QueueCount > 0 Then InstanceParts.Add($"队列 {ActiveInstance.QueueIndex + 1}/{ActiveInstance.QueueCount}")
-            If ActiveInstance.HistoryCount > 0 Then InstanceParts.Add($"历史 {ActiveInstance.HistoryCount}")
-            If ActiveInstance.TargetLatency > 0 Then InstanceParts.Add($"延迟 {CInt(Math.Round(ActiveInstance.TargetLatency * 1000))} ms")
+            If ActiveInstance.QueueCount > 0 Then InstanceParts.Add(String.Format(TrSource("队列 {0}/{1}"), ActiveInstance.QueueIndex + 1, ActiveInstance.QueueCount))
+            If ActiveInstance.HistoryCount > 0 Then InstanceParts.Add(String.Format(TrSource("历史 {0}"), ActiveInstance.HistoryCount))
+            If ActiveInstance.TargetLatency > 0 Then InstanceParts.Add(String.Format(TrSource("延迟 {0} ms"), CInt(Math.Round(ActiveInstance.TargetLatency * 1000))))
             LabPlaybackInstance.Text = String.Join(" · ", InstanceParts)
             LabHomeInstance.Text = LabPlaybackInstance.Text
 
             Dim Duration = If(Track Is Nothing, 0, Track.Duration)
-            LabPlaybackPosition.Text = "进度：" & FormatDuration(ActiveInstance.Position) & If(Duration > 0, " / " & FormatDuration(Duration), "")
+            LabPlaybackPosition.Text = TrSource("进度：") & FormatDuration(ActiveInstance.Position) & If(Duration > 0, " / " & FormatDuration(Duration), "")
             LabHomePosition.Text = LabPlaybackPosition.Text
             Dim VolumeValue = CInt(Math.Max(0, Math.Min(100, Math.Round(ActiveInstance.Volume * 100))))
             SliderVolume.Value = VolumeValue
@@ -2627,7 +2626,7 @@ Public Class PageOmniMixRight
     Private Async Function EnsureHomeLyricsForTrackAsync(BaseUrl As String, Track As OmniMixTrackInfo) As Task
         Dim Uuid = If(Track?.Uuid, "")
         If String.IsNullOrWhiteSpace(Uuid) Then
-            ClearHomeLyrics("暂无歌词")
+            ClearHomeLyrics(TrSource("暂无歌词"))
             Return
         End If
         If String.Equals(CurrentHomeLyricUuid, Uuid, StringComparison.OrdinalIgnoreCase) Then Return
@@ -2640,7 +2639,7 @@ Public Class PageOmniMixRight
         End If
 
         LabHomeLyricPrevious.Text = ""
-        LabHomeLyricCurrent.Text = "歌词加载中..."
+        LabHomeLyricCurrent.Text = TrSource("歌词加载中...")
         LabHomeLyricNext.Text = ""
         Try
             Dim Lyric = Await OmniMixApiClient.GetTrackLyricAsync(BaseUrl, Uuid)
@@ -2804,15 +2803,15 @@ Public Class PageOmniMixRight
         Items = If(Items, New List(Of OmniMixQueueItemInfo))
         EnsureQueueToolbarIcons()
         UpdateQueueTabSelection(IsHistory)
-        BtnQueueTab.Text = "队列"
-        BtnHistoryTab.Text = "历史"
+        BtnQueueTab.Text = TrSource("队列")
+        BtnHistoryTab.Text = TrSource("历史")
         Dim CanEditQueue = Not String.IsNullOrWhiteSpace(CurrentBaseUrl) AndAlso Not String.IsNullOrWhiteSpace(ActiveInstanceId)
         BtnQueueClear.IsEnabled = CanEditQueue AndAlso Items.Count > 0
         BtnQueueClear.Opacity = If(BtnQueueClear.IsEnabled, 1, 0.35)
 
         Dim PaneName = If(IsHistory, "历史", "队列")
         LabQueueSummary.Visibility = Visibility.Visible
-        LabQueueSummary.Text = If(Items.Count = 0, PaneName & "为空。", $"{PaneName}中有 {Items.Count} 首曲目。")
+        LabQueueSummary.Text = If(Items.Count = 0, String.Format(TrSource("{0}为空。"), PaneName), String.Format(TrSource("{0}中有 {1} 首曲目。"), PaneName, Items.Count))
 
         Dim RenderKey = BuildQueueRenderKey(Items, IsHistory, CanEditQueue, CanControlActiveInstance)
         If String.Equals(CurrentQueueRenderKey, RenderKey, StringComparison.Ordinal) Then Return
@@ -2821,8 +2820,8 @@ Public Class PageOmniMixRight
 
         If Items.Count = 0 Then
             PanQueueList.Children.Add(New MyListItem With {
-                .Title = If(IsHistory, "没有历史曲目", "没有待播放曲目"),
-                .Info = If(IsHistory, "播放过的曲目会出现在这里。", "从音乐库选择歌曲后会出现在这里。"),
+                .Title = If(IsHistory, TrSource("没有历史曲目"), TrSource("没有待播放曲目")),
+                .Info = If(IsHistory, TrSource("播放过的曲目会出现在这里。"), TrSource("从音乐库选择歌曲后会出现在这里。")),
                 .Height = 64,
                 .PaddingLeft = 8,
                 .Margin = New Thickness(0, 0, 0, 2),
@@ -2867,7 +2866,7 @@ Public Class PageOmniMixRight
         Dim PlayButton As New MyIconButton With {
             .Logo = IconPlay,
             .LogoScale = 0.78,
-            .ToolTip = "播放",
+            .ToolTip = TrSource("播放"),
             .Tag = Item.Uuid,
             .IsEnabled = CanPlayQueueItem,
             .Opacity = If(CanPlayQueueItem, 1, 0.35)
@@ -2878,7 +2877,7 @@ Public Class PageOmniMixRight
             Dim MoveUpButton As New MyIconButton With {
                 .Logo = IconMoveUp,
                 .LogoScale = 0.82,
-                .ToolTip = "上移",
+                .ToolTip = TrSource("上移"),
                 .Tag = Tuple.Create(Item.Index, IsHistory, -1),
                 .IsEnabled = ListPosition > 0
             }
@@ -2888,7 +2887,7 @@ Public Class PageOmniMixRight
             Dim MoveDownButton As New MyIconButton With {
                 .Logo = IconMoveDown,
                 .LogoScale = 0.82,
-                .ToolTip = "下移",
+                .ToolTip = TrSource("下移"),
                 .Tag = Tuple.Create(Item.Index, IsHistory, 1),
                 .IsEnabled = ListPosition < TotalCount - 1
             }
@@ -2899,7 +2898,7 @@ Public Class PageOmniMixRight
                 .Logo = Logo.IconButtonDelete,
                 .LogoScale = 1,
                 .Theme = MyIconButton.Themes.Red,
-                .ToolTip = "从" & PaneName & "中移除",
+                .ToolTip = String.Format(TrSource("从{0}中移除"), PaneName),
                 .Tag = Tuple.Create(Item.Index, IsHistory)
             }
             AddHandler RemoveButton.Click, AddressOf QueueItemRemoveButton_Click
@@ -2927,14 +2926,14 @@ Public Class PageOmniMixRight
         Try
             If IsShowingHistory Then
                 Await OmniMixApiClient.ClearHistoryAsync(CurrentBaseUrl, ActiveInstanceId)
-                LabQueueSummary.Text = "历史已清空。"
+                LabQueueSummary.Text = TrSource("历史已清空。")
             Else
                 Await OmniMixApiClient.ClearQueueAsync(CurrentBaseUrl, ActiveInstanceId)
-                LabQueueSummary.Text = "队列已清空。"
+                LabQueueSummary.Text = TrSource("队列已清空。")
             End If
             Await RefreshPlaybackAsync(CurrentBaseUrl, False)
         Catch Ex As Exception
-            LabQueueSummary.Text = If(IsShowingHistory, "清空历史失败：", "清空队列失败：") & Ex.Message
+            LabQueueSummary.Text = If(IsShowingHistory, TrSource("清空历史失败："), TrSource("清空队列失败：")) & Ex.Message
         End Try
     End Sub
 
@@ -2960,14 +2959,14 @@ Public Class PageOmniMixRight
         Try
             If Payload.Item2 Then
                 Await OmniMixApiClient.RemoveHistoryItemAsync(CurrentBaseUrl, ActiveInstanceId, Payload.Item1)
-                LabQueueSummary.Text = "已从历史中移除曲目。"
+                LabQueueSummary.Text = TrSource("已从历史中移除曲目。")
             Else
                 Await OmniMixApiClient.RemoveQueueItemAsync(CurrentBaseUrl, ActiveInstanceId, Payload.Item1)
-                LabQueueSummary.Text = "已从队列中移除曲目。"
+                LabQueueSummary.Text = TrSource("已从队列中移除曲目。")
             End If
             Await RefreshPlaybackAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabQueueSummary.Text = If(Payload.Item2, "移除历史曲目失败：", "移除队列曲目失败：") & Ex.Message
+            LabQueueSummary.Text = If(Payload.Item2, TrSource("移除历史曲目失败："), TrSource("移除队列曲目失败：")) & Ex.Message
         End Try
     End Sub
 
@@ -2981,14 +2980,14 @@ Public Class PageOmniMixRight
         Try
             If Payload.Item2 Then
                 Await OmniMixApiClient.MoveHistoryItemAsync(CurrentBaseUrl, ActiveInstanceId, FromIndex, ToIndex)
-                LabQueueSummary.Text = "已调整历史曲目顺序。"
+                LabQueueSummary.Text = TrSource("已调整历史曲目顺序。")
             Else
                 Await OmniMixApiClient.MoveQueueItemAsync(CurrentBaseUrl, ActiveInstanceId, FromIndex, ToIndex)
-                LabQueueSummary.Text = "已调整队列曲目顺序。"
+                LabQueueSummary.Text = TrSource("已调整队列曲目顺序。")
             End If
             Await RefreshPlaybackAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabQueueSummary.Text = If(Payload.Item2, "调整历史顺序失败：", "调整队列顺序失败：") & Ex.Message
+            LabQueueSummary.Text = If(Payload.Item2, TrSource("调整历史顺序失败："), TrSource("调整队列顺序失败：")) & Ex.Message
         End Try
     End Sub
 
@@ -3042,7 +3041,7 @@ Public Class PageOmniMixRight
             Await OmniMixApiClient.SendInstanceCommandAsync(CurrentBaseUrl, ActiveInstanceId, Command)
             Await RefreshPlaybackAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            LabPlaybackSummary.Text = "播放控制失败：" & Ex.Message
+            LabPlaybackSummary.Text = TrSource("播放控制失败：") & Ex.Message
         End Try
     End Function
 
@@ -3074,9 +3073,9 @@ Public Class PageOmniMixRight
         LabPlaybackVolume.Text = SliderVolume.Value & "%"
         Try
             Await OmniMixApiClient.SetInstanceVolumeAsync(CurrentBaseUrl, ActiveInstanceId, Volume)
-            LabPlaybackSummary.Text = "已更新音量为 " & SliderVolume.Value & "%。"
+            LabPlaybackSummary.Text = String.Format(TrSource("已更新音量为 {0}%。"), SliderVolume.Value)
         Catch Ex As Exception
-            LabPlaybackSummary.Text = "音量保存失败：" & Ex.Message
+            LabPlaybackSummary.Text = TrSource("音量保存失败：") & Ex.Message
         End Try
     End Sub
 
@@ -3084,7 +3083,7 @@ Public Class PageOmniMixRight
         If PageKey <> "Modules" Then Return
 
         UpdatePluginPaneVisibility()
-        LabModulesSummary.Text = If(CurrentModulesPane = "game", "正在加载游戏集成状态...", If(CurrentModulesPane = "launchpad", "正在加载启动台...", If(CurrentModulesPane = "dj", "正在加载 DJ 设置...", "正在加载音源列表...")))
+        LabModulesSummary.Text = If(CurrentModulesPane = "game", TrSource("正在加载游戏集成状态..."), If(CurrentModulesPane = "launchpad", TrSource("正在加载启动台..."), If(CurrentModulesPane = "dj", TrSource("正在加载 DJ 设置..."), TrSource("正在加载音源列表..."))))
         PanModulesList.Children.Clear()
         PanLaunchpadList.Children.Clear()
         PanGameIntegrationList.Children.Clear()
@@ -3107,7 +3106,7 @@ Public Class PageOmniMixRight
                 End If
             End If
         Catch Ex As Exception
-            LabModulesSummary.Text = If(CurrentModulesPane = "game", "游戏集成状态加载失败：", If(CurrentModulesPane = "launchpad", "启动台加载失败：", If(CurrentModulesPane = "dj", "DJ 设置加载失败：", "音源列表加载失败："))) & Ex.Message
+            LabModulesSummary.Text = If(CurrentModulesPane = "game", TrSource("游戏集成状态加载失败："), If(CurrentModulesPane = "launchpad", TrSource("启动台加载失败："), If(CurrentModulesPane = "dj", TrSource("DJ 设置加载失败："), TrSource("音源列表加载失败：")))) & Ex.Message
         End Try
     End Function
 
@@ -3122,7 +3121,7 @@ Public Class PageOmniMixRight
         PanGameIntegrationList.Visibility = If(CurrentModulesPane = "game", Visibility.Visible, Visibility.Collapsed)
         PanDjSettingsList.Visibility = If(CurrentModulesPane = "dj", Visibility.Visible, Visibility.Collapsed)
         LabModulesSummary.Visibility = If(CurrentModulesPane = "dj", Visibility.Collapsed, Visibility.Visible)
-        CardModules.Title = If(CurrentModulesPane = "game", "音源管理 - 游戏集成", If(CurrentModulesPane = "launchpad", "音源管理 - 启动台", If(CurrentModulesPane = "dj", "音源管理 - DJ 模式", "音源管理")))
+        CardModules.Title = If(CurrentModulesPane = "game", TrSource("音源管理 - 游戏集成"), If(CurrentModulesPane = "launchpad", TrSource("音源管理 - 启动台"), If(CurrentModulesPane = "dj", TrSource("音源管理 - DJ 模式"), TrSource("音源管理"))))
     End Sub
 
     Private Sub BtnModulesTab_Click(sender As Object, e As EventArgs) Handles BtnModulesTab.Click
@@ -3171,43 +3170,43 @@ Public Class PageOmniMixRight
             HostCombo.Items.Add(Item)
             If Index = Host Then HostCombo.SelectedItem = Item
         Next
-        AddDjSettingRow(PanDjSettingsList, "主持人", "选择用于本地语音预混的 FH6 原版主持人。", HostCombo)
+        AddDjSettingRow(PanDjSettingsList, TrSource("主持人"), TrSource("选择用于本地语音预混的 FH6 原版主持人。"), HostCombo)
 
         Dim ScopeCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
-        Dim Fh6ScopeItem As New MyComboBoxItem With {.Content = "FH6 实例", .Tag = "fh6_instances"}
-        Dim DesktopScopeItem As New MyComboBoxItem With {.Content = "桌面实例", .Tag = "desktop_instances"}
+        Dim Fh6ScopeItem As New MyComboBoxItem With {.Content = TrSource("FH6 实例"), .Tag = "fh6_instances"}
+        Dim DesktopScopeItem As New MyComboBoxItem With {.Content = TrSource("桌面实例"), .Tag = "desktop_instances"}
         ScopeCombo.Items.Add(Fh6ScopeItem)
         ScopeCombo.Items.Add(DesktopScopeItem)
         ScopeCombo.SelectedItem = If(Scope = "desktop_instances", DesktopScopeItem, Fh6ScopeItem)
-        AddDjSettingRow(PanDjSettingsList, "作用域", "选择 DJ 预混的音频输出实例。", ScopeCombo)
+        AddDjSettingRow(PanDjSettingsList, TrSource("作用域"), TrSource("选择 DJ 预混的音频输出实例。"), ScopeCombo)
 
         Dim ContentCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
         Dim ContentOptions = {
-            Tuple.Create("智能选择", "smart"),
-            Tuple.Create("主持人闲聊", "chatter"),
-            Tuple.Create("入场转场", "transition_in"),
-            Tuple.Create("退场转场", "transition_out")
+            Tuple.Create(TrSource("智能选择"), "smart"),
+            Tuple.Create(TrSource("主持人闲聊"), "chatter"),
+            Tuple.Create(TrSource("入场转场"), "transition_in"),
+            Tuple.Create(TrSource("退场转场"), "transition_out")
         }
         For Each OptionItem In ContentOptions
             Dim Item As New MyComboBoxItem With {.Content = OptionItem.Item1, .Tag = OptionItem.Item2}
             ContentCombo.Items.Add(Item)
             If String.Equals(Content, OptionItem.Item2, StringComparison.OrdinalIgnoreCase) Then ContentCombo.SelectedItem = Item
         Next
-        AddDjSettingRow(PanDjSettingsList, "插播内容", "控制优先使用的安全语音类别。", ContentCombo)
+        AddDjSettingRow(PanDjSettingsList, TrSource("插播内容"), TrSource("控制优先使用的安全语音类别。"), ContentCombo)
 
         Dim FrequencyCombo As New MyComboBox With {.MinWidth = 260, .MaxWidth = 360, .Height = 32}
         Dim FrequencyOptions = {
-            Tuple.Create("每首一次", 1),
-            Tuple.Create("每 2 首一次", 2),
-            Tuple.Create("每 3 首一次", 3),
-            Tuple.Create("每 5 首一次", 5)
+            Tuple.Create(TrSource("每首一次"), 1),
+            Tuple.Create(TrSource("每 2 首一次"), 2),
+            Tuple.Create(TrSource("每 3 首一次"), 3),
+            Tuple.Create(TrSource("每 5 首一次"), 5)
         }
         For Each OptionItem In FrequencyOptions
             Dim Item As New MyComboBoxItem With {.Content = OptionItem.Item1, .Tag = OptionItem.Item2}
             FrequencyCombo.Items.Add(Item)
             If Frequency = OptionItem.Item2 Then FrequencyCombo.SelectedItem = Item
         Next
-        AddDjSettingRow(PanDjSettingsList, "插播频率", "按所选作用域的播放交接次数计算。", FrequencyCombo)
+        AddDjSettingRow(PanDjSettingsList, TrSource("插播频率"), TrSource("按所选作用域的播放交接次数计算。"), FrequencyCombo)
 
         AddHandler HostCombo.SelectionChanged, Async Sub()
                                                    If Not TypeOf HostCombo.SelectedItem Is MyComboBoxItem Then Return
@@ -3271,7 +3270,7 @@ Public Class PageOmniMixRight
         Try
             Await OmniMixBackendManager.SyncDjSettingsAsync(CurrentBaseUrl)
         Catch Ex As Exception
-            Hint("DJ 设置保存失败：" & Ex.Message, HintType.Red)
+            Hint(TrSource("DJ 设置保存失败：") & Ex.Message, HintType.Red)
         End Try
     End Function
 
@@ -3309,16 +3308,16 @@ Public Class PageOmniMixRight
                                           Dim FrameworkStatus = If(Game.SupportedFrameworks.Contains("bepinex_5"), OmniMixModDeploymentService.CheckBepInExStatus(GamePath), OmniMixBepInExStatus.NotInstalled)
                                           Return ModStatus = OmniMixModInstallStatus.NeedsUpdate OrElse FrameworkStatus = OmniMixBepInExStatus.NeedsUpdate
                                       End Function).Count()
-        LabModulesSummary.Text = $"游戏集成：{Games.Count} 个支持游戏，{AttachedCount} 个在线" & If(UpdateCount > 0, $"，{UpdateCount} 个可更新。", "。")
+        LabModulesSummary.Text = String.Format(TrSource("游戏集成：{0} 个支持游戏，{1} 个在线"), Games.Count, AttachedCount) & If(UpdateCount > 0, String.Format(TrSource("，{0} 个可更新。"), UpdateCount), TrSource("。"))
         FrmMain?.UpdateOmniMixInstanceMenu(Instances, ActiveInstanceId)
 
-        AddOmniMixSectionHeader(PanGameIntegrationList, "支持的游戏", "点击游戏查看目录、版本和集成操作。", 0)
+        AddOmniMixSectionHeader(PanGameIntegrationList, TrSource("支持的游戏"), TrSource("点击游戏查看目录、版本和集成操作。"), 0)
         For Each Game In Games
             AddGameIntegrationGameItem(Game, Instances)
         Next
 
         If DeploymentLogs.Count > 0 Then
-            AddOmniMixSectionHeader(PanGameIntegrationList, "最近部署", "游戏集成安装器最近执行的操作。", 12)
+            AddOmniMixSectionHeader(PanGameIntegrationList, TrSource("最近部署"), TrSource("游戏集成安装器最近执行的操作。"), 12)
             AddDeploymentLogControl(PanGameIntegrationList)
         End If
 
@@ -3339,7 +3338,7 @@ Public Class PageOmniMixRight
                                              (Not String.IsNullOrWhiteSpace(Instance.GameName) AndAlso Instance.GameName.IndexOf(Game.Name, StringComparison.OrdinalIgnoreCase) >= 0)
                                      End Function)
         Dim HasUpdate = ModStatus = OmniMixModInstallStatus.NeedsUpdate OrElse BepInExStatus = OmniMixBepInExStatus.NeedsUpdate
-        Dim StatusText = If(IsOnline, "🟢 在线", "🔴 离线") & If(HasUpdate, " · 有可用更新", "")
+        Dim StatusText = If(IsOnline, TrSource("🟢 在线"), TrSource("🔴 离线")) & If(HasUpdate, TrSource(" · 有可用更新"), "")
 
         Dim Item As New MyListItem With {
             .Title = Game.Name,
@@ -3375,7 +3374,7 @@ Public Class PageOmniMixRight
         CurrentLinkId = Game.Id
         ExpandedModuleTitle = Game.Name
 
-        LabModuleUiTitle.Text = "游戏集成 - " & Game.Name
+        LabModuleUiTitle.Text = String.Format(TrSource("游戏集成 - {0}"), Game.Name)
         CardModules.Visibility = Visibility.Collapsed
         CardModuleUi.Visibility = Visibility.Visible
         PanModuleUi.Children.Clear()
@@ -3398,11 +3397,11 @@ Public Class PageOmniMixRight
         Dim ModStatus = OmniMixModDeploymentService.CheckModStatus(GamePath, ModInfo)
 
         Dim InfoParts As New List(Of String)
-        InfoParts.Add(If(IsValidPath, "目录有效", If(String.IsNullOrWhiteSpace(GamePath), "未选择目录", "目录无效")))
+        InfoParts.Add(If(IsValidPath, TrSource("目录有效"), If(String.IsNullOrWhiteSpace(GamePath), TrSource("未选择目录"), TrSource("目录无效"))))
         If Not String.IsNullOrWhiteSpace(GamePath) Then InfoParts.Add(GamePath)
         Dim LayoutDescription = OmniMixModDeploymentService.GetGameInstallLayoutDescription(GamePath, Game)
         If Not String.IsNullOrWhiteSpace(LayoutDescription) Then InfoParts.Add(LayoutDescription)
-        If IsValidPath Then InfoParts.Add("游戏版本 " & OmniMixModDeploymentService.GetGameVersion(GamePath, Game))
+        If IsValidPath Then InfoParts.Add(String.Format(TrSource("游戏版本 {0}"), OmniMixModDeploymentService.GetGameVersion(GamePath, Game)))
         If Game.SupportedFrameworks.Contains("bepinex_5") Then InfoParts.Add("BepInEx " & GetBepInExStatusText(BepInExStatus))
         If ModInfo IsNot Nothing Then InfoParts.Add(ModInfo.Name & " " & GetModStatusText(ModStatus))
 
@@ -3419,38 +3418,38 @@ Public Class PageOmniMixRight
             .Type = MyListItem.CheckType.Clickable
         })
 
-        AddGameDetailAction(PanModuleUi, "选择游戏目录", "指定游戏根目录，用于安装和写入端口文件。", Logo.IconButtonOpen, "选择游戏目录", Game.Id, AddressOf GamePathSelectButton_Click)
+        AddGameDetailAction(PanModuleUi, TrSource("选择游戏目录"), TrSource("指定游戏根目录，用于安装和写入端口文件。"), Logo.IconButtonOpen, "选择游戏目录", Game.Id, AddressOf GamePathSelectButton_Click)
         If Not String.IsNullOrWhiteSpace(GamePath) AndAlso Directory.Exists(GamePath) Then
-            AddGameDetailAction(PanModuleUi, "打开游戏目录", GamePath, Logo.IconButtonList, "打开游戏目录", GamePath, AddressOf GamePathOpenButton_Click)
+            AddGameDetailAction(PanModuleUi, TrSource("打开游戏目录"), GamePath, Logo.IconButtonList, TrSource("打开游戏目录"), GamePath, AddressOf GamePathOpenButton_Click)
         End If
 
         If Game.SupportedFrameworks.Contains("bepinex_5") Then
             If BepInExStatus = OmniMixBepInExStatus.Managed Then
-                AddGameDetailAction(PanModuleUi, "卸载 BepInEx", "移除 OmniMix 管理的 BepInEx 文件。", Logo.IconButtonDelete, "卸载 BepInEx", Game.Id, AddressOf BepInExUninstallButton_Click, True, MyIconButton.Themes.Red)
+                AddGameDetailAction(PanModuleUi, TrSource("卸载 BepInEx"), TrSource("移除 OmniMix 管理的 BepInEx 文件。"), Logo.IconButtonDelete, "卸载 BepInEx", Game.Id, AddressOf BepInExUninstallButton_Click, True, MyIconButton.Themes.Red)
             Else
                 Dim CanInstallBepInEx = IsValidPath AndAlso OmniMixModDeploymentService.IsPackageAvailable("BepInEx_win_x64_5.4.23.5.zip")
-                Dim BepInExAction = If(BepInExStatus = OmniMixBepInExStatus.NeedsUpdate, "更新 BepInEx", "安装 BepInEx")
-                AddGameDetailAction(PanModuleUi, BepInExAction, If(CanInstallBepInEx, BepInExAction & " 到当前随附版本。", "需要有效游戏目录和 BepInEx 压缩包。"), Logo.IconButtonSave, BepInExAction, Game.Id, AddressOf BepInExInstallButton_Click, CanInstallBepInEx)
+                Dim BepInExAction = If(BepInExStatus = OmniMixBepInExStatus.NeedsUpdate, TrSource("更新 BepInEx"), TrSource("安装 BepInEx"))
+                AddGameDetailAction(PanModuleUi, BepInExAction, If(CanInstallBepInEx, String.Format(TrSource("{0}到当前随附版本。"), BepInExAction), TrSource("需要有效游戏目录和 BepInEx 压缩包。")), Logo.IconButtonSave, BepInExAction, Game.Id, AddressOf BepInExInstallButton_Click, CanInstallBepInEx)
             End If
         End If
 
         If ModInfo IsNot Nothing Then
             If ModStatus = OmniMixModInstallStatus.Installed Then
-                AddGameDetailAction(PanModuleUi, "卸载 " & ModInfo.Name, "移除当前游戏集成 Mod。", Logo.IconButtonDelete, "卸载 " & ModInfo.Name, Game.Id, AddressOf ModUninstallButton_Click, True, MyIconButton.Themes.Red)
+                AddGameDetailAction(PanModuleUi, String.Format(TrSource("卸载 {0}"), ModInfo.Name), TrSource("移除当前游戏集成 Mod。"), Logo.IconButtonDelete, "卸载 " & ModInfo.Name, Game.Id, AddressOf ModUninstallButton_Click, True, MyIconButton.Themes.Red)
             Else
                 Dim CanInstallMod = IsValidPath AndAlso OmniMixModDeploymentService.IsPackageAvailable(ModInfo.ArchiveName) AndAlso
                     (Not ModInfo.UsesFramework OrElse BepInExStatus <> OmniMixBepInExStatus.NotInstalled)
-                Dim ModAction = If(ModStatus = OmniMixModInstallStatus.NeedsUpdate, "更新 " & ModInfo.Name, "安装 " & ModInfo.Name)
-                AddGameDetailAction(PanModuleUi, ModAction, If(CanInstallMod, "写入当前随附版本并注册后端实例配置。", "需要有效目录、Mod 包以及必要框架。"), Logo.IconButtonSetup, ModAction, Game.Id, AddressOf ModInstallButton_Click, CanInstallMod)
+                Dim ModAction = If(ModStatus = OmniMixModInstallStatus.NeedsUpdate, String.Format(TrSource("更新 {0}"), ModInfo.Name), String.Format(TrSource("安装 {0}"), ModInfo.Name))
+                AddGameDetailAction(PanModuleUi, ModAction, If(CanInstallMod, TrSource("写入当前随附版本并注册后端实例配置。"), TrSource("需要有效目录、Mod 包以及必要框架。")), Logo.IconButtonSetup, ModAction, Game.Id, AddressOf ModInstallButton_Click, CanInstallMod)
             End If
         End If
 
         If String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
             Dim IsMediaUiReplaced = OmniMixModDeploymentService.CheckMediaUiReplaced(GamePath)
             If IsMediaUiReplaced Then
-                AddGameDetailAction(PanModuleUi, "还原原始电台 UI", "恢复备份的游戏原始电台 Logo 与 XML 文件。", Logo.IconButtonReset, "还原原始电台 UI", Game.Id, AddressOf GameUiRestoreButton_Click, IsValidPath, MyIconButton.Themes.Red)
+                AddGameDetailAction(PanModuleUi, TrSource("还原原始电台 UI"), TrSource("恢复备份的游戏原始电台 Logo 与 XML 文件。"), Logo.IconButtonReset, "还原原始电台 UI", Game.Id, AddressOf GameUiRestoreButton_Click, IsValidPath, MyIconButton.Themes.Red)
             Else
-                AddGameDetailAction(PanModuleUi, "替换电台 UI", "生成并注入自定义电台 UI（选择可读取的 PNG；会自动缩放到游戏徽标比例）。", Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
+                AddGameDetailAction(PanModuleUi, TrSource("替换电台 UI"), TrSource("生成并注入自定义电台 UI（选择可读取的 PNG；会自动缩放到游戏徽标比例）。"), Logo.IconButtonSetup, "替换电台 UI", Game.Id, AddressOf GameUiReplaceButton_Click, IsValidPath)
             End If
 
             ' 自动写入默认配置文件（防首次没有文件产生）
@@ -3516,8 +3515,8 @@ Public Class PageOmniMixRight
 
         Using Dialog As New System.Windows.Forms.FolderBrowserDialog()
             Dialog.Description = If(IsBetterEndfield,
-                                    "选择 Better Endfield 安装目录（包含 BetterEndfield.exe、runtime 和 modules）",
-                                    "选择 " & Game.Name & " 的游戏根目录")
+                                    TrSource("选择 Better Endfield 安装目录（包含 BetterEndfield.exe、runtime 和 modules）"),
+                                    TrSource("选择 ") & Game.Name & TrSource(" 的游戏根目录"))
             Dialog.ShowNewFolderButton = False
             Dim OldPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
             If Directory.Exists(OldPath) Then Dialog.SelectedPath = OldPath
@@ -3534,8 +3533,8 @@ Public Class PageOmniMixRight
                 Hint(If(IsBetterEndfield, "已保存 Better Endfield 安装目录。", "已保存游戏目录：" & Game.Name), HintType.Green)
             Else
                 Hint(If(IsBetterEndfield,
-                        "目录已保存，但未找到 BetterEndfield.exe、runtime\BetterEndfield.Host.dll 或 modules。",
-                        "目录已保存，但未通过游戏签名校验。"), HintType.Red)
+                        TrSource("目录已保存，但未找到 BetterEndfield.exe、runtime\BetterEndfield.Host.dll 或 modules。"),
+                        TrSource("目录已保存，但未通过游戏签名校验。")), HintType.Red)
             End If
         End Using
 
@@ -3552,18 +3551,18 @@ Public Class PageOmniMixRight
         If Game Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         If Not OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game) Then
-            LabModulesSummary.Text = "游戏目录无效，请先选择正确的游戏根目录。"
+            LabModulesSummary.Text = TrSource("游戏目录无效，请先选择正确的游戏根目录。")
             Return
         End If
         If OmniMixModDeploymentService.CheckBepInExStatus(GamePath) = OmniMixBepInExStatus.Unmanaged Then
-            If MyMsgBox("检测到该目录已有非 OmniMix 管理的 BepInEx。继续安装可能会覆盖现有加载器文件。", "安装 BepInEx", "继续", "取消", IsWarn:=True) <> 1 Then Return
+            If MyMsgBox(TrSource("检测到该目录已有非 OmniMix 管理的 BepInEx。继续安装可能会覆盖现有加载器文件。"), TrSource("安装 BepInEx"), TrSource("继续"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
         End If
 
-        LabModulesSummary.Text = "正在安装 BepInEx..."
+        LabModulesSummary.Text = TrSource("正在安装 BepInEx...")
         Dim Logs As New List(Of String)
         Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.DeployBepInEx(GamePath, Logs))
         DeploymentLogs = Logs
-        Hint(If(Success, "BepInEx 安装完成。", "BepInEx 安装失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("BepInEx 安装完成。"), TrSource("BepInEx 安装失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -3571,13 +3570,13 @@ Public Class PageOmniMixRight
         Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
         If Game Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
-        If MyMsgBox("确定要卸载 OmniMix 管理的 BepInEx 吗？非 OmniMix 管理的文件不会被保留在这次删除范围内。", "卸载 BepInEx", "卸载", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要卸载 OmniMix 管理的 BepInEx 吗？非 OmniMix 管理的文件不会被保留在这次删除范围内。"), TrSource("卸载 BepInEx"), TrSource("卸载"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
-        LabModulesSummary.Text = "正在卸载 BepInEx..."
+        LabModulesSummary.Text = TrSource("正在卸载 BepInEx...")
         Dim Logs As New List(Of String)
         Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.UndeployBepInEx(GamePath, Logs))
         DeploymentLogs = Logs
-        Hint(If(Success, "BepInEx 卸载完成。", "BepInEx 卸载失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("BepInEx 卸载完成。"), TrSource("BepInEx 卸载失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -3588,25 +3587,25 @@ Public Class PageOmniMixRight
         If ModInfo Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         If Not OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game) Then
-            LabModulesSummary.Text = "游戏目录无效，请先选择正确的游戏根目录。"
+            LabModulesSummary.Text = TrSource("游戏目录无效，请先选择正确的游戏根目录。")
             Return
         End If
         If ModInfo.UsesFramework AndAlso OmniMixModDeploymentService.CheckBepInExStatus(GamePath) = OmniMixBepInExStatus.NotInstalled Then
-            LabModulesSummary.Text = "请先安装 BepInEx，再安装 " & ModInfo.Name & "。"
+            LabModulesSummary.Text = TrSource("请先安装 BepInEx，再安装 ") & ModInfo.Name & TrSource("。")
             Return
         End If
         If Not OmniMixModDeploymentService.IsPackageAvailable(ModInfo.ArchiveName) Then
-            LabModulesSummary.Text = "缺少 Mod 包：" & ModInfo.ArchiveName
+            LabModulesSummary.Text = TrSource("缺少 Mod 包：") & ModInfo.ArchiveName
             Return
         End If
 
-        LabModulesSummary.Text = "正在安装 " & ModInfo.Name & "..."
+        LabModulesSummary.Text = TrSource("正在安装 ") & ModInfo.Name & "..."
         Dim Logs As New List(Of String)
         Dim BackendPort = GetPortFromBaseUrl(CurrentBaseUrl, 17890)
         Dim InstanceId = Await Task.Run(Function() OmniMixModDeploymentService.DeployMod(GamePath, ModInfo, BackendPort, Logs))
         DeploymentLogs = Logs
         If String.IsNullOrWhiteSpace(InstanceId) Then
-            Hint(ModInfo.Name & " 安装失败。", HintType.Red)
+            Hint(String.Format(TrSource("{0} 安装失败。"), ModInfo.Name), HintType.Red)
         Else
             Await RegisterDeployedInstanceAsync(InstanceId, ModInfo, GamePath)
             If String.Equals(Game.Id, "forza_horizon_6", StringComparison.OrdinalIgnoreCase) Then
@@ -3614,7 +3613,7 @@ Public Class PageOmniMixRight
                 If String.IsNullOrWhiteSpace(SavedVal) Then SavedVal = "ignore"
                 OmniMixModDeploymentService.WriteFh6RaceStartPlaybackConfig(GamePath, SavedVal)
             End If
-            Hint(ModInfo.Name & " 安装完成。", HintType.Green)
+            Hint(String.Format(TrSource("{0} 安装完成。"), ModInfo.Name), HintType.Green)
         End If
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
@@ -3625,13 +3624,13 @@ Public Class PageOmniMixRight
         Dim ModInfo = OmniMixModDeploymentService.GetPrimaryMod(Game)
         If ModInfo Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
-        If MyMsgBox("确定要卸载 " & ModInfo.Name & " 吗？", "卸载 Mod", "卸载", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(String.Format(TrSource("确定要卸载 {0} 吗？"), ModInfo.Name), TrSource("卸载 Mod"), TrSource("卸载"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
-        LabModulesSummary.Text = "正在卸载 " & ModInfo.Name & "..."
+        LabModulesSummary.Text = TrSource("正在卸载 ") & ModInfo.Name & "..."
         Dim Logs As New List(Of String)
         Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.UndeployMod(GamePath, ModInfo, Logs))
         DeploymentLogs = Logs
-        Hint(If(Success, ModInfo.Name & " 卸载完成。", ModInfo.Name & " 卸载失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, String.Format(TrSource("{0} 卸载完成。"), ModInfo.Name), String.Format(TrSource("{0} 卸载失败。"), ModInfo.Name)), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -3640,7 +3639,7 @@ Public Class PageOmniMixRight
         If Game Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         If Not OmniMixModDeploymentService.VerifyGameDirectory(GamePath, Game) Then
-            LabModulesSummary.Text = "游戏目录无效，请先选择正确的游戏根目录。"
+            LabModulesSummary.Text = TrSource("游戏目录无效，请先选择正确的游戏根目录。")
             Return
         End If
 
@@ -3651,27 +3650,27 @@ Public Class PageOmniMixRight
         If Dialog.ShowDialog() <> True Then Return
 
         Dim RadioDisplayName = MyMsgBoxInput(
-            "自定义电台名称",
-            "输入游戏中显示的电台/曲目名称。",
+            TrSource("自定义电台名称"),
+            TrSource("输入游戏中显示的电台/曲目名称。"),
             "OmniMix Player",
             New ObjectModel.Collection(Of Validate) From {New ValidateNullOrWhiteSpace(), New ValidateLength(1, 80)},
-            "例如：OmniMix Player")
+            TrSource("例如：OmniMix Player"))
         If RadioDisplayName Is Nothing Then Return
 
         Dim RadioArtist = MyMsgBoxInput(
-            "自定义电台副标题",
-            "输入游戏中显示的艺术家或副标题。",
+            TrSource("自定义电台副标题"),
+            TrSource("输入游戏中显示的艺术家或副标题。"),
             "OmniMix",
             New ObjectModel.Collection(Of Validate) From {New ValidateNullOrWhiteSpace(), New ValidateLength(1, 80)},
-            "例如：OmniMix")
+            TrSource("例如：OmniMix"))
         If RadioArtist Is Nothing Then Return
 
-        LabModulesSummary.Text = "正在替换电台 UI..."
+        LabModulesSummary.Text = TrSource("正在替换电台 UI...")
         Dim Logs As New List(Of String)
         Dim PngPath = Dialog.FileName
         Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.DeployMediaUiReplacement(GamePath, PngPath, Logs, RadioDisplayName, RadioArtist))
         DeploymentLogs = Logs
-        Hint(If(Success, "电台 UI 替换完成。", "电台 UI 替换失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("电台 UI 替换完成。"), TrSource("电台 UI 替换失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -3679,13 +3678,13 @@ Public Class PageOmniMixRight
         Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
         If Game Is Nothing Then Return
         Dim GamePath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
-        If MyMsgBox("确定要还原电台 UI 为游戏原始文件吗？", "还原原始 UI", "还原", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要还原电台 UI 为游戏原始文件吗？"), TrSource("还原原始 UI"), TrSource("还原"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
-        LabModulesSummary.Text = "正在还原电台 UI..."
+        LabModulesSummary.Text = TrSource("正在还原电台 UI...")
         Dim Logs As New List(Of String)
         Dim Success = Await Task.Run(Function() OmniMixModDeploymentService.RestoreMediaUi(GamePath, Logs))
         DeploymentLogs = Logs
-        Hint(If(Success, "电台 UI 还原完成。", "电台 UI 还原失败。"), If(Success, HintType.Green, HintType.Red))
+        Hint(If(Success, TrSource("电台 UI 还原完成。"), TrSource("电台 UI 还原失败。")), If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -3693,7 +3692,7 @@ Public Class PageOmniMixRight
         If DeploymentLogs.Count = 0 Then Return
 
         Panel.Children.Add(New MyListItem With {
-            .Title = "安装与操作日志",
+            .Title = TrSource("安装与操作日志"),
             .Height = 30,
             .PaddingLeft = 8,
             .Margin = New Thickness(0, 10, 0, 2),
@@ -3832,24 +3831,24 @@ Public Class PageOmniMixRight
     Private Shared Function GetBepInExStatusText(Status As OmniMixBepInExStatus) As String
         Select Case Status
             Case OmniMixBepInExStatus.Managed
-                Return "已由 OmniMix 管理"
+                Return TrSource("已由 OmniMix 管理")
             Case OmniMixBepInExStatus.NeedsUpdate
-                Return "需要更新"
+                Return TrSource("需要更新")
             Case OmniMixBepInExStatus.Unmanaged
-                Return "已安装（非 OmniMix 管理）"
+                Return TrSource("已安装（非 OmniMix 管理）")
             Case Else
-                Return "未安装"
+                Return TrSource("未安装")
         End Select
     End Function
 
     Private Shared Function GetModStatusText(Status As OmniMixModInstallStatus) As String
         Select Case Status
             Case OmniMixModInstallStatus.Installed
-                Return "已安装"
+                Return TrSource("已安装")
             Case OmniMixModInstallStatus.NeedsUpdate
-                Return "需要更新"
+                Return TrSource("需要更新")
             Case Else
-                Return "未安装"
+                Return TrSource("未安装")
         End Select
     End Function
 
@@ -3864,7 +3863,7 @@ Public Class PageOmniMixRight
 
         If Modules.Count = 0 Then
             PanModulesList.Children.Add(New MyListItem With {
-                .Title = "暂无模块",
+                .Title = TrSource("暂无模块"),
                 .Info = "后端已连接，但当前没有已加载的音乐源模块。",
                 .Height = 42,
                 .PaddingLeft = 8,
@@ -3895,7 +3894,7 @@ Public Class PageOmniMixRight
         LabModulesSummary.Text = $"启动台：{Links.Count} 个模块快捷入口。"
         If Links.Count = 0 Then
             PanLaunchpadList.Children.Add(New MyListItem With {
-                .Title = "暂无快捷入口",
+                .Title = TrSource("暂无快捷入口"),
                 .Info = "已加载的模块暂未提供启动台入口。",
                 .Width = 320,
                 .Height = 48,
@@ -4055,7 +4054,7 @@ Public Class PageOmniMixRight
                 End If
             Else
                 PanModuleUi.Children.Add(New MyListItem With {
-                    .Title = "暂无可显示内容",
+                    .Title = TrSource("暂无可显示内容"),
                     .Info = "模块没有返回可渲染的 UI。",
                     .Height = 42,
                     .PaddingLeft = 8,
@@ -4110,11 +4109,11 @@ Public Class PageOmniMixRight
             If NeedsRefresh Then LabModuleUiSummary.Text = "正在处理模块操作：" & NodeId
             Await WsClient.SendUiEventAsync(CurrentBaseUrl, CurrentModuleId, NodeId, Action, Value, CurrentUiKind, CurrentLinkId)
             If NeedsRefresh Then
-                Hint(If(NeedsLibraryRefresh, "已发送导入请求，正在等待后端处理...", "已发送模块操作，正在刷新状态..."), HintType.Green, False)
+                Hint(If(NeedsLibraryRefresh, TrSource("已发送导入请求，正在等待后端处理..."), TrSource("已发送模块操作，正在刷新状态...")), HintType.Green, False)
                 Await Task.Delay(If(NeedsLibraryRefresh, 2200, 1000))
                 Await RefreshCurrentModuleUiAsync()
                 If NeedsLibraryRefresh Then Await RefreshLibraryCacheAsync(CurrentBaseUrl)
-                Hint(If(NeedsLibraryRefresh, "导入请求已提交，曲库状态已刷新。", "模块操作已处理，状态已刷新。"), HintType.Green, False)
+                Hint(If(NeedsLibraryRefresh, TrSource("导入请求已提交，曲库状态已刷新。"), TrSource("模块操作已处理，状态已刷新。")), HintType.Green, False)
             End If
             LabModulesSummary.Text = "已发送模块 UI 事件：" & NodeId & " / " & Action
             LabModuleUiSummary.Text = "已发送模块 UI 事件：" & NodeId & " / " & Action
@@ -4354,16 +4353,16 @@ Public Class PageOmniMixRight
         Dim BackendPath = OmniMixBackendManager.FindBackendExe()
         Dim Status = BetterEndfieldRegistrationStatus
 
-        Dim StatusText = If(IsValidPath, "安装目录有效", If(String.IsNullOrWhiteSpace(InstallPath), "尚未选择安装目录", "安装目录无效"))
+        Dim StatusText = If(IsValidPath, TrSource("安装目录有效"), If(String.IsNullOrWhiteSpace(InstallPath), TrSource("尚未选择安装目录"), TrSource("安装目录无效")))
         If Status IsNot Nothing Then
             If Not Status.CommandSucceeded Then
-                StatusText &= " · 查询失败：" & If(Status.Reason, "unknown")
+                StatusText &= TrSource(" · 查询失败：") & If(Status.Reason, "unknown")
             ElseIf Not Status.Registered Then
-                StatusText &= " · 未注册"
+                StatusText &= TrSource(" · 未注册")
             ElseIf Status.Valid Then
-                StatusText &= " · 注册有效"
+                StatusText &= TrSource(" · 注册有效")
             Else
-                StatusText &= " · 注册失效：" & Status.Reason
+                StatusText &= TrSource(" · 注册失效：") & Status.Reason
             End If
         End If
 
@@ -4380,15 +4379,15 @@ Public Class PageOmniMixRight
             .Type = MyListItem.CheckType.Clickable
         })
 
-        AddGameDetailAction(PanModuleUi, "选择 Better Endfield 安装目录", "目录必须包含 BetterEndfield.exe、runtime 和 modules。", Logo.IconButtonOpen, "选择安装目录", Game.Id, AddressOf GamePathSelectButton_Click)
-        AddGameDetailAction(PanModuleUi, "自动定位", "从常用安装位置和 Windows 卸载注册信息查找。", Logo.IconButtonList, "自动定位", Game.Id, AddressOf BetterEndfieldAutoLocateButton_Click)
+        AddGameDetailAction(PanModuleUi, TrSource("选择 Better Endfield 安装目录"), TrSource("目录必须包含 BetterEndfield.exe、runtime 和 modules。"), Logo.IconButtonOpen, "选择安装目录", Game.Id, AddressOf GamePathSelectButton_Click)
+        AddGameDetailAction(PanModuleUi, TrSource("自动定位"), TrSource("从常用安装位置和 Windows 卸载注册信息查找。"), Logo.IconButtonList, "自动定位", Game.Id, AddressOf BetterEndfieldAutoLocateButton_Click)
         If IsValidPath Then
-            AddGameDetailAction(PanModuleUi, "打开安装目录", InstallPath, Logo.IconButtonList, "打开安装目录", InstallPath, AddressOf GamePathOpenButton_Click)
+            AddGameDetailAction(PanModuleUi, TrSource("打开安装目录"), InstallPath, Logo.IconButtonList, "打开安装目录", InstallPath, AddressOf GamePathOpenButton_Click)
         End If
 
         PanModuleUi.Children.Add(New MyListItem With {
-            .Title = "当前 OmniMix 后端",
-            .Info = If(String.IsNullOrWhiteSpace(BackendPath), "未找到 OmniMixPlayer.Backend.exe", BackendPath),
+            .Title = TrSource("当前 OmniMix 后端"),
+            .Info = If(String.IsNullOrWhiteSpace(BackendPath), TrSource("未找到 OmniMixPlayer.Backend.exe"), BackendPath),
             .Height = 52,
             .PaddingLeft = 8,
             .Margin = New Thickness(0, 0, 0, 5),
@@ -4397,14 +4396,14 @@ Public Class PageOmniMixRight
         })
 
         Dim CanRegister = IsValidPath AndAlso Not String.IsNullOrWhiteSpace(BackendPath)
-        AddGameDetailAction(PanModuleUi, "注册", "将当前后端绝对路径注册给 Better Endfield。", Logo.IconButtonSave, "注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
-        AddGameDetailAction(PanModuleUi, "修复注册", "重新注册当前后端路径并保留 Better Endfield 客户端标识。", Logo.IconButtonReset, "修复注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
-        AddGameDetailAction(PanModuleUi, "刷新状态", "通过 BetterEndfield.exe 查询实时注册状态。", Logo.IconButtonRefresh, "刷新状态", Game.Id, AddressOf BetterEndfieldRefreshButton_Click, IsValidPath)
-        AddGameDetailAction(PanModuleUi, "解除注册", "仅清除 Better Endfield 保存的 OmniMix 注册信息。", Logo.IconButtonDelete, "解除注册", Game.Id, AddressOf BetterEndfieldUnregisterButton_Click, IsValidPath AndAlso Status IsNot Nothing AndAlso Status.Registered, MyIconButton.Themes.Red)
+        AddGameDetailAction(PanModuleUi, TrSource("注册"), TrSource("将当前后端绝对路径注册给 Better Endfield。"), Logo.IconButtonSave, "注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
+        AddGameDetailAction(PanModuleUi, TrSource("修复注册"), TrSource("重新注册当前后端路径并保留 Better Endfield 客户端标识。"), Logo.IconButtonReset, "修复注册", Game.Id, AddressOf BetterEndfieldRegisterButton_Click, CanRegister)
+        AddGameDetailAction(PanModuleUi, TrSource("刷新状态"), TrSource("通过 BetterEndfield.exe 查询实时注册状态。"), Logo.IconButtonRefresh, "刷新状态", Game.Id, AddressOf BetterEndfieldRefreshButton_Click, IsValidPath)
+        AddGameDetailAction(PanModuleUi, TrSource("解除注册"), TrSource("仅清除 Better Endfield 保存的 OmniMix 注册信息。"), Logo.IconButtonDelete, "解除注册", Game.Id, AddressOf BetterEndfieldUnregisterButton_Click, IsValidPath AndAlso Status IsNot Nothing AndAlso Status.Registered, MyIconButton.Themes.Red)
 
         PanModuleUi.Children.Add(New MyListItem With {
-            .Title = "音乐替换设置",
-            .Info = "登录、主界面和游戏内音乐替换范围请在 Better Endfield 中配置。",
+            .Title = TrSource("音乐替换设置"),
+            .Info = TrSource("登录、主界面和游戏内音乐替换范围请在 Better Endfield 中配置。"),
             .Height = 52,
             .PaddingLeft = 8,
             .Margin = New Thickness(0, 0, 0, 5),
@@ -4432,7 +4431,7 @@ Public Class PageOmniMixRight
 
         Dim Candidates = Await Task.Run(Function() OmniMixBetterEndfieldIntegrationService.FindInstallDirectories())
         If Candidates.Count = 0 Then
-            Hint("未自动找到 Better Endfield，请手动选择安装目录。", HintType.Red)
+            Hint(TrSource("未自动找到 Better Endfield，请手动选择安装目录。"), HintType.Red)
             Return
         End If
 
@@ -4444,7 +4443,7 @@ Public Class PageOmniMixRight
 
         OmniMixModDeploymentService.SaveGamePath(Game.Id, SelectedPath)
         BetterEndfieldRegistrationStatus = Nothing
-        Hint("已定位 Better Endfield：" & SelectedPath, HintType.Green)
+        Hint(TrSource("已定位 Better Endfield：") & SelectedPath, HintType.Green)
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
 
@@ -4502,7 +4501,7 @@ Public Class PageOmniMixRight
         BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.RegisterAsync(InstallPath, BackendPath)
         Dim Success = BetterEndfieldRegistrationStatus.CommandSucceeded AndAlso
                       BetterEndfieldRegistrationStatus.Registered AndAlso BetterEndfieldRegistrationStatus.Valid
-        Hint(If(Success, "Better Endfield 注册完成。", "Better Endfield 注册失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
+        Hint(If(Success, TrSource("Better Endfield 注册完成。"), TrSource("Better Endfield 注册失败：") & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
              If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
@@ -4513,7 +4512,7 @@ Public Class PageOmniMixRight
         Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.QueryAsync(InstallPath)
         If Not BetterEndfieldRegistrationStatus.CommandSucceeded Then
-            Hint("Better Endfield 状态查询失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus), HintType.Red)
+            Hint(TrSource("Better Endfield 状态查询失败：") & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus), HintType.Red)
         End If
         RenderBetterEndfieldIntegrationDetail(Game, False)
     End Sub
@@ -4521,13 +4520,13 @@ Public Class PageOmniMixRight
     Private Async Sub BetterEndfieldUnregisterButton_Click(sender As Object, e As EventArgs)
         Dim Game = OmniMixModDeploymentService.GetGame(TryCast(CType(sender, FrameworkElement).Tag, String))
         If Game Is Nothing Then Return
-        If MyMsgBox("确定要解除 Better Endfield 的 OmniMix 后端注册吗？这不会删除任何程序或用户文件。",
-                    "解除 Better Endfield 注册", "解除注册", "取消", IsWarn:=True) <> 1 Then Return
+        If MyMsgBox(TrSource("确定要解除 Better Endfield 的 OmniMix 后端注册吗？这不会删除任何程序或用户文件。"),
+                    TrSource("解除 Better Endfield 注册"), TrSource("解除注册"), TrSource("取消"), IsWarn:=True) <> 1 Then Return
 
         Dim InstallPath = OmniMixModDeploymentService.LoadGamePath(Game.Id)
         BetterEndfieldRegistrationStatus = Await OmniMixBetterEndfieldIntegrationService.UnregisterAsync(InstallPath)
         Dim Success = BetterEndfieldRegistrationStatus.CommandSucceeded AndAlso Not BetterEndfieldRegistrationStatus.Registered
-        Hint(If(Success, "Better Endfield 注册已解除。", "解除注册失败：" & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
+        Hint(If(Success, TrSource("Better Endfield 注册已解除。"), TrSource("解除注册失败：") & GetBetterEndfieldStatusError(BetterEndfieldRegistrationStatus)),
              If(Success, HintType.Green, HintType.Red))
         Await RefreshGameIntegrationAfterOperationAsync(Game)
     End Sub
@@ -4591,11 +4590,11 @@ Public Class PageOmniMixRight
         If IsSearching Then
             LabLibrarySummary.Text = "搜索""" & SearchText & """：" & Groups.Count & " 组，" & ResultSongCount & " 首歌曲。"
         Else
-            LabLibrarySummary.Text = $"{Groups.Count} 组，{VisibleSongs.Count} 首歌曲。"
+            LabLibrarySummary.Text = String.Format(TrSource("{0} 组，{1} 首歌曲。"), Groups.Count, VisibleSongs.Count)
         End If
 
         If Groups.Count = 0 Then
-            AddLibraryItem(If(IsSearching, "没有匹配的歌曲", "这里还没有歌曲"), If(IsSearching, "换个关键词，或切换到全部来源后再搜索。", "换一个来源，或等待对应模块加载完成。"), 0)
+            AddLibraryItem(If(IsSearching, TrSource("没有匹配的歌曲"), TrSource("这里还没有歌曲")), If(IsSearching, TrSource("换个关键词，或切换到全部来源后再搜索。"), TrSource("换一个来源，或等待对应模块加载完成。")), 0)
             Return
         End If
 
@@ -4753,7 +4752,7 @@ Public Class PageOmniMixRight
             If Entry.Value.Count = 0 Then Continue For
             Groups.Add(New LibraryAlbumGroup With {
                 .GroupId = "singles_" & NonEmpty(Entry.Key, "unknown"),
-                .Name = "单曲",
+                .Name = TrSource("单曲"),
                 .ModuleId = Entry.Key,
                 .CoverPath = Entry.Value.Select(Function(Song) NonEmpty(Song.CoverPath, Song.CoverUrl)).FirstOrDefault(Function(Cover) Not String.IsNullOrWhiteSpace(Cover)),
                 .Songs = Entry.Value.OrderBy(Function(Song) NonEmpty(Song.Title, Song.Uuid)).ToList()
@@ -4762,7 +4761,7 @@ Public Class PageOmniMixRight
         If LooseSongs.Count > 0 Then
             Groups.Add(New LibraryAlbumGroup With {
                 .GroupId = "loose_" & NonEmpty(LooseSongs.First().ModuleId, "unknown"),
-                .Name = "未分组",
+                .Name = TrSource("未分组"),
                 .ModuleId = NonEmpty(LooseSongs.First().ModuleId, ""),
                 .Songs = LooseSongs
             })
@@ -4787,7 +4786,7 @@ Public Class PageOmniMixRight
         Dim SongUuids = Group.Songs.Select(Function(Song) Song.Uuid).Where(Function(Uuid) Not String.IsNullOrWhiteSpace(Uuid)).ToList()
         Dim Item As New MyListItem With {
             .Title = NonEmpty(Group.Name, Group.GroupId),
-            .Info = $"{Group.Songs.Count} 首{If(String.IsNullOrWhiteSpace(Group.ModuleId), "", " · " & Group.ModuleId)}",
+            .Info = String.Format(TrSource("{0} 首"), Group.Songs.Count) & If(String.IsNullOrWhiteSpace(Group.ModuleId), "", " · " & Group.ModuleId),
             .Height = 68,
             .PaddingLeft = 8,
             .Logo = ResolveLibraryAlbumCover(Group),
@@ -4801,7 +4800,7 @@ Public Class PageOmniMixRight
         Dim ExpandButton As New MyIconButton With {
             .Logo = If(IsExpanded, IconExpandUp, IconExpandDown),
             .LogoScale = 0.8,
-            .ToolTip = If(ForceExpanded, "搜索结果已展开", If(IsExpanded, "收起", "展开")),
+            .ToolTip = If(ForceExpanded, TrSource("搜索结果已展开"), If(IsExpanded, TrSource("收起"), TrSource("展开"))),
             .Tag = Group.GroupId
         }
         AddHandler ExpandButton.Click, AddressOf LibraryAlbumExpandButton_Click
@@ -4809,7 +4808,7 @@ Public Class PageOmniMixRight
         Dim QueueButton As New MyIconButton With {
             .Logo = IconPlus,
             .LogoScale = 0.82,
-            .ToolTip = "加入队列",
+            .ToolTip = TrSource("加入队列"),
             .Tag = New LibraryQueueGroupPayload With {
                 .GroupId = Group.GroupId,
                 .Name = Group.Name,
@@ -4857,7 +4856,7 @@ Public Class PageOmniMixRight
         Dim QueueButton As New MyIconButton With {
             .Logo = IconPlus,
             .LogoScale = 0.82,
-            .ToolTip = "加入队列",
+            .ToolTip = TrSource("加入队列"),
             .Tag = SongInfo
         }
         AddHandler QueueButton.Click, AddressOf LibrarySongQueueButton_Click
@@ -4908,14 +4907,14 @@ Public Class PageOmniMixRight
             Distinct().
             ToList()
         If Uuids.Count = 0 Then
-            LabLibrarySummary.Text = "没有可加入队列的歌曲。"
+            LabLibrarySummary.Text = TrSource("没有可加入队列的歌曲。")
             Return
         End If
 
         Try
             Dim Instance = Await GetTargetInstanceAsync()
             If Instance Is Nothing Then
-                LabLibrarySummary.Text = "没有可控制的播放实例，暂时无法加入队列。"
+                LabLibrarySummary.Text = TrSource("没有可控制的播放实例，暂时无法加入队列。")
                 Return
             End If
 
@@ -4926,9 +4925,9 @@ Public Class PageOmniMixRight
             End If
             Hint("Added to queue: " & Uuids.Count & " song(s).", HintType.Green, False)
             Await RefreshQueuePaneOrBackendAsync()
-            LabLibrarySummary.Text = $"已加入队列：{NonEmpty(Payload.Name, Payload.GroupId)}（{Uuids.Count} 首）"
+            LabLibrarySummary.Text = String.Format(TrSource("已加入队列：{0}（{1} 首）"), NonEmpty(Payload.Name, Payload.GroupId), Uuids.Count)
         Catch Ex As Exception
-            LabLibrarySummary.Text = "加入队列失败：" & Ex.Message
+            LabLibrarySummary.Text = TrSource("加入队列失败：") & Ex.Message
         End Try
     End Function
 
@@ -4938,7 +4937,7 @@ Public Class PageOmniMixRight
         Try
             Dim Instance = Await GetTargetInstanceAsync()
             If Instance Is Nothing Then
-                LabLibrarySummary.Text = "没有可控制的播放实例，暂时无法播放歌曲。"
+                LabLibrarySummary.Text = TrSource("没有可控制的播放实例，暂时无法播放歌曲。")
                 Return
             End If
 
@@ -4947,9 +4946,9 @@ Public Class PageOmniMixRight
             Else
                 Await AddUuidsToOfflineProfileAsync(Instance.Id, New List(Of String) From {SongInfo.Uuid})
             End If
-            LabLibrarySummary.Text = "已发送播放指令：" & NonEmpty(SongInfo.Title, SongInfo.Uuid)
+            LabLibrarySummary.Text = TrSource("已发送播放指令：") & NonEmpty(SongInfo.Title, SongInfo.Uuid)
         Catch Ex As Exception
-            LabLibrarySummary.Text = "播放失败：" & Ex.Message
+            LabLibrarySummary.Text = TrSource("播放失败：") & Ex.Message
         End Try
     End Function
 
@@ -4959,7 +4958,7 @@ Public Class PageOmniMixRight
         Try
             Dim Instance = Await GetTargetInstanceAsync()
             If Instance Is Nothing Then
-                LabLibrarySummary.Text = "没有可控制的播放实例，暂时无法加入队列。"
+                LabLibrarySummary.Text = TrSource("没有可控制的播放实例，暂时无法加入队列。")
                 Return
             End If
 
@@ -4970,9 +4969,9 @@ Public Class PageOmniMixRight
             End If
             Hint("Added to queue: " & NonEmpty(SongInfo.Title, SongInfo.Uuid), HintType.Green, False)
             Await RefreshQueuePaneOrBackendAsync()
-            LabLibrarySummary.Text = "已加入队列：" & NonEmpty(SongInfo.Title, SongInfo.Uuid)
+            LabLibrarySummary.Text = TrSource("已加入队列：") & NonEmpty(SongInfo.Title, SongInfo.Uuid)
         Catch Ex As Exception
-            LabLibrarySummary.Text = "加入队列失败：" & Ex.Message
+            LabLibrarySummary.Text = TrSource("加入队列失败：") & Ex.Message
         End Try
     End Function
 
@@ -5305,13 +5304,13 @@ Public Class PageOmniMixRight
     Private Function PromptEqualizerNumber(Title As String, Description As String, DefaultValue As Double, MinValue As Double, MaxValue As Double, ByRef Result As Double) As Boolean
         Dim Text = MyMsgBoxInput(
             Title,
-            Description & vbCrLf & "范围：" & MinValue.ToString("0.###", CultureInfo.InvariantCulture) & " - " & MaxValue.ToString("0.###", CultureInfo.InvariantCulture),
+            Description & vbCrLf & TrSource("范围：") & MinValue.ToString("0.###", CultureInfo.InvariantCulture) & " - " & MaxValue.ToString("0.###", CultureInfo.InvariantCulture),
             DefaultValue.ToString("0.###", CultureInfo.InvariantCulture),
-            HintText:="数字")
+            HintText:=TrSource("数字"))
         If Text Is Nothing Then Return False
 
         If Not TryParseEqualizerNumber(Text, Result) Then
-            LabEqualizerSummary.Text = "输入的数字无效。"
+            LabEqualizerSummary.Text = TrSource("输入的数字无效。")
             Return False
         End If
         Result = Clamp(Result, MinValue, MaxValue)
@@ -5320,15 +5319,15 @@ Public Class PageOmniMixRight
 
     Private Function PromptEqualizerType(DefaultType As String) As String
         Dim Text = MyMsgBoxInput(
-            "滤波类型",
-            "输入滤波类型：Peaking、LowShelf、HighShelf、LowPass、HighPass。",
+            TrSource("滤波类型"),
+            TrSource("输入滤波类型：Peaking、LowShelf、HighShelf、LowPass、HighPass。"),
             NonEmpty(NormalizeEqualizerType(DefaultType), "Peaking"),
             HintText:="Peaking / LowShelf / HighShelf / LowPass / HighPass")
         If Text Is Nothing Then Return Nothing
 
         Dim TypeValue = NormalizeEqualizerType(Text)
         If String.IsNullOrWhiteSpace(TypeValue) Then
-            LabEqualizerSummary.Text = "滤波类型无效。"
+            LabEqualizerSummary.Text = TrSource("滤波类型无效。")
             Return Nothing
         End If
         Return TypeValue
@@ -5372,7 +5371,7 @@ Public Class PageOmniMixRight
 
     Private Shared Function BuildEqualizerStateInfo(State As OmniMixEqualizerStateInfo) As String
         State = NormalizeEqualizerState(State)
-        Return $"{If(State.Enabled, "启用", "禁用")} · 全局增益 {FormatDb(State.GlobalGainDb)} · {If(State.SoftClipEnabled, "软削波开启", "软削波关闭")} · {State.Points.Count} 个控制点"
+        Return String.Format(TrSource("{0} · 全局增益 {1} · {2} · {3} 个控制点"), If(State.Enabled, TrSource("启用"), TrSource("禁用")), FormatDb(State.GlobalGainDb), If(State.SoftClipEnabled, TrSource("软削波开启"), TrSource("软削波关闭")), State.Points.Count)
     End Function
 
     Private Shared Function NormalizeEqualizerType(Value As String) As String
@@ -5396,15 +5395,15 @@ Public Class PageOmniMixRight
     Private Shared Function GetEqualizerTypeLabel(TypeValue As String) As String
         Select Case NormalizeEqualizerType(TypeValue)
             Case "LowShelf"
-                Return "低架"
+                Return TrSource("低架")
             Case "HighShelf"
-                Return "高架"
+                Return TrSource("高架")
             Case "LowPass"
-                Return "低通"
+                Return TrSource("低通")
             Case "HighPass"
-                Return "高通"
+                Return TrSource("高通")
             Case Else
-                Return "峰值"
+                Return TrSource("峰值")
         End Select
     End Function
 
@@ -5550,12 +5549,12 @@ Public Class PageOmniMixRight
             .Margin = New Thickness(12, 0, 0, 0)
         }
         Dim LabTitle As New TextBlock With {
-            .Text = "比赛播放行为",
+            .Text = TrSource("比赛播放行为"),
             .FontSize = 14,
             .Foreground = CType(Application.Current.FindResource("ColorBrush1"), Brush)
         }
         Dim LabInfo As New TextBlock With {
-            .Text = "设定地平线6进入比赛或比赛重启时的音乐播放动作",
+            .Text = TrSource("设定地平线6进入比赛或比赛重启时的音乐播放动作"),
             .FontSize = 11,
             .Foreground = CType(Application.Current.FindResource("ColorBrushGray2"), Brush),
             .Margin = New Thickness(0, 2, 0, 0)
@@ -5574,9 +5573,9 @@ Public Class PageOmniMixRight
             .Margin = New Thickness(0, 0, 12, 0)
         }
         
-        Dim ItemIgnore As New MyComboBoxItem With {.Content = "继续播放 (默认)", .Tag = "ignore"}
-        Dim ItemNext As New MyComboBoxItem With {.Content = "切换下一首", .Tag = "next"}
-        Dim ItemRestart As New MyComboBoxItem With {.Content = "重新开始当前歌曲", .Tag = "restart"}
+        Dim ItemIgnore As New MyComboBoxItem With {.Content = TrSource("继续播放 (默认)"), .Tag = "ignore"}
+        Dim ItemNext As New MyComboBoxItem With {.Content = TrSource("切换下一首"), .Tag = "next"}
+        Dim ItemRestart As New MyComboBoxItem With {.Content = TrSource("重新开始当前歌曲"), .Tag = "restart"}
 
         Combo.Items.Add(ItemIgnore)
         Combo.Items.Add(ItemNext)

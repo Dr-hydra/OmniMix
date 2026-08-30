@@ -46,7 +46,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
 
                 var version = result.StdOut.Trim().Split(new[] { '\r', '\n' },
                     StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-                return (true, version, string.IsNullOrWhiteSpace(version) ? "yt-dlp 可用" : $"yt-dlp {version}");
+                return (true, version, string.IsNullOrWhiteSpace(version) ? "yt-dlp is available" : $"yt-dlp {version}");
             }
             catch (Exception ex)
             {
@@ -57,7 +57,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
         public async Task<string> DownloadYtDlpAsync(CancellationToken cancellationToken = default)
         {
             if (!OperatingSystem.IsWindows())
-                throw new PlatformNotSupportedException("当前自动下载只支持 Windows 版 yt-dlp.exe。");
+                throw new PlatformNotSupportedException("Automatic download is currently only supported for Windows yt-dlp.exe.");
 
             Directory.CreateDirectory(_toolDirectory);
             var targetPath = Path.Combine(_toolDirectory, "yt-dlp.exe");
@@ -206,7 +206,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"无法启动 yt-dlp：{exe}。请安装 yt-dlp 或在模块中填写 yt-dlp.exe 路径。{ex.Message}", ex);
+                throw new InvalidOperationException($"Failed to start yt-dlp: {exe}. Please install yt-dlp or specify the yt-dlp.exe path in module settings. {ex.Message}", ex);
             }
 
             var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -221,7 +221,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             catch (OperationCanceledException)
             {
                 TryKill(process);
-                throw new TimeoutException($"yt-dlp 执行超时 ({timeoutMs / 1000}s)。");
+                throw new TimeoutException($"yt-dlp execution timed out ({timeoutMs / 1000}s).");
             }
 
             var stdout = await stdoutTask.ConfigureAwait(false);
@@ -230,7 +230,7 @@ namespace OmniMixPlayer.Module.YouTubeMusic
             if (process.ExitCode != 0)
             {
                 var message = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
-                throw new InvalidOperationException($"yt-dlp 执行失败 ({process.ExitCode})：{TrimForStatus(message)}");
+                throw new InvalidOperationException($"yt-dlp execution failed ({process.ExitCode}): {TrimForStatus(message)}");
             }
 
             return new ProcessResult(stdout, stderr);

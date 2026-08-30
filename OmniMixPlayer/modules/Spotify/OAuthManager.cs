@@ -72,7 +72,7 @@ namespace OmniMixPlayer.Module.Spotify
             var listener = TryStartLoopbackListener(out var selectedPort);
             if (listener == null)
             {
-                OnLoginFailed?.Invoke("无法启动本地授权回调监听，预设端口均被占用");
+                OnLoginFailed?.Invoke("Unable to start local OAuth listener; all preset ports are in use.");
                 return;
             }
 
@@ -84,7 +84,7 @@ namespace OmniMixPlayer.Module.Spotify
                 var authUrl = BuildAuthorizationUrl(codeChallenge, _redirectUri);
                 _logger.LogInformation($"Spotify authorization URL: {authUrl}");
                 OnAuthorizationUrlReady?.Invoke(authUrl);
-                OnStatusChanged?.Invoke("请在界面中打开 Spotify 授权页面...");
+                OnStatusChanged?.Invoke("Please open the Spotify authorization page...");
 
                 try
                 {
@@ -97,12 +97,12 @@ namespace OmniMixPlayer.Module.Spotify
                 catch (OperationCanceledException)
                 {
                     _logger.LogWarning("OAuth flow timed out or was cancelled");
-                    OnLoginFailed?.Invoke("登录超时或已取消");
+                    OnLoginFailed?.Invoke("Login timed out or was cancelled.");
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError($"OAuth error: {ex.Message}");
-                    OnLoginFailed?.Invoke($"登录失败: {ex.Message}");
+                    OnLoginFailed?.Invoke($"Login failed: {ex.Message}");
                 }
             }
         }
@@ -247,14 +247,14 @@ namespace OmniMixPlayer.Module.Spotify
 
         private async Task ProcessCallbackUrlAsync(string callbackUrl)
         {
-            OnStatusChanged?.Invoke("收到授权回调，正在验证...");
+            OnStatusChanged?.Invoke("Callback received, verifying...");
 
             var queryParams = ParseQueryString(callbackUrl);
 
             var error = GetParam(queryParams, "error");
             if (!string.IsNullOrEmpty(error))
             {
-                OnLoginFailed?.Invoke($"用户拒绝授权: {error}");
+                OnLoginFailed?.Invoke($"User denied authorization: {error}");
                 return;
             }
 
@@ -262,18 +262,18 @@ namespace OmniMixPlayer.Module.Spotify
             if (callbackState != _state)
             {
                 _logger.LogWarning($"State mismatch: expected={_state}, got={callbackState}");
-                OnLoginFailed?.Invoke("State 校验失败，请重试");
+                OnLoginFailed?.Invoke("State validation failed, please try again.");
                 return;
             }
 
             var code = GetParam(queryParams, "code");
             if (string.IsNullOrEmpty(code))
             {
-                OnLoginFailed?.Invoke("未收到授权码");
+                OnLoginFailed?.Invoke("Authorization code not received.");
                 return;
             }
 
-            OnStatusChanged?.Invoke("正在交换 Token...");
+            OnStatusChanged?.Invoke("Exchanging authorization token...");
             await ExchangeCodeAsync(code).ConfigureAwait(false);
         }
 
@@ -296,7 +296,7 @@ namespace OmniMixPlayer.Module.Spotify
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError($"Token exchange failed ({response.StatusCode}): {json}");
-                    OnLoginFailed?.Invoke("Token 交换失败");
+                    OnLoginFailed?.Invoke("Token exchange failed.");
                     return;
                 }
 
@@ -307,7 +307,7 @@ namespace OmniMixPlayer.Module.Spotify
             catch (Exception ex)
             {
                 _logger.LogError($"Token exchange error: {ex.Message}");
-                OnLoginFailed?.Invoke($"Token 交换异常: {ex.Message}");
+                OnLoginFailed?.Invoke($"Token exchange exception: {ex.Message}");
             }
         }
 
