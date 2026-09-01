@@ -8,7 +8,13 @@ This repository now treats the VB.NET/WPF branch as the primary maintained branc
 
 ## Status
 
-Current version: `4.4.1`
+Current version: `4.4.2`
+
+## 4.4.2 Release Notes
+
+- Added English localization for the desktop GUI, with system language, Simplified Chinese, and English options.
+- Language changes apply after restarting the GUI.
+- Localized the main navigation, playback controls, settings, Now Playing window, tray menu, and common dynamic status text.
 
 Primary local artifact:
 
@@ -156,13 +162,13 @@ global mapping, the backend and SDK transparently use the same suffix under `Loc
 Create release zip packages:
 
 ```powershell
-python scripts/package_release.py 4.4.1
+python scripts/package_release.py 4.4.2
 ```
 
 Create the Windows installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.2
 ```
 
 The embedded backend WebUI now lives in `OmniMixPlayer/gui_web/` and is built with Vite + Svelte + TypeScript. To run it separately during development:

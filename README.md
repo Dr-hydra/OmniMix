@@ -4,7 +4,13 @@ OmniMix 是一个面向 Windows 的桌面音乐与游戏集成工具，由 Dr.Hy
 
 English version: [README_EN.md](README_EN.md)
 
-当前版本：`4.4.1`
+当前版本：`4.4.2`
+
+## 4.4.2 更新说明
+
+- 新增 GUI English 本地化，支持跟随系统、简体中文和 English。
+- 设置中的语言切换在重启 GUI 后生效。
+- 补充主导航、播放控制、设置页、悬浮窗、托盘菜单和常见动态状态的英文文案。
 
 ## 项目状态
 
@@ -145,13 +151,13 @@ FH6 DJ 语音的离线准备使用固定版本的 `vgmstream`。构建会校验 
 生成发布 zip：
 
 ```powershell
-python scripts/package_release.py 4.4.1
+python scripts/package_release.py 4.4.2
 ```
 
 生成安装器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.1
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1 -Version 4.4.2
 ```
 
 当前后端内嵌 WebUI 位于 `OmniMixPlayer/gui_web/`，使用 Vite + Svelte + TypeScript 构建。完整播放器构建会自动执行 WebUI 构建并复制到后端 `wwwroot/`；单独调试时可在该目录运行：
